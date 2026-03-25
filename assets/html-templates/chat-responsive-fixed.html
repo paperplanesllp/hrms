@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP Chat - Responsive</title>
+    <link rel="stylesheet" href="universal-responsive.css">
+    <style>
+        /* Chat-specific styles */
+        .chat-layout {
+            display: grid;
+            grid-template-columns: 20rem 1fr;
+            height: calc(100vh - 4rem); /* Subtract navbar height */
+            overflow: hidden;
+        }
+        
+        .chat-sidebar {
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-sidebar-header {
+            padding: var(--space-lg);
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .chat-search {
+            position: relative;
+            margin-top: var(--space-md);
+        }
+        
+        .chat-search input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.5rem;
+            font-size: 0.875rem;
+            background: #f8fafc;
+        }
+        
+        .chat-search input:focus {
+            outline: none;
+            border-color: #3182ce;
+            background: white;
+        }
+        
+        .chat-search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+        }
+        
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .chat-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md) var(--space-lg);
+            cursor: pointer;
+            transition: background 0.2s ease;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .chat-item:hover {
+            background: #f8fafc;
+        }
+        
+        .chat-item.active {
+            background: #ebf8ff;
+            border-left: 0.25rem solid #3182ce;
+        }
+        
+        .chat-avatar {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3182ce, #805ad5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .chat-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        
+        .online-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 0.75rem;
+            height: 0.75rem;
+            background: #38a169;
+            border: 2px solid white;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .chat-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .chat-name {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        .chat-preview {
+            font-size: 0.75rem;
+            color: #718096;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .chat-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.25rem;
+        }
+        
+        .chat-time {
+            font-size: 0.75rem;
+            color: #a0aec0;
+        }
+        
+        .unread-count {
+            background: #3182ce;
+            color: white;
+            border-radius: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 1.25rem;
+            text-align: center;
+        }
+        
+        .chat-window {
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+        }
+        
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-lg);
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .chat-user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+        }
+        
+        .chat-user-name {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 0.25rem;
+        }
+        
+        .chat-user-status {
+            font-size: 0.75rem;
+            color: #38a169;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .status-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            background: #38a169;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .chat-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+        
+        .action-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .voice-call-btn {
+            background: #3182ce;
+            color: white;
+        }
+        
+        .video-call-btn {
+            background: #38a169;
+            color: white;
+        }
+        
+        .action-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .messages-area {
+            flex: 1;
+            padding: var(--space-lg);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+        
+        .message {
+            display: flex;
+            max-width: 70%;
+        }
+        
+        .message.sent {
+            margin-left: auto;
+        }
+        
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 1.125rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        
+        .message.sent .message-bubble {
+            background: linear-gradient(135deg, #3182ce, #2c5282);
+            color: white;
+            border-bottom-right-radius: 0.375rem;
+        }
+        
+        .message.received .message-bubble {
+            background: white;
+            color: #1a202c;
+            border-bottom-left-radius: 0.375rem;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .message-text {
+            font-size: 0.875rem;
+            line-height: 1.4;
+            margin-bottom: 0.25rem;
+        }
+        
+        .message-time {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .read-receipt {
+            display: flex;
+            gap: 0.125rem;
+        }
+        
+        .chat-input-area {
+            padding: var(--space-lg);
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            align-items: flex-end;
+            gap: var(--space-sm);
+            background: #f8fafc;
+            border-radius: 1.5rem;
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .input-btn {
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #718096;
+            transition: all 0.2s ease;
+        }
+        
+        .input-btn:hover {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .message-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+            resize: none;
+            max-height: 6rem;
+        }
+        
+        .message-input:focus {
+            outline: none;
+        }
+        
+        .send-btn {
+            background: #3182ce;
+            color: white;
+        }
+        
+        .send-btn:hover {
+            background: #2c5282;
+        }
+        
+        .voice-recording {
+            background: #e53e3e;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+        
+        /* Mobile responsive adjustments */
+        @media (max-width: 767px) {
+            .chat-layout {
+                grid-template-columns: 1fr;
+                position: relative;
+            }
+            
+            .chat-sidebar {
+                position: fixed;
+                top: 4rem; /* Below navbar */
+                left: 0;
+                width: 100%;
+                height: calc(100vh - 4rem);
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .chat-sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .mobile-chat-header {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+                padding: var(--space-md) var(--space-lg);
+                background: white;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            
+            .back-btn {
+                background: none;
+                border: none;
+                font-size: 1.25rem;
+                cursor: pointer;
+                color: #4a5568;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .messages-area {
+                padding: var(--space-md);
+            }
+            
+            .chat-input-area {
+                padding: var(--space-md);
+            }
+        }
+        
+        @media (min-width: 768px) and (max-width: 991px) {
+            .chat-layout {
+                grid-template-columns: 16rem 1fr;
+            }
+        }
+        
+        @media (min-width: 1200px) {
+            .chat-layout {
+                grid-template-columns: 22rem 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <button class="mobile-menu-btn d-md-none" onclick="toggleChatSidebar()">💬</button>
+                ERP Chat
+            </div>
+            <ul class="navbar-nav" id="navbarNav">
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Dashboard</a>
+                </li>
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Calendar</a>
+                </li>
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Chat</a>
+                </li>
+                <li class="navbar-item">
+                    <button class="btn btn-primary">🔔</button>
+                </li>
+                <li class="navbar-item">
+                    <button class="btn btn-secondary">Logout</button>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Chat Layout -->
+        <div class="chat-layout">
+            <!-- Chat Sidebar -->
+            <aside class="chat-sidebar" id="chatSidebar">
+                <!-- Mobile Header -->
+                <div class="mobile-chat-header d-md-none">
+                    <button class="back-btn" onclick="toggleChatSidebar()">←</button>
+                    <h3>Messages</h3>
+                </div>
+                
+                <div class="chat-sidebar-header">
+                    <h2 class="text-lg d-none d-md-block" style="font-weight: 600;">Messages</h2>
+                    <div class="chat-search">
+                        <span class="chat-search-icon">🔍</span>
+                        <input type="text" placeholder="Search conversations...">
+                    </div>
+                </div>
+                
+                <div class="chat-list">
+                    <div class="chat-item active" onclick="selectChat(this, 'John Doe', 'online')">
+                        <div class="chat-avatar">
+                            JD
+                            <div class="online-dot"></div>
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-name">John Doe</div>
+                            <div class="chat-preview">Hey! How's the project going?</div>
+                        </div>
+                        <div class="chat-meta">
+                            <div class="chat-time">2:30 PM</div>
+                            <div class="unread-count">3</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-item" onclick="selectChat(this, 'Sarah Miller', 'offline')">
+                        <div class="chat-avatar" style="background: linear-gradient(135deg, #38a169, #2f855a);">
+                            SM
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-name">Sarah Miller</div>
+                            <div class="chat-preview">Thanks for the update!</div>
+                        </div>
+                        <div class="chat-meta">
+                            <div class="chat-time">1:45 PM</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-item" onclick="selectChat(this, 'Team Analytics', 'online')">
+                        <div class="chat-avatar" style="background: linear-gradient(135deg, #d69e2e, #b7791f);">
+                            📊
+                            <div class="online-dot"></div>
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-name">Team Analytics</div>
+                            <div class="chat-preview">5 members • Weekly report ready</div>
+                        </div>
+                        <div class="chat-meta">
+                            <div class="chat-time">12:30 PM</div>
+                            <div class="unread-count">1</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-item" onclick="selectChat(this, 'Alex Johnson', 'offline')">
+                        <div class="chat-avatar" style="background: linear-gradient(135deg, #805ad5, #6b46c1);">
+                            AJ
+                        </div>
+                        <div class="chat-info">
+                            <div class="chat-name">Alex Johnson</div>
+                            <div class="chat-preview">Let's schedule a meeting</div>
+                        </div>
+                        <div class="chat-meta">
+                            <div class="chat-time">11:20 AM</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Window -->
+            <main class="chat-window">
+                <!-- Chat Header -->
+                <div class="chat-header" id="chatHeader" style="display: none;">
+                    <div class="chat-user-info">
+                        <div class="chat-avatar" id="headerAvatar">
+                            JD
+                            <div class="online-dot" id="headerOnlineDot"></div>
+                        </div>
+                        <div>
+                            <div class="chat-user-name" id="headerName">John Doe</div>
+                            <div class="chat-user-status" id="headerStatus">
+                                <div class="status-dot" id="headerStatusDot"></div>
+                                <span>Online</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn voice-call-btn" onclick="startVoiceCall()" title="Voice Call">
+                            📞
+                        </button>
+                        <button class="action-btn video-call-btn" onclick="startVideoCall()" title="Video Call">
+                            📹
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages Area -->
+                <div class="messages-area" id="messagesArea">
+                    <div class="d-flex justify-center align-center" style="height: 100%; color: #a0aec0;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: var(--space-md);">💬</div>
+                            <h3 class="text-lg" style="margin-bottom: var(--space-sm);">Welcome to ERP Chat</h3>
+                            <p>Select a conversation to start messaging</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-area" id="chatInputArea" style="display: none;">
+                    <div class="chat-input-container">
+                        <button class="input-btn" onclick="toggleEmojiPicker()" title="Emoji">
+                            😊
+                        </button>
+                        <textarea class="message-input" id="messageInput" placeholder="Type a message..." rows="1"></textarea>
+                        <button class="input-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice Note">
+                            🎤
+                        </button>
+                        <button class="input-btn send-btn" onclick="sendMessage()" title="Send">
+                            ➤
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let currentChat = null;
+        let isRecording = false;
+        let isChatSidebarOpen = false;
+
+        // Sample messages data
+        const messagesData = {
+            'John Doe': [
+                { type: 'received', text: 'Hey! How\'s the project going?', time: '2:30 PM' },
+                { type: 'sent', text: 'Going great! The responsive design is working perfectly now. 🚀', time: '2:32 PM' },
+                { type: 'received', text: 'Awesome! The calendar grid looks much better on mobile.', time: '2:33 PM' },
+                { type: 'sent', text: 'Yes! No more overflow issues. Everything scales beautifully. 💎', time: '2:35 PM' }
+            ],
+            'Sarah Miller': [
+                { type: 'received', text: 'Thanks for the update!', time: '1:45 PM' },
+                { type: 'sent', text: 'You\'re welcome! The universal CSS framework is working great.', time: '1:46 PM' }
+            ],
+            'Team Analytics': [
+                { type: 'received', text: 'Weekly report is ready for review', time: '12:30 PM' },
+                { type: 'sent', text: 'Perfect! The responsive layout makes it easy to read on any device.', time: '12:31 PM' }
+            ],
+            'Alex Johnson': [
+                { type: 'received', text: 'Let\'s schedule a meeting for next week', time: '11:20 AM' },
+                { type: 'sent', text: 'Sounds good! The calendar is now fully responsive.', time: '11:22 AM' }
+            ]
+        };
+
+        function toggleChatSidebar() {
+            const sidebar = document.getElementById('chatSidebar');
+            isChatSidebarOpen = !isChatSidebarOpen;
+            sidebar.classList.toggle('show');
+        }
+
+        function selectChat(element, name, status) {
+            // Update active chat item
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            element.classList.add('active');
+
+            // Update current chat
+            currentChat = name;
+
+            // Show chat header and input
+            const chatHeader = document.getElementById('chatHeader');
+            const chatInputArea = document.getElementById('chatInputArea');
+            const headerName = document.getElementById('headerName');
+            const headerStatus = document.getElementById('headerStatus');
+            const headerOnlineDot = document.getElementById('headerOnlineDot');
+            const headerStatusDot = document.getElementById('headerStatusDot');
+
+            chatHeader.style.display = 'flex';
+            chatInputArea.style.display = 'block';
+            headerName.textContent = name;
+
+            if (status === 'online') {
+                headerStatus.innerHTML = '<div class="status-dot"></div><span>Online</span>';
+                headerOnlineDot.style.display = 'block';
+            } else {
+                headerStatus.innerHTML = '<span>Last seen recently</span>';
+                headerOnlineDot.style.display = 'none';
+            }
+
+            // Load messages
+            loadMessages(name);
+
+            // Close sidebar on mobile
+            if (window.innerWidth <= 767) {
+                toggleChatSidebar();
+            }
+        }
+
+        function loadMessages(chatName) {
+            const messagesArea = document.getElementById('messagesArea');
+            const messages = messagesData[chatName] || [];
+
+            messagesArea.innerHTML = '';
+
+            messages.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${message.type}`;
+                
+                messageDiv.innerHTML = `
+                    <div class="message-bubble">
+                        <div class="message-text">${message.text}</div>
+                        <div class="message-time">
+                            ${message.time}
+                            ${message.type === 'sent' ? '<div class="read-receipt">✓✓</div>' : ''}
+                        </div>
+                    </div>
+                `;
+                
+                messagesArea.appendChild(messageDiv);
+            });
+
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            
+            if (!text || !currentChat) return;
+
+            const messagesArea = document.getElementById('messagesArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message sent';
+            
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="message-bubble">
+                    <div class="message-text">${text}</div>
+                    <div class="message-time">
+                        ${time}
+                        <div class="read-receipt">✓✓</div>
+                    </div>
+                </div>
+            `;
+            
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            
+            input.value = '';
+            autoResize(input);
+        }
+
+        function toggleVoiceRecording() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            isRecording = !isRecording;
+            
+            if (isRecording) {
+                voiceBtn.classList.add('voice-recording');
+                voiceBtn.title = 'Stop Recording';
+            } else {
+                voiceBtn.classList.remove('voice-recording');
+                voiceBtn.title = 'Voice Note';
+            }
+        }
+
+        function startVoiceCall() {
+            alert('Voice call feature coming soon!');
+        }
+
+        function startVideoCall() {
+            alert('Video call feature coming soon!');
+        }
+
+        function toggleEmojiPicker() {
+            alert('Emoji picker coming soon!');
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 96) + 'px'; // Max 6rem
+        }
+
+        // Auto-resize textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            autoResize(this);
+        });
+
+        // Send message on Enter
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('chatSidebar');
+            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+            
+            if (window.innerWidth <= 767 && 
+                !sidebar.contains(event.target) && 
+                !mobileMenuBtn.contains(event.target) &&
+                isChatSidebarOpen) {
+                toggleChatSidebar();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 767 && isChatSidebarOpen) {
+                const sidebar = document.getElementById('chatSidebar');
+                sidebar.classList.remove('show');
+                isChatSidebarOpen = false;
+            }
+        });
+    </script>
+</body>
+</html>

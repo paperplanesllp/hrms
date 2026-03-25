@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP Calendar - Responsive</title>
+    <link rel="stylesheet" href="universal-responsive.css">
+    <style>
+        /* Calendar-specific styles */
+        .calendar-container {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-lg);
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .calendar-nav-btn {
+            background: #3182ce;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: var(--space-sm) var(--space-md);
+            cursor: pointer;
+            font-size: 0.875rem;
+            min-height: 2.5rem;
+        }
+        
+        .calendar-nav-btn:hover {
+            background: #2c5282;
+        }
+        
+        .calendar-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a202c;
+        }
+        
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .calendar-weekday {
+            padding: var(--space-md);
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #4a5568;
+        }
+        
+        .calendar-date.today {
+            background: #3182ce;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .calendar-date.other-month {
+            color: #a0aec0;
+            background: #f8fafc;
+        }
+        
+        .calendar-date.has-event {
+            position: relative;
+        }
+        
+        .calendar-date.has-event::after {
+            content: '';
+            position: absolute;
+            bottom: 0.25rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0.25rem;
+            height: 0.25rem;
+            background: #e53e3e;
+            border-radius: 50%;
+        }
+        
+        .event-list {
+            padding: var(--space-lg);
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .event-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-md);
+            background: #f8fafc;
+            border-radius: 0.5rem;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .event-time {
+            font-size: 0.75rem;
+            color: #4a5568;
+            font-weight: 600;
+            min-width: 4rem;
+        }
+        
+        .event-title {
+            font-weight: 500;
+            color: #1a202c;
+        }
+        
+        /* Mobile calendar adjustments */
+        @media (max-width: 767px) {
+            .calendar-header {
+                padding: var(--space-md);
+                flex-direction: column;
+                gap: var(--space-md);
+            }
+            
+            .calendar-nav {
+                display: flex;
+                gap: var(--space-md);
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            .calendar-weekday {
+                padding: var(--space-sm);
+                font-size: 0.75rem;
+            }
+            
+            .event-list {
+                padding: var(--space-md);
+            }
+            
+            .event-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-sm);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- Navigation Bar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+                ERP Calendar
+            </div>
+            <ul class="navbar-nav" id="navbarNav">
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Dashboard</a>
+                </li>
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Calendar</a>
+                </li>
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">Chat</a>
+                </li>
+                <li class="navbar-item">
+                    <button class="btn btn-primary">🔔</button>
+                </li>
+                <li class="navbar-item">
+                    <button class="btn btn-secondary">Logout</button>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="container">
+                <!-- Page Header -->
+                <div class="d-flex justify-between align-center" style="margin-bottom: var(--space-xl);">
+                    <div>
+                        <h1 class="text-2xl" style="font-weight: 600; margin-bottom: var(--space-xs);">Calendar</h1>
+                        <p class="text-base" style="color: #4a5568;">Manage your schedule and events</p>
+                    </div>
+                    <button class="btn btn-primary">+ New Event</button>
+                </div>
+
+                <!-- Calendar Grid -->
+                <div class="grid grid-lg-3" style="gap: var(--space-xl);">
+                    <!-- Calendar Widget -->
+                    <div style="grid-column: span 2;">
+                        <div class="calendar-container">
+                            <!-- Calendar Header -->
+                            <div class="calendar-header">
+                                <div class="calendar-nav d-md-flex">
+                                    <button class="calendar-nav-btn" onclick="previousMonth()">‹ Prev</button>
+                                </div>
+                                <h2 class="calendar-title" id="calendarTitle">December 2024</h2>
+                                <div class="calendar-nav d-md-flex">
+                                    <button class="calendar-nav-btn" onclick="nextMonth()">Next ›</button>
+                                </div>
+                            </div>
+
+                            <!-- Weekdays -->
+                            <div class="calendar-weekdays">
+                                <div class="calendar-weekday">Sun</div>
+                                <div class="calendar-weekday">Mon</div>
+                                <div class="calendar-weekday">Tue</div>
+                                <div class="calendar-weekday">Wed</div>
+                                <div class="calendar-weekday">Thu</div>
+                                <div class="calendar-weekday">Fri</div>
+                                <div class="calendar-weekday">Sat</div>
+                            </div>
+
+                            <!-- Calendar Grid - FIXED RESPONSIVE LAYOUT -->
+                            <div class="calendar-grid" id="calendarGrid">
+                                <!-- Calendar dates will be generated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Events Sidebar -->
+                    <div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Today's Events</h3>
+                            </div>
+                            <div class="event-list">
+                                <div class="event-item">
+                                    <div class="event-time">9:00 AM</div>
+                                    <div class="event-title">Team Standup</div>
+                                </div>
+                                <div class="event-item">
+                                    <div class="event-time">11:30 AM</div>
+                                    <div class="event-title">Client Meeting</div>
+                                </div>
+                                <div class="event-item">
+                                    <div class="event-time">2:00 PM</div>
+                                    <div class="event-title">Project Review</div>
+                                </div>
+                                <div class="event-item">
+                                    <div class="event-time">4:30 PM</div>
+                                    <div class="event-title">HR Training</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Stats -->
+                        <div class="card" style="margin-top: var(--space-lg);">
+                            <div class="card-header">
+                                <h3 class="card-title">This Month</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="grid grid-auto-fit" style="gap: var(--space-md);">
+                                    <div style="text-align: center;">
+                                        <div class="text-2xl" style="font-weight: 600; color: #3182ce;">24</div>
+                                        <div class="text-sm" style="color: #4a5568;">Events</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div class="text-2xl" style="font-weight: 600; color: #38a169;">12</div>
+                                        <div class="text-sm" style="color: #4a5568;">Meetings</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+
+        const months = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+
+        function generateCalendar(month, year) {
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+            
+            const calendarGrid = document.getElementById('calendarGrid');
+            const calendarTitle = document.getElementById('calendarTitle');
+            
+            calendarTitle.textContent = `${months[month]} ${year}`;
+            calendarGrid.innerHTML = '';
+
+            // Previous month's trailing days
+            for (let i = firstDay - 1; i >= 0; i--) {
+                const date = daysInPrevMonth - i;
+                const dateElement = createDateElement(date, 'other-month');
+                calendarGrid.appendChild(dateElement);
+            }
+
+            // Current month's days
+            for (let date = 1; date <= daysInMonth; date++) {
+                const isToday = (date === currentDate.getDate() && 
+                               month === currentDate.getMonth() && 
+                               year === currentDate.getFullYear());
+                
+                const hasEvent = false; // TODO: Replace with actual events from API endpoint /api/calendar/events
+                // const eventsForDate = events.filter(e => new Date(e.date).getDate() === date);
+                // const hasEvent = eventsForDate.length > 0;
+                
+                let classes = '';
+                if (isToday) classes += ' today';
+                if (hasEvent) classes += ' has-event';
+                
+                const dateElement = createDateElement(date, classes);
+                calendarGrid.appendChild(dateElement);
+            }
+
+            // Next month's leading days
+            const totalCells = calendarGrid.children.length;
+            const remainingCells = 42 - totalCells; // 6 rows × 7 days
+            
+            for (let date = 1; date <= remainingCells; date++) {
+                const dateElement = createDateElement(date, 'other-month');
+                calendarGrid.appendChild(dateElement);
+            }
+        }
+
+        function createDateElement(date, classes = '') {
+            const dateElement = document.createElement('div');
+            dateElement.className = `calendar-date ${classes}`;
+            dateElement.textContent = date;
+            dateElement.onclick = () => selectDate(date);
+            return dateElement;
+        }
+
+        function selectDate(date) {
+            // Remove previous selection
+            document.querySelectorAll('.calendar-date.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection to clicked date
+            event.target.classList.add('selected');
+            
+            console.log(`Selected date: ${date}`);
+        }
+
+        function previousMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar(currentMonth, currentYear);
+        }
+
+        function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar(currentMonth, currentYear);
+        }
+
+        function toggleMobileMenu() {
+            const navbarNav = document.getElementById('navbarNav');
+            navbarNav.classList.toggle('show');
+        }
+
+        // Initialize calendar
+        generateCalendar(currentMonth, currentYear);
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const navbarNav = document.getElementById('navbarNav');
+            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+            
+            if (!navbarNav.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
+                navbarNav.classList.remove('show');
+            }
+        });
+
+        // Add selected state style
+        const style = document.createElement('style');
+        style.textContent = `
+            .calendar-date.selected {
+                background: #e53e3e !important;
+                color: white !important;
+                font-weight: 600;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
