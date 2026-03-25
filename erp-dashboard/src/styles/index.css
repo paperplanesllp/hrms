@@ -1,0 +1,195 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  /* Global text visibility for light and dark modes */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-[var(--text-main)];
+  }
+  
+  p, span, div, label, td, th {
+    @apply text-[var(--text-main)];
+  }
+  
+  small, .text-sm, .text-xs {
+    @apply text-[var(--text-muted)];
+  }
+  
+  /* Ensure numbers and data are visible */
+  .text-2xl, .text-3xl, .text-4xl, .text-5xl {
+    @apply text-[var(--text-main)];
+  }
+  
+  /* Button text visibility */
+  button {
+    @apply text-[var(--text-main)];
+  }
+  
+  /* Input and form elements */
+  input, textarea, select {
+    @apply text-[var(--text-main)] placeholder:text-[var(--text-muted)];
+  }
+  
+  /* Link elements */
+  a {
+    @apply text-[var(--text-main)] hover:text-[var(--clay)];
+  }
+  
+  /* Table elements - ensure visibility */
+  table, thead, tbody, tr, th, td {
+    @apply text-[var(--text-main)];
+  }
+  
+  th {
+    @apply font-semibold text-[var(--text-main)];
+  }
+}
+
+@layer utilities {
+  /* Premium Animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slideIn {
+    animation: slideIn 0.4s ease-out;
+  }
+
+  .animate-scaleIn {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  /* Smooth Scrolling */
+  * {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #EBECCC;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #CDD4B1;
+    border-radius: 10px;
+  }
+
+  /* Premium Color Palette - Short Hours Indicator */
+  .color-light-orange {
+    --light-orange-bg: #FB923C;
+    --light-orange-light: #FED7AA;
+    --light-orange-lighter: #FEF3C7;
+  }
+}
+
+@layer components {
+  /* Light Orange Status (Short Hours) */
+  .badge-short-hours {
+    @apply bg-orange-50 border border-orange-400 text-orange-700;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #DCA278;
+  }
+  
+  /* Force white text in dark mode - exclude buttons and interactive elements */
+  .dark *:not(button):not(.btn):not([role="button"]):not(a) {
+    color: white !important;
+  }
+  
+  /* Ensure buttons maintain their intended colors in dark mode */
+  .dark button {
+    color: inherit !important;
+  }
+  
+  .dark button[class*="text-"] {
+    color: inherit !important;
+  }
+  
+  .dark .text-muted,
+  .dark small,
+  .dark .text-sm,
+  .dark .text-xs {
+    color: #CCCCCC !important;
+  }
+  
+  /* Override any hardcoded text colors */
+  .text-white {
+    @apply text-[var(--text-main)] !important;
+  }
+  
+  .text-gray-900, .text-gray-800, .text-gray-700 {
+    @apply text-[var(--text-main)] !important;
+  }
+  
+  .text-gray-600, .text-gray-500, .text-gray-400 {
+    @apply text-[var(--text-muted)] !important;
+  }
+  
+  .text-slate-900, .text-slate-800, .text-slate-700 {
+    @apply text-[var(--text-main)] !important;
+  }
+  
+  .text-slate-600, .text-slate-500, .text-slate-400 {
+    @apply text-[var(--text-muted)] !important;
+  }
+  
+  /* Dark mode specific overrides */
+  .dark .text-white {
+    @apply text-[var(--text-main)] !important;
+  }
+  
+  .dark .text-gray-100, .dark .text-gray-200, .dark .text-gray-300 {
+    @apply text-[var(--text-main)] !important;
+  }
+  
+  .dark .text-slate-100, .dark .text-slate-200, .dark .text-slate-300 {
+    @apply text-[var(--text-main)] !important;
+  }
+}
