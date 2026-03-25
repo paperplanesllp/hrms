@@ -7,6 +7,7 @@ const Button = ({
   size = "md", 
   className = "", 
   leftIcon, 
+  rightIcon, 
   ...props 
 }) => {
   // Premium variant mapping with proper contrast ratios (4.5:1+)
@@ -40,6 +41,7 @@ const Button = ({
     >
       {leftIcon && <span className="flex-shrink-0">{leftIcon}</span>}
       {children}
+      {rightIcon && <span className="flex-shrink-0">{rightIcon}</span>}
     </button>
   );
 };

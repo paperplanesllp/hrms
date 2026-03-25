@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Plus, Filter, Download, Clock, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Filter, Download, Clock, CheckCircle, AlertCircle, TrendingUp, Loader } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore.js';
+import { toast } from '../../store/toastStore.js';
 import PageTitle from '../../components/common/PageTitle.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
@@ -12,7 +15,26 @@ import AllTasksSection from './sections/AllTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
 
 export default function TasksPage() {
+  const navigate = useNavigate();
+  const user = useAuthStore(s => s.user);
+  const accessToken = useAuthStore(s => s.accessToken);
+  
   const [activeTab, setActiveTab] = useState('overview');
+  const [refreshStatsKey, setRefreshStatsKey] = useState(0); // Trigger to refresh stats
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!accessToken || !user) {
+      toast({ title: 'Authentication Required', message: 'Please log in to access tasks', type: 'error' });
+      navigate('/login', { replace: true });
+    }
+  }, [accessToken, user, navigate]);
+
+  // Callback when a task is created
+  const handleTaskCreated = () => {
+    // Increment the key to trigger a refresh in TasksOverviewSection
+    setRefreshStatsKey(prev => prev + 1);
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -23,22 +45,22 @@ export default function TasksPage() {
     { id: 'reports', label: 'Reports' },
   ];
 
-  // Quick stats for the header
-  const quickStats = [
-    { icon: Clock, label: 'Active Tasks', value: '24', color: 'bg-blue-50', iconColor: 'text-blue-500' },
-    { icon: CheckCircle, label: 'Completed', value: '48', color: 'bg-emerald-50', iconColor: 'text-emerald-500' },
-    { icon: AlertCircle, label: 'Overdue', value: '3', color: 'bg-red-50', iconColor: 'text-red-500' },
-    { icon: TrendingUp, label: 'Completion Rate', value: '92%', color: 'bg-brand-accent/10', iconColor: 'text-brand-accent' },
-  ];
+// Quick stats for the header - available for future use
+  // const quickStats = [
+  //   { icon: Clock, label: 'Active Tasks', value: '24', color: 'bg-blue-50', iconColor: 'text-blue-500' },
+  //   { icon: CheckCircle, label: 'Completed', value: '48', color: 'bg-emerald-50', iconColor: 'text-emerald-500' },
+  //   { icon: AlertCircle, label: 'Overdue', value: '3', color: 'bg-red-50', iconColor: 'text-red-500' },
+  //   { icon: TrendingUp, label: 'Completion Rate', value: '92%', color: 'bg-brand-accent/10', iconColor: 'text-brand-accent' },
+  // ];
 
   const renderActiveSection = () => {
     switch (activeTab) {
       case 'overview':
-        return <TasksOverviewSection />;
+        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={() => setActiveTab('assign')} onViewAnalytics={() => setActiveTab('reports')} />;
       case 'task-list':
         return <TasksListSection />;
       case 'assign':
-        return <AssignTaskSection />;
+        return <AssignTaskSection onTaskCreated={handleTaskCreated} />;
       case 'my-tasks':
         return <MyTasksSection />;
       case 'all-tasks':
@@ -46,7 +68,7 @@ export default function TasksPage() {
       case 'reports':
         return <TaskReportsSection />;
       default:
-        return <TasksOverviewSection />;
+        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={() => setActiveTab('assign')} onViewAnalytics={() => setActiveTab('reports')} />;
     }
   };
 
@@ -79,33 +101,12 @@ export default function TasksPage() {
             variant="primary" 
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setActiveTab('assign')}
           >
             New Task
           </Button>,
         ]}
       />
-
-      {/* Quick Stats Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        {quickStats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={idx} className="p-6 flex items-start gap-4 hover:shadow-lg transition-shadow duration-300">
-              <div className={`${stat.color} p-3 rounded-lg`}>
-                <Icon className={`w-5 h-5 ${stat.iconColor}`} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-medium mb-1">
-                  {stat.label}
-                </p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {stat.value}
-                </p>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
 
       {/* Premium Tab Navigation */}
       <div className="mb-10">

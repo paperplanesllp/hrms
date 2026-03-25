@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, Search } from 'lucide-react';
-import { api } from '../../lib/api.js';
+import api from '../../lib/api.js';
 
 export default function GroupChatModal({ isOpen, onClose, onGroupCreated }) {
   const [groupName, setGroupName] = useState('');

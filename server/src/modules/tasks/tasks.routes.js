@@ -8,6 +8,10 @@ const router = Router();
 // Protected routes - requires authentication
 router.use(requireAuth);
 
+// Analytics routes (admin/HR only)
+router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
+router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
+
 // My tasks routes
 router.get('/my', tasksController.getMyTasks);
 router.get('/my/stats', tasksController.getTaskStats);

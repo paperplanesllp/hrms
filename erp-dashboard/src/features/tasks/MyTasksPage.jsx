@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, LayoutGrid, LayoutList } from 'lucide-react';
 import PageTitle from '../../components/common/PageTitle.jsx';
 import Button from '../../components/ui/Button.jsx';
@@ -38,16 +38,18 @@ export default function MyTasksPage() {
     switch (filters.dateRange) {
       case 'today':
         return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
-      case 'week':
+      case 'week': {
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - today.getDay());
         const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
         return { from: weekStart, to: weekEnd };
-      case 'month':
+      }
+      case 'month': {
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
         const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         monthEnd.setHours(23, 59, 59, 999);
         return { from: monthStart, to: monthEnd };
+      }
       case 'overdue':
         return { to: today };
       default:
@@ -55,39 +57,8 @@ export default function MyTasksPage() {
     }
   };
 
-  // Initialize users and departments on mount
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [usersRes, deptsRes] = await Promise.all([
-          api.get('/users?limit=1000'),
-          api.get('/department?limit=1000')
-        ]);
-        // Handle different response formats
-        const usersList = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []);
-        const deptsList = Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || []);
-        
-        setUsers(usersList);
-        setDepartments(deptsList);
-        console.log('✅ Loaded users:', usersList.length, 'departments:', deptsList.length);
-      } catch (err) {
-        console.error('❌ Failed to load users/departments:', err.message);
-        // Set empty arrays on error so UI still renders
-        setUsers([]);
-        setDepartments([]);
-      }
-    };
-    loadInitialData();
-  }, []);
-
-  // Load tasks when filters or view changes
-  useEffect(() => {
-    if (view !== 'dashboard') {
-      loadTasks();
-    }
-  }, [filters, view]);
-
-  const loadTasks = async () => {
+  // Load tasks wrapper - created with useCallback for dependency management
+  const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
       const dateRange = getDateRange();
@@ -126,7 +97,39 @@ export default function MyTasksPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  // Initialize users and departments on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const [usersRes, deptsRes] = await Promise.all([
+          api.get('/users?limit=1000'),
+          api.get('/department?limit=1000')
+        ]);
+        // Handle different response formats
+        const usersList = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []);
+        const deptsList = Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || []);
+        
+        setUsers(usersList);
+        setDepartments(deptsList);
+        console.log('✅ Loaded users:', usersList.length, 'departments:', deptsList.length);
+      } catch (err) {
+        console.error('❌ Failed to load users/departments:', err.message);
+        // Set empty arrays on error so UI still renders
+        setUsers([]);
+        setDepartments([]);
+      }
+    };
+    loadInitialData();
+  }, []);
+
+  // Load tasks when filters or view changes
+  useEffect(() => {
+    if (view !== 'dashboard') {
+      loadTasks();
+    }
+  }, [filters, view, loadTasks]);
 
   const handleStatusChange = async (taskId, newStatus) => {
     try {

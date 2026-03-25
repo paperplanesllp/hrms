@@ -119,5 +119,26 @@ export const tasksController = {
     } catch (error) {
       sendError(res, error.message, 400);
     }
+  },
+
+  // Get all tasks analytics (admin/HR only)
+  async getAllTasksAnalytics(req, res) {
+    try {
+      const dateRange = req.query.dateRange || 'month';
+      const analytics = await tasksService.getAllTasksAnalytics(dateRange);
+      sendSuccess(res, analytics, 'Analytics fetched successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get team performance analytics (admin/HR only)
+  async getTeamPerformanceAnalytics(req, res) {
+    try {
+      const performance = await tasksService.getTeamPerformanceAnalytics();
+      sendSuccess(res, performance, 'Team performance analytics fetched successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
   }
 };

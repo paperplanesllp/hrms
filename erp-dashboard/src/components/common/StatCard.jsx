@@ -13,21 +13,21 @@ export default function StatCard({ title, value, hint, color = "primary", icon: 
     <Card className={`p-6 ${colorClass} hover:shadow-lg transition-all duration-300 group cursor-pointer`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <div className="text-xs font-bold text-brand-accent dark:text-brand-accent uppercase tracking-widest mb-3">
+          <div className="mb-3 text-xs font-bold tracking-widest uppercase text-brand-accent dark:text-brand-accent">
             {title}
           </div>
-          <div className="text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white tracking-tight">
+          <div className="text-4xl font-bold tracking-tight lg:text-5xl text-slate-900 dark:text-white">
             {value}
           </div>
         </div>
         {Icon && (
-          <div className="w-12 h-12 rounded-2xl bg-brand-accent/15 dark:bg-brand-accent/10 flex items-center justify-center group-hover:bg-brand-accent/25 dark:group-hover:bg-brand-accent/15 transition-colors duration-200">
+          <div className="flex items-center justify-center w-12 h-12 transition-colors duration-200 rounded-2xl bg-brand-accent/15 dark:bg-brand-accent/10 group-hover:bg-brand-accent/25 dark:group-hover:bg-brand-accent/15">
             <Icon className="w-6 h-6 text-brand-accent" />
           </div>
         )}
       </div>
       {hint && (
-        <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+        <div className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {hint}
         </div>
       )}

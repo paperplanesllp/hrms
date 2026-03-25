@@ -47,7 +47,7 @@ export default function TaskListSection({
 
   const loadDepartments = async () => {
     try {
-      const response = await api.get('/departments');
+      const response = await api.get('/department');
       setDepartments(response.data.data || []);
     } catch (error) {
       console.error('Error loading departments:', error);

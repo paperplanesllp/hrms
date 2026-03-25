@@ -390,5 +390,174 @@ export const tasksService = {
     
     await task.save();
     return task;
+  },
+
+  // Get all tasks analytics (admin/HR only)
+  async getAllTasksAnalytics(dateRange = 'month') {
+    // Calculate date range
+    const now = new Date();
+    let fromDate = new Date();
+    
+    switch(dateRange) {
+      case 'week':
+        fromDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        fromDate.setMonth(now.getMonth() - 1);
+        break;
+      case 'quarter':
+        fromDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'year':
+        fromDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        fromDate.setMonth(now.getMonth() - 1);
+    }
+
+    const query = { isDeleted: false };
+
+    // Get all tasks
+    const allTasks = await Task.find(query);
+    
+    // Get completed tasks
+    const completedTasks = await Task.countDocuments({
+      ...query,
+      status: 'completed'
+    });
+
+    // Get in-progress tasks
+    const inProgressTasks = await Task.countDocuments({
+      ...query,
+      status: 'in-progress'
+    });
+
+    // Get pending tasks
+    const pendingTasks = await Task.countDocuments({
+      ...query,
+      status: 'pending'
+    });
+
+    // Get on-hold tasks
+    const onHoldTasks = await Task.countDocuments({
+      ...query,
+      status: 'on-hold'
+    });
+
+    // Get cancelled tasks
+    const cancelledTasks = await Task.countDocuments({
+      ...query,
+      status: 'cancelled'
+    });
+
+    // Get tasks by priority
+    const byPriority = await Task.aggregate([
+      { $match: query },
+      { $group: { _id: '$priority', count: { $sum: 1 } } }
+    ]);
+
+    // Get overdue tasks
+    const overdueCount = await Task.countDocuments({
+      ...query,
+      status: { $ne: 'completed' },
+      dueDate: { $lt: now }
+    });
+
+    const totalTasks = allTasks.length;
+    const completionRate = totalTasks > 0 
+      ? Math.round((completedTasks / totalTasks) * 100)
+      : 0;
+
+    return {
+      completionRate,
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      pendingTasks,
+      onHoldTasks,
+      cancelledTasks,
+      overdueCount,
+      byPriority: {
+        LOW: byPriority.find(p => p._id === 'LOW')?.count || 0,
+        MEDIUM: byPriority.find(p => p._id === 'MEDIUM')?.count || 0,
+        HIGH: byPriority.find(p => p._id === 'HIGH')?.count || 0,
+        URGENT: byPriority.find(p => p._id === 'URGENT')?.count || 0
+      },
+      dateRange
+    };
+  },
+
+  // Get team performance analytics (admin/HR only)
+  async getTeamPerformanceAnalytics() {
+    // Get all users with tasks
+    const teamMembers = await User.find({ isDeleted: false }).select('_id name userName email');
+    
+    const performance = await Promise.all(
+      teamMembers.map(async (member) => {
+        const userId = member._id;
+
+        // Count completed tasks
+        const completed = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'completed',
+          isDeleted: false
+        });
+
+        // Count in-progress tasks
+        const inProgress = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'in-progress',
+          isDeleted: false
+        });
+
+        // Count all tasks
+        const totalTasks = await Task.countDocuments({
+          assignedTo: userId,
+          isDeleted: false
+        });
+
+        // Calculate average completion time
+        const completedTasksData = await Task.find({
+          assignedTo: userId,
+          status: 'completed',
+          isDeleted: false,
+          completedAt: { $exists: true }
+        }).select('createdAt completedAt');
+
+        let avgCompletionTime = 'N/A';
+        if (completedTasksData.length > 0) {
+          const totalTime = completedTasksData.reduce((sum, task) => {
+            const time = task.completedAt - task.createdAt;
+            return sum + time;
+          }, 0);
+          const avgMs = totalTime / completedTasksData.length;
+          const avgDays = Math.floor(avgMs / (1000 * 60 * 60 * 24));
+          avgCompletionTime = avgDays > 0 ? `${avgDays} days` : '< 1 day';
+        }
+
+        // Calculate performance score (0-100)
+        let performanceScore = 0;
+        if (totalTasks > 0) {
+          performanceScore = Math.round((completed / totalTasks) * 100);
+        }
+
+        return {
+          _id: userId,
+          name: member.name,
+          userName: member.userName,
+          email: member.email,
+          completed,
+          inProgress,
+          totalTasks,
+          avgCompletionTime,
+          performanceScore
+        };
+      })
+    );
+
+    // Filter out users with no tasks and sort by performance score
+    return performance
+      .filter(member => member.totalTasks > 0)
+      .sort((a, b) => b.performanceScore - a.performanceScore);
   }
 };

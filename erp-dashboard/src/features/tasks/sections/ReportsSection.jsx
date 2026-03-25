@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, PieChart, Calendar, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart, Calendar, Users, Loader, AlertCircle } from 'lucide-react';
 import TaskLoadingSkeleton from '../components/TaskLoadingSkeleton.jsx';
+import api from '../../../lib/api.js';
+import { useAuthStore } from '../../../store/authStore.js';
+import Card from '../../../components/ui/Card.jsx';
+import Button from '../../../components/ui/Button.jsx';
 
 
 export default function ReportsSection({ stats }) {
+  const user = useAuthStore(s => s.user);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [completionTrend, setCompletionTrend] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('30days'); // 7days, 30days, 90days
+
+  // Check if user has admin/hr role
+  const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
 
   useEffect(() => {
     loadAnalytics();
@@ -16,6 +25,13 @@ export default function ReportsSection({ stats }) {
   const loadAnalytics = async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      
+      // Check if user has permission to view analytics
+      if (!isAdminOrHR) {
+        setError('You do not have permission to view task analytics');
+        return;
+      }
       
       // Load analytics data
       const analyticsResponse = await api.get('/tasks/analytics/all');
@@ -26,6 +42,10 @@ export default function ReportsSection({ stats }) {
       setCompletionTrend(trendResponse.data.data || []);
     } catch (error) {
       console.error('Error loading analytics:', error);
+      const errorMsg = error?.response?.status === 403 
+        ? 'You do not have permission to view analytics'
+        : error?.response?.data?.message || 'Failed to load analytics';
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -40,21 +60,48 @@ export default function ReportsSection({ stats }) {
           <p className="mt-1 text-gray-600 dark:text-gray-400">Comprehensive task management insights</p>
         </div>
 
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="px-4 py-2 font-bold text-gray-900 transition-colors bg-white border-2 border-gray-300 rounded-lg dark:border-gray-600 dark:bg-slate-700 dark:text-white focus:border-blue-500"
-        >
-          <option value="7days">Last 7 Days</option>
-          <option value="30days">Last 30 Days</option>
-          <option value="90days">Last 90 Days</option>
-        </select>
+        {!error && (
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-4 py-2 font-bold text-gray-900 transition-colors bg-white border-2 border-gray-300 rounded-lg dark:border-gray-600 dark:bg-slate-700 dark:text-white focus:border-blue-500"
+          >
+            <option value="7days">Last 7 Days</option>
+            <option value="30days">Last 30 Days</option>
+            <option value="90days">Last 90 Days</option>
+          </select>
+        )}
       </div>
+
+      {/* Error State */}
+      {error && (
+        <Card className="p-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+          <div className="flex items-start gap-4">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900 dark:text-red-300 mb-1">Error Loading Analytics</h3>
+              <p className="text-sm text-red-800 dark:text-red-400 mb-3">{error}</p>
+              {error.includes('do not have permission') && (
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  Analytics are only available to HR and Admin users.
+                </p>
+              )}
+              <Button 
+                variant="danger" 
+                size="sm"
+                onClick={loadAnalytics}
+                className="mt-3"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {isLoading ? (
         <TaskLoadingSkeleton type="stats" />
-      ) : (
-        <>
+      ) : !error && (
           {/* Key Metrics */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="p-6 border-2 border-blue-300 rounded-2xl dark:border-blue-700 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">

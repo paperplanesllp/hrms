@@ -18,8 +18,7 @@ import {
   getPriorityLabel,
   getStatusLabel,
   getDueDateDisplay,
-  isTaskOverdue,
-  getDaysUntilDue
+  isTaskOverdue
 } from './taskUtils.js';
 
 export default function TaskCard({
@@ -35,7 +34,6 @@ export default function TaskCard({
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
   const isOverdue = isTaskOverdue(task.dueDate, task.status);
-  const daysUntilDue = getDaysUntilDue(task.dueDate);
   
   const handleStatusToggle = async (e) => {
     e.stopPropagation();
