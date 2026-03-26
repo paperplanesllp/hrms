@@ -11,6 +11,7 @@ import TasksOverviewSection from './sections/TasksOverviewSection.jsx';
 import TasksListSection from './sections/TasksListSection.jsx';
 import AssignTaskSection from './sections/AssignTaskSection.jsx';
 import MyTasksSection from './sections/MyTasksSection.jsx';
+import AssignedTasksSection from './sections/AssignedTasksSection.jsx';
 import AllTasksSection from './sections/AllTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
 
@@ -24,9 +25,18 @@ export default function TasksPage() {
 
   // Check authentication on mount
   useEffect(() => {
+    console.log('📄 [TasksPage] Component mounted');
+    console.log('👤 [TasksPage] User:', user);
+    console.log('🔐 [TasksPage] Access Token exists:', !!accessToken);
+    
     if (!accessToken || !user) {
+      console.error('❌ [TasksPage] Not authenticated, redirecting to login');
       toast({ title: 'Authentication Required', message: 'Please log in to access tasks', type: 'error' });
       navigate('/login', { replace: true });
+    } else {
+      console.log('✅ [TasksPage] User is authenticated');
+      console.log('👤 [TasksPage] User ID:', user?.id);
+      console.log('👤 [TasksPage] User Name:', user?.name);
     }
   }, [accessToken, user, navigate]);
 
@@ -37,10 +47,9 @@ export default function TasksPage() {
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'task-list', label: 'Task List' },
-    { id: 'assign', label: 'Assign Task' },
+    { id: 'overview', label: 'Overview' },   
     { id: 'my-tasks', label: 'My Tasks' },
+    { id: 'assigned-tasks', label: 'Tasks I Assigned' },
     { id: 'all-tasks', label: 'All Tasks' },
     { id: 'reports', label: 'Reports' },
   ];
@@ -63,6 +72,8 @@ export default function TasksPage() {
         return <AssignTaskSection onTaskCreated={handleTaskCreated} />;
       case 'my-tasks':
         return <MyTasksSection />;
+      case 'assigned-tasks':
+        return <AssignedTasksSection />;
       case 'all-tasks':
         return <AllTasksSection />;
       case 'reports':

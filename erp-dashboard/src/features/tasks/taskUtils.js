@@ -181,9 +181,10 @@ export const isTaskOverdue = (dueDate, status) => {
  * @returns {number} Days until due (negative if overdue)
  */
 export const getDaysUntilDue = (dueDate) => {
-  const now = new Date();
-  const due = new Date(dueDate);
-  const diffTime = due - now;
+  const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+  const due = new Date(new Date(dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const nowDate = new Date(now);
+  const diffTime = due - nowDate;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
 };
@@ -203,8 +204,8 @@ export const getDueDateDisplay = (dueDate, status) => {
   if (days === 1) return 'Tomorrow';
   if (days < 7) return `${days} days`;
   
-  const date = new Date(dueDate);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const date = new Date(new Date(dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
 };
 
 /**

@@ -36,9 +36,9 @@ export default function TaskFilters({
   const activeFilterCount = Object.values(filters).filter(v => v && v !== 'all').length;
 
   return (
-    <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+    <div className="p-4 space-y-4 border rounded-lg bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
       {/* Search & Quick Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {/* Search */}
         <div>
           <Input
@@ -55,7 +55,7 @@ export default function TaskFilters({
           <select
             value={filters.priority || ''}
             onChange={(e) => handleChange('priority', e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Priorities</option>
             {PRIORITY_OPTIONS.map(opt => {
@@ -74,7 +74,7 @@ export default function TaskFilters({
           <select
             value={filters.status || ''}
             onChange={(e) => handleChange('status', e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">All Statuses</option>
             {STATUS_OPTIONS.map(opt => (
@@ -101,17 +101,17 @@ export default function TaskFilters({
 
       {/* Advanced Filters */}
       {showAdvanced && (
-        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="pt-4 space-y-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {/* Date Range */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              <label className="block mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Date Range
               </label>
               <select
                 value={filters.dateRange || 'all'}
                 onChange={(e) => handleChange('dateRange', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -123,13 +123,13 @@ export default function TaskFilters({
 
             {/* Assigned To */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              <label className="block mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Assigned To
               </label>
               <select
                 value={filters.assignedTo || ''}
                 onChange={(e) => handleChange('assignedTo', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Users</option>
                 {users.map(user => (
@@ -142,13 +142,13 @@ export default function TaskFilters({
 
             {/* Sort */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              <label className="block mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Sort By
               </label>
               <select
                 value={filters.sort || 'dueDate'}
                 onChange={(e) => handleChange('sort', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 {SORT_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>
@@ -197,7 +197,7 @@ export default function TaskFilters({
 
             {/* Date Range Badge */}
             {filters.dateRange && filters.dateRange !== 'all' && (
-              <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+              <div className="inline-flex items-center gap-2 px-2 py-1 text-purple-700 bg-purple-100 rounded-full dark:bg-purple-900/30 dark:text-purple-300">
                 <span className="text-xs font-semibold capitalize">
                   {filters.dateRange}
                 </span>
@@ -212,7 +212,7 @@ export default function TaskFilters({
 
             {/* Assigned To Badge */}
             {filters.assignedTo && (
-              <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+              <div className="inline-flex items-center gap-2 px-2 py-1 text-indigo-700 bg-indigo-100 rounded-full dark:bg-indigo-900/30 dark:text-indigo-300">
                 <span className="text-xs font-semibold">
                   {users.find(u => u._id === filters.assignedTo)?.name}
                 </span>
@@ -228,7 +228,7 @@ export default function TaskFilters({
             {/* Search Badge */}
             {filters.search && (
               <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-300 text-slate-800 dark:bg-slate-700 dark:text-slate-200">
-                <span className="text-xs font-semibold truncate max-w-xs">
+                <span className="max-w-xs text-xs font-semibold truncate">
                   "{filters.search}"
                 </span>
                 <button

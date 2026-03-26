@@ -28,6 +28,7 @@ export default function MyTasksPage() {
   });
   const [selectedTask, setSelectedTask] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Convert dateRange to from/to dates
@@ -172,6 +173,55 @@ export default function MyTasksPage() {
     }
   };
 
+  const handleUpdateTask = async (formData) => {
+    try {
+      setIsSubmitting(true);
+      console.log('📤 Updating task:', formData);
+      await api.patch(`/tasks/${editingTask._id}`, formData);
+      toast({
+        title: 'Task updated successfully',
+        type: 'success'
+      });
+      setEditingTask(null);
+      loadTasks();
+      setSelectedTask(null);
+    } catch (err) {
+      console.error('❌ Error updating task:', err.response?.data || err.message);
+      toast({
+        title: 'Failed to update task',
+        description: err.response?.data?.message || err.message,
+        type: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setSelectedTask(null);
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      console.log('🗑️ Deleting task:', taskId);
+      await api.delete(`/tasks/${taskId}`);
+      toast({
+        title: 'Task deleted successfully',
+        type: 'success'
+      });
+      loadTasks();
+      setSelectedTask(null);
+    } catch (err) {
+      console.error('❌ Error deleting task:', err.response?.data || err.message);
+      toast({
+        title: 'Failed to delete task',
+        description: err.response?.data?.message || err.message,
+        type: 'error'
+      });
+    }
+  };
+
   if (view === 'dashboard') {
     return (
       <div className="space-y-6">
@@ -257,9 +307,10 @@ export default function MyTasksPage() {
           tasks={tasks}
           onView={setSelectedTask}
           onEdit={(task) => {
-            setSelectedTask(task);
-            setShowCreateModal(true);
+            setEditingTask(task);
+            setSelectedTask(null);
           }}
+          onStatusChange={handleStatusChange}
           onSort={(sortField) => setFilters({ ...filters, sort: sortField })}
           sortField={filters.sort}
         />
@@ -302,6 +353,8 @@ export default function MyTasksPage() {
           />
         </ModalBase>
       )}
+
+      {/* Edit modal removed (UI hidden) */}
     </div>
   );
 }

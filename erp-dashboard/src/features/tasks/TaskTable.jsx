@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import {
   getPriorityStyles,
@@ -15,6 +15,7 @@ export default function TaskTable({
   onEdit,
   onDelete,
   onView,
+  onStatusChange,
   onSort,
   sortField = 'dueDate',
   sortDirection = 'asc'
@@ -150,22 +151,45 @@ export default function TaskTable({
 
                 {/* Assigned To */}
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    {task.assignedTo?.avatar ? (
-                      <img
-                        src={task.assignedTo.avatar}
-                        alt={task.assignedTo?.name}
-                        className="w-6 h-6 rounded-full"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full bg-slate-300 dark:bg-slate-600">
-                        {task.assignedTo?.name?.charAt(0) || 'U'}
+                  {task.assignedTo ? (
+                    <div className="flex items-center gap-2 group">
+                      {task.assignedTo?.avatar ? (
+                        <img
+                          src={task.assignedTo.avatar}
+                          alt={task.assignedTo?.name}
+                          className="w-6 h-6 rounded-full cursor-help"
+                          title={`${task.assignedTo?.name}\n${task.assignedTo?.email}`}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full bg-blue-500 dark:bg-blue-600 cursor-help"
+                          title={`${task.assignedTo?.name}\n${task.assignedTo?.email}`}>
+                          {task.assignedTo?.name?.charAt(0) || 'U'}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate text-slate-700 dark:text-slate-300">
+                          {task.assignedTo?.name}
+                        </p>
+                        <p className="text-xs truncate text-slate-500 dark:text-slate-400">
+                          {task.assignedTo?.email}
+                        </p>
                       </div>
-                    )}
-                    <span className="text-sm truncate text-slate-700 dark:text-slate-300">
-                      {task.assignedTo?.name || 'Unassigned'}
-                    </span>
-                  </div>
+                      
+                      {/* Hover Info Card */}
+                      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
+                        <p className="font-semibold">{task.assignedTo?.name}</p>
+                        <p className="opacity-90">{task.assignedTo?.email}</p>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900"></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600">
+                        <span className="text-xs font-bold text-slate-400">-</span>
+                      </div>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Unassigned</span>
+                    </div>
+                  )}
                 </td>
 
                 {/* Status Badge */}
@@ -232,28 +256,6 @@ export default function TaskTable({
                         title="View details"
                       >
                         <Eye size={14} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onEdit && onEdit(task)}
-                        className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
-                        title="Edit task"
-                      >
-                        <Edit2 size={14} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm('Delete this task?')) {
-                            onDelete && onDelete(task._id);
-                          }
-                        }}
-                        className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
-                        title="Delete task"
-                      >
-                        <Trash2 size={14} />
                       </Button>
                     </div>
                   ) : (

@@ -370,3 +370,64 @@ export async function getCompanyLocation() {
     isSet: company.officeLatitude !== 0 && company.officeLongitude !== 0
   };
 }
+
+/**
+ * Set company working days configuration
+ * Days: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+ * Default: [1,2,3,4,5] = Monday to Friday
+ */
+export async function setWorkingDays(workingDays) {
+  // Validate input
+  if (!Array.isArray(workingDays) || workingDays.length === 0) {
+    throw new Error("Working days must be a non-empty array");
+  }
+  
+  if (!workingDays.every(day => Number.isInteger(day) && day >= 0 && day <= 6)) {
+    throw new Error("Working days must contain integers between 0-6");
+  }
+
+  // Find the admin user to store company-wide settings
+  let company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+  
+  if (!company) {
+    company = await User.findOne({ role: ROLES.ADMIN });
+  }
+  
+  if (!company) throw new Error("No admin user found");
+  
+  // Update working days
+  company.workingDays = workingDays.sort((a, b) => a - b);
+  await company.save();
+  
+  return {
+    workingDays: company.workingDays,
+    adminId: company._id,
+    adminEmail: company.email
+  };
+}
+
+/**
+ * Get company working days configuration
+ */
+export async function getWorkingDays() {
+  // Find the admin user with company-wide settings
+  const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+  
+  if (!company) {
+    // Fallback to first admin if no marker exists
+    const firstAdmin = await User.findOne({ role: ROLES.ADMIN });
+    if (!firstAdmin) throw new Error("No admin user found");
+    
+    return {
+      workingDays: firstAdmin.workingDays || [1, 2, 3, 4, 5],
+      adminId: firstAdmin._id,
+      adminEmail: firstAdmin.email
+    };
+  }
+  
+  return {
+    workingDays: company.workingDays || [1, 2, 3, 4, 5],
+    adminId: company._id,
+    adminEmail: company.email
+  };
+}

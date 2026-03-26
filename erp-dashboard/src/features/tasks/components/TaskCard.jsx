@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MoreVertical, Edit2, Trash2, Eye, CheckCircle, AlertCircle } from 'lucide-react';
+import { MoreVertical, Eye, CheckCircle, AlertCircle } from 'lucide-react';
 import PriorityBadge from './PriorityBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { formatDistanceToNow } from 'date-fns';
@@ -80,24 +80,7 @@ export default function TaskCard({
                   >
                     <Eye size={16} /> View
                   </button>
-                  <button
-                    onClick={() => {
-                      onEdit?.(task);
-                      setShowMenu(false);
-                    }}
-                    className="flex items-center w-full gap-2 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/30 dark:text-gray-300"
-                  >
-                    <Edit2 size={16} /> Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      onDelete?.(task);
-                      setShowMenu(false);
-                    }}
-                    className="flex items-center w-full gap-2 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/30 dark:text-red-400"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
+                  {/* Edit/Delete removed per request */}
                 </div>
               )}
             </div>

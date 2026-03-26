@@ -36,7 +36,7 @@ export default function TaskListSection({
       if (filters.from) queryParams.append('from', filters.from);
       if (filters.to) queryParams.append('to', filters.to);
 
-      const response = await api.get(`/tasks/my?${queryParams.toString()}`);
+      const response = await api.get(`/tasks/assigned?${queryParams.toString()}`);
       setTasks(response.data.data || []);
     } catch (error) {
       console.error('Error loading tasks:', error);

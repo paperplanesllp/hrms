@@ -2,12 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { 
-  Users, Grid3x3, LayoutList, Search, Filter, Loader, RefreshCw, Trash2, Edit2,
-  X, CheckCircle, AlertCircle
+  Users, Grid3x3, LayoutList, Search, Filter, Loader, RefreshCw,
+  X, CheckCircle, CheckCircle2, AlertCircle, Eye
 } from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
+import { getSocket } from '../../../lib/socket.js';
 import { useAuthStore } from '../../../store/authStore.js';
+import ModalBase from '../../../components/ui/Modal.jsx';
+import TaskDetailsModal from '../TaskDetailsModal.jsx';
+import TaskForm from '../TaskForm.jsx';
 
 export default function AllTasksSection() {
   const user = useAuthStore(s => s.user);
@@ -17,6 +21,9 @@ export default function AllTasksSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState({});
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     status: 'all',
@@ -64,6 +71,77 @@ export default function AllTasksSection() {
     fetchAllTasks();
   }, [fetchAllTasks]);
 
+  // Setup real-time socket listeners for task updates
+  useEffect(() => {
+    console.log('🔌 [AllTasks] Setting up socket listeners');
+    const socket = getSocket();
+    
+    if (!socket) {
+      console.warn('⚠️ [AllTasks] Socket not available');
+      return;
+    }
+
+    // Handle new task created
+    const handleTaskCreated = (data) => {
+      console.log('📡 [AllTasks] task:created event received:', data);
+      setAllTasks(prev => [data.task, ...prev]);
+      toast({ 
+        title: 'New Task Created', 
+        message: `${data.task?.title}`,
+        type: 'info' 
+      });
+    };
+
+    // Handle task updated
+    const handleTaskUpdated = (data) => {
+      console.log('📡 [AllTasks] task:updated event received:', data);
+      setAllTasks(prev => {
+        const exists = prev.some(t => t._id === data.task._id);
+        if (exists) {
+          return prev.map(t => t._id === data.task._id ? data.task : t);
+        }
+        return [...prev, data.task];
+      });
+    };
+
+    // Handle task status changed
+    const handleTaskStatusChanged = (data) => {
+      console.log('📡 [AllTasks] task:status-changed event received:', data);
+      setAllTasks(prev => prev.map(t => t._id === data.task._id ? data.task : t));
+      toast({ 
+        title: 'Task Status Updated', 
+        message: `${data.task?.title} - ${data.task?.status}`,
+        type: 'success' 
+      });
+    };
+
+    // Handle task deleted
+    const handleTaskDeleted = (data) => {
+      console.log('📡 [AllTasks] task:deleted event received:', data);
+      setAllTasks(prev => prev.filter(t => t._id !== data.taskId));
+      toast({ 
+        title: 'Task Deleted', 
+        message: data.message,
+        type: 'warning' 
+      });
+    };
+
+    // Register socket listeners
+    socket.on('task:created', handleTaskCreated);
+    socket.on('task:updated', handleTaskUpdated);
+    socket.on('task:status-changed', handleTaskStatusChanged);
+    socket.on('task:deleted', handleTaskDeleted);
+
+    // Cleanup: Remove listeners when component unmounts
+    return () => {
+      console.log('🔌 [AllTasks] Cleaning up socket listeners');
+      socket.off('task:created', handleTaskCreated);
+      socket.off('task:updated', handleTaskUpdated);
+      socket.off('task:status-changed', handleTaskStatusChanged);
+      socket.off('task:deleted', handleTaskDeleted);
+    };
+  }, []);
+
   // Apply filters and search
   useEffect(() => {
     let filtered = allTasks;
@@ -106,6 +184,43 @@ export default function AllTasksSection() {
       });
     } finally {
       setDeleting(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  const canEditTask = (task) => {
+    if (!user) return false;
+    if (isAdminOrHR) return true;
+    const uid = user._id || user.id;
+    const isCreator = task.assignedBy?._id?.toString() === uid?.toString();
+    const isAssignee = task.assignedTo?._id?.toString() === uid?.toString();
+    return isCreator || isAssignee;
+  };
+
+  const handleStatusChange = async (taskId, newStatus) => {
+    try {
+      const updated = await taskService.updateTaskStatus(taskId, newStatus);
+      setAllTasks(prev => prev.map(t => t._id === taskId ? updated : t));
+      toast({ title: `Task marked ${newStatus}`, type: 'success' });
+      setSelectedTask(null);
+    } catch (err) {
+      console.error('Error updating status:', err);
+      toast({ title: 'Failed to update status', message: err?.response?.data?.message || err.message, type: 'error' });
+    }
+  };
+
+  const handleUpdateTask = async (formData) => {
+    if (!editingTask) return;
+    setSubmittingEdit(true);
+    try {
+      const updated = await taskService.updateTask(editingTask._id, formData);
+      setAllTasks(prev => prev.map(t => t._id === updated._id ? updated : t));
+      toast({ title: 'Task updated', type: 'success' });
+      setEditingTask(null);
+    } catch (err) {
+      console.error('Error updating task:', err);
+      toast({ title: 'Failed to update task', message: err?.response?.data?.message || err.message, type: 'error' });
+    } finally {
+      setSubmittingEdit(false);
     }
   };
 
@@ -308,13 +423,25 @@ export default function AllTasksSection() {
                     <span className="text-xs font-semibold text-red-600 dark:text-red-400">⚠ Overdue</span>
                   )}
 
+                  {canEditTask(task) && task.status !== 'completed' && (
+                    <button
+                      onClick={() => handleStatusChange(task._id, 'completed')}
+                      className="p-2 text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 dark:text-emerald-400"
+                      title="Mark as completed"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
-                    onClick={() => handleDeleteTask(task._id)}
-                    disabled={deleting[task._id]}
-                    className="p-2 text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400 disabled:opacity-50"
+                    onClick={() => setSelectedTask(task)}
+                    className="p-2 text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:text-blue-400"
+                    title="View details"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Eye className="w-4 h-4" />
                   </button>
+
+                  {/* Edit/Delete removed per request */}
                 </div>
               </div>
             </Card>
@@ -345,20 +472,41 @@ export default function AllTasksSection() {
               <div className="flex-1 mb-4 text-xs text-slate-600 dark:text-slate-400">
                 <div>To: {task.assignedTo?.name || 'Unknown'}</div>
                 <div>By: {task.assignedBy?.name || 'Unknown'}</div>
-                <div>Due: {new Date(task.dueDate).toLocaleDateString()}</div>
+                <div>Due: {new Date(new Date(task.dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
               </div>
+              <div className="flex gap-2">
+                {canEditTask(task) && task.status !== 'completed' && (
+                  <button
+                    onClick={() => handleStatusChange(task._id, 'completed')}
+                    className="flex-1 px-3 py-2 text-sm font-semibold text-emerald-600 transition-colors rounded-lg bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                  >
+                    Mark Complete
+                  </button>
+                )}
 
-              <button
-                onClick={() => handleDeleteTask(task._id)}
-                disabled={deleting[task._id]}
-                className="w-full px-3 py-2 text-sm font-semibold text-red-600 transition-colors rounded-lg bg-red-50 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
-              >
-                {deleting[task._id] ? 'Deleting...' : 'Delete'}
-              </button>
+                <button
+                  onClick={() => setSelectedTask(task)}
+                  className="flex-1 px-3 py-2 text-sm font-semibold text-blue-600 transition-colors rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                >
+                  View
+                </button>
+
+                {/* Edit/Delete removed per request */}
+              </div>
             </Card>
           ))}
         </div>
       )}
+      {/* View Modal */}
+      {selectedTask && (
+        <TaskDetailsModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onStatusChange={handleStatusChange}
+        />
+      )}
+
+      {/* Edit modal removed (UI hidden) */}
         </>
       )}
     </div>

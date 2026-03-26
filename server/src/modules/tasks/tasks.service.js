@@ -6,51 +6,90 @@ import { Department } from '../department/Department.model.js';
 export const tasksService = {
   // Get my tasks (assigned to current user)
   async getMyTasks(userId, filters = {}) {
-    const query = { assignedTo: new mongoose.Types.ObjectId(userId), isDeleted: false };
-    
-    // Status filter
-    if (filters.status) {
-      query.status = filters.status;
-    }
-    
-    // Priority filter
-    if (filters.priority) {
-      query.priority = filters.priority;
-    }
-    
-    // Date range - handle correctly without conflicts
-    if (filters.from || filters.to) {
-      query.dueDate = {};
-      if (filters.from) {
-        query.dueDate.$gte = new Date(filters.from);
+    try {
+      console.log('🔍 [getMyTasks] Fetching tasks for userId:', userId, 'Type:', typeof userId);
+      
+      // Validate userId
+      if (!userId) {
+        throw new Error('User ID is required');
       }
-      if (filters.to) {
-        const endDate = new Date(filters.to);
-        endDate.setHours(23, 59, 59, 999);
-        query.dueDate.$lte = endDate;
+      
+      let userObjectId;
+      try {
+        userObjectId = new mongoose.Types.ObjectId(userId);
+        console.log('✅ [getMyTasks] Converted to ObjectId:', userObjectId.toString());
+      } catch (e) {
+        console.error('❌ [getMyTasks] Failed to convert userId to ObjectId:', e.message);
+        throw new Error(`Invalid user ID format: ${userId}`);
       }
+      
+      const query = { assignedTo: userObjectId, isDeleted: false };
+      
+      // Status filter
+      if (filters.status) {
+        query.status = filters.status;
+      }
+      
+      // Priority filter
+      if (filters.priority) {
+        query.priority = filters.priority;
+      }
+      
+      // Date range - handle correctly without conflicts
+      if (filters.from || filters.to) {
+        query.dueDate = {};
+        if (filters.from) {
+          query.dueDate.$gte = new Date(filters.from);
+        }
+        if (filters.to) {
+          const endDate = new Date(filters.to);
+          endDate.setHours(23, 59, 59, 999);
+          query.dueDate.$lte = endDate;
+        }
+      }
+      
+      // Search by title or description
+      if (filters.search) {
+        query.$or = [
+          { title: { $regex: filters.search, $options: 'i' } },
+          { description: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+      
+      console.log('📋 [getMyTasks] Query object:', JSON.stringify(query, null, 2));
+      console.log('🔎 [getMyTasks] Executing find with query...');
+      
+      const tasks = await Task.find(query)
+        .populate('assignedTo', 'name email avatar')
+        .populate('assignedBy', 'name email avatar')
+        .populate('department', 'name')
+        .sort({ 
+          status: 1, 
+          ...(filters.sort === 'dueDate' ? { dueDate: 1 } : { createdAt: -1 }),
+          priority: -1 
+        })
+        .limit(filters.limit || 50);
+      
+      console.log('✅ [getMyTasks] Found', tasks.length, 'tasks');
+      
+      // Debug: Check if any tasks exist at all for debugging
+      if (tasks.length === 0) {
+        const allTasks = await Task.find({ isDeleted: false }).select('assignedTo title -_id');
+        console.log('⚠️ [getMyTasks] No tasks found for this user. Total tasks in DB:', allTasks.length);
+        if (allTasks.length > 0) {
+          console.log('📊 [getMyTasks] Sample assignedTo values:', allTasks.slice(0, 5).map(t => ({
+            assignedTo: t.assignedTo.toString(),
+            title: t.title
+          })));
+          console.log('🔍 [getMyTasks] Comparing: Looking for:', userObjectId.toString());
+        }
+      }
+      
+      return tasks;
+    } catch (error) {
+      console.error('❌ [getMyTasks] Error:', error.message);
+      throw error;
     }
-    
-    // Search by title or description
-    if (filters.search) {
-      query.$or = [
-        { title: { $regex: filters.search, $options: 'i' } },
-        { description: { $regex: filters.search, $options: 'i' } }
-      ];
-    }
-    
-    const tasks = await Task.find(query)
-      .populate('assignedTo', 'name email avatar')
-      .populate('assignedBy', 'name email avatar')
-      .populate('department', 'name')
-      .sort({ 
-        status: 1, 
-        ...(filters.sort === 'dueDate' ? { dueDate: 1 } : { createdAt: -1 }),
-        priority: -1 
-      })
-      .limit(filters.limit || 50);
-    
-    return tasks;
   },
 
   // Get all tasks (admin/HR only)
@@ -97,6 +136,67 @@ export const tasksService = {
         status: 1
       })
       .limit(filters.limit || 100);
+  },
+
+  // Get tasks assigned BY current user (tasks they created)
+  async getAssignedByUser(userId, filters = {}) {
+    try {
+      console.log('🔍 [getAssignedByUser] Fetching tasks assigned by userId:', userId);
+      
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+      const query = { assignedBy: userObjectId, isDeleted: false };
+      
+      // Status filter
+      if (filters.status) {
+        query.status = filters.status;
+      }
+      
+      // Priority filter
+      if (filters.priority) {
+        query.priority = filters.priority;
+      }
+      
+      // Search by title or description
+      if (filters.search) {
+        query.$or = [
+          { title: { $regex: filters.search, $options: 'i' } },
+          { description: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+      
+      console.log('📋 [getAssignedByUser] Query object:', JSON.stringify(query, null, 2));
+      
+      const tasks = await Task.find(query)
+        .populate('assignedTo', 'name email avatar')
+        .populate('assignedBy', 'name email avatar')
+        .populate('department', 'name')
+        .sort({ 
+          status: 1,
+          createdAt: -1,
+          priority: -1 
+        })
+        .limit(filters.limit || 50);
+      
+      console.log('✅ [getAssignedByUser] Found', tasks.length, 'tasks assigned by this user');
+      
+      // Debug: Check if any tasks exist
+      if (tasks.length === 0) {
+        const allTasks = await Task.find({ isDeleted: false }).select('assignedBy title -_id');
+        console.log('⚠️ [getAssignedByUser] No tasks found. Total tasks in DB:', allTasks.length);
+        if (allTasks.length > 0) {
+          console.log('📊 [getAssignedByUser] Sample assignedBy values:', allTasks.slice(0, 5).map(t => ({
+            assignedBy: t.assignedBy.toString(),
+            title: t.title
+          })));
+          console.log('🔍 [getAssignedByUser] Comparing: Looking for:', userObjectId.toString());
+        }
+      }
+      
+      return tasks;
+    } catch (error) {
+      console.error('❌ [getAssignedByUser] Error:', error.message);
+      throw error;
+    }
   },
 
   // Create new task
@@ -559,5 +659,85 @@ export const tasksService = {
     return performance
       .filter(member => member.totalTasks > 0)
       .sort((a, b) => b.performanceScore - a.performanceScore);
+  },
+
+  // Diagnostic function to debug why tasks aren't showing
+  async getTasksDiagnostics(userId) {
+    console.log('🔍 [DIAGNOSTICS] Starting diagnostic check for user:', userId);
+    
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    
+    // Check 1: Does user exist?
+    const user = await User.findById(userObjectId);
+    const userExists = !!user;
+    console.log('👤 [DIAGNOSTICS] User exists:', userExists, user ? user.email : 'N/A');
+    
+    // Check 2: Total tasks in database
+    const totalTasksInDB = await Task.countDocuments({ isDeleted: false });
+    console.log('📊 [DIAGNOSTICS] Total tasks in DB:', totalTasksInDB);
+    
+    // Check 3: Tasks assigned to this user
+    const myTasksCount = await Task.countDocuments({
+      assignedTo: userObjectId,
+      isDeleted: false
+    });
+    console.log('👥 [DIAGNOSTICS] Tasks assigned to this user:', myTasksCount);
+    
+    // Check 4: Get sample of all tasks to see assignedTo values
+    const sampleTasks = await Task.find({ isDeleted: false })
+      .select('title assignedTo -_id')
+      .limit(5);
+    console.log('📋 [DIAGNOSTICS] Sample tasks:', sampleTasks.map(t => ({
+      title: t.title,
+      assignedTo: t.assignedTo
+    })));
+    
+    // Check 5: Find who tasks are actually assigned to
+    const assignmentDistribution = await Task.aggregate([
+      { $match: { isDeleted: false } },
+      { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+    console.log('📈 [DIAGNOSTICS] Task assignment distribution:', assignmentDistribution);
+    
+    // Check 6: Tasks created by this user
+    const tasksByMe = await Task.countDocuments({
+      assignedBy: userObjectId,
+      isDeleted: false
+    });
+    console.log('🎯 [DIAGNOSTICS] Tasks created by this user:', tasksByMe);
+    
+    // Check 7: Get actual my tasks to see what we're returning
+    const myTasks = await Task.find({
+      assignedTo: userObjectId,
+      isDeleted: false
+    }).select('title status priority dueDate');
+    console.log('📃 [DIAGNOSTICS] Actual my tasks:', myTasks);
+    
+    return {
+      diagnostics: {
+        userExists,
+        userEmail: user?.email,
+        userId: userId,
+        userObjectId: userObjectId.toString(),
+        totalTasksInDB,
+        myTasksCount,
+        tasksByMe,
+        myTasks: myTasks.map(t => ({
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          dueDate: t.dueDate
+        })),
+        assignmentDistribution: assignmentDistribution.map(d => ({
+          assignedTo: d._id.toString(),
+          count: d.count
+        }))
+      },
+      recommendation: myTasksCount === 0 
+        ? 'No tasks are assigned to this user. Check: 1) Is the user assigning tasks to themselves? 2) Are other users assigning tasks to them? 3) Try creating a test task.'
+        : `Found ${myTasksCount} tasks assigned to this user.`
+    };
   }
 };

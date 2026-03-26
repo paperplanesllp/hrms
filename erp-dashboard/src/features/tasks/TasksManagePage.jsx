@@ -361,8 +361,6 @@ export default function TasksManagePage() {
         <TaskDetailsModal
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
-          onEdit={setEditingTask}
-          onDelete={handleDeleteTask}
           onStatusChange={handleStatusChange}
         />
       )}
@@ -384,23 +382,7 @@ export default function TasksManagePage() {
         </ModalBase>
       )}
 
-      {/* Edit Task Modal */}
-      {editingTask && (
-        <ModalBase
-          title="Edit Task"
-          onClose={() => setEditingTask(null)}
-          className="max-w-2xl"
-        >
-          <TaskForm
-            task={editingTask}
-            onSubmit={handleUpdateTask}
-            onCancel={() => setEditingTask(null)}
-            isSubmitting={isSubmitting}
-            users={users}
-            departments={departments}
-          />
-        </ModalBase>
-      )}
+      {/* Edit modal removed (UI hidden) */}
     </div>
   );
 }

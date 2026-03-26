@@ -8,8 +8,16 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const auth = getAuth();
+  
+  console.log('🔐 [API Request] URL:', config.url);
+  console.log('🔐 [API Request] Method:', config.method);
+  console.log('🔐 [API Request] Has token:', !!auth?.accessToken);
+  
   if (auth?.accessToken) {
     config.headers.Authorization = `Bearer ${auth.accessToken}`;
+    console.log('🔐 [API Request] Auth header added');
+  } else {
+    console.warn('⚠️ [API Request] No access token found!');
   }
   
   // For FormData, let axios set Content-Type automatically
@@ -21,8 +29,18 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    console.log('✅ [API Response] URL:', res.config.url);
+    console.log('✅ [API Response] Status:', res.status);
+    console.log('✅ [API Response] Data:', res.data);
+    return res;
+  },
   async (err) => {
+    console.error('❌ [API Error] URL:', err.config?.url);
+    console.error('❌ [API Error] Status:', err.response?.status);
+    console.error('❌ [API Error] Data:', err.response?.data);
+    console.error('❌ [API Error] Message:', err.message);
+    
     const original = err.config;
     if (err?.response?.status === 401 && !original?._retry) {
       original._retry = true;

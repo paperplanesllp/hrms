@@ -1,9 +1,11 @@
-import api from '../../lib/api.js';
+import api from "../../lib/api.js";
+
+const normalizeResponse = (res) => res?.data?.data || res?.data || null;
 
 export const taskService = {
-  // Fetch my tasks
   async getMyTasks(filters = {}) {
     const params = {};
+
     if (filters.status) params.status = filters.status;
     if (filters.priority) params.priority = filters.priority;
     if (filters.from) params.from = filters.from;
@@ -12,63 +14,75 @@ export const taskService = {
     if (filters.limit) params.limit = filters.limit;
     if (filters.sort) params.sort = filters.sort;
 
-    const res = await api.get('/tasks/my', { params });
-    return res.data.data || res.data || [];
+    const res = await api.get("/tasks/my", { params });
+    return normalizeResponse(res) || [];
   },
 
-  // Fetch all tasks (admin/hr only)
   async getAllTasks(filters = {}) {
     const params = {};
+
     if (filters.status) params.status = filters.status;
     if (filters.department) params.department = filters.department;
     if (filters.priority) params.priority = filters.priority;
     if (filters.search) params.search = filters.search;
     if (filters.assignedTo) params.assignedTo = filters.assignedTo;
     if (filters.limit) params.limit = filters.limit;
+    if (filters.sort) params.sort = filters.sort;
 
-    const res = await api.get('/tasks', { params });
-    return res.data.data || res.data || [];
+    const res = await api.get("/tasks", { params });
+    return normalizeResponse(res) || [];
   },
 
-  // Fetch task stats for dashboard
+  async getMyAssignedTasks(filters = {}) {
+    const params = {};
+
+    if (filters.status) params.status = filters.status;
+    if (filters.priority) params.priority = filters.priority;
+    if (filters.search) params.search = filters.search;
+    if (filters.limit) params.limit = filters.limit;
+    if (filters.sort) params.sort = filters.sort;
+
+    const res = await api.get("/tasks/assigned", { params });
+    return normalizeResponse(res) || [];
+  },
+
   async getMyTaskStats() {
-    const res = await api.get('/tasks/my/stats');
-    return res.data.data || res.data || {};
+    const res = await api.get("/tasks/my/stats");
+    return normalizeResponse(res) || {};
   },
 
-  // Fetch dashboard tasks (recent pending/in-progress)
   async getDashboardTasks(limit = 5) {
-    const res = await api.get('/tasks/my/dashboard', { params: { limit } });
-    return res.data.data || res.data || [];
+    const res = await api.get("/tasks/my/dashboard", { params: { limit } });
+    return normalizeResponse(res) || [];
   },
 
-  // Create new task
   async createTask(taskData) {
-    const res = await api.post('/tasks', taskData);
-    return res.data.data || res.data;
+    const res = await api.post("/tasks", taskData);
+    return normalizeResponse(res);
   },
 
-  // Update task status
   async updateTaskStatus(taskId, status) {
     const res = await api.patch(`/tasks/${taskId}/status`, { status });
-    return res.data.data || res.data;
+    return normalizeResponse(res);
   },
 
-  // Update task
   async updateTask(taskId, taskData) {
     const res = await api.patch(`/tasks/${taskId}`, taskData);
-    return res.data.data || res.data;
+    return normalizeResponse(res);
   },
 
-  // Delete task
   async deleteTask(taskId) {
     const res = await api.delete(`/tasks/${taskId}`);
-    return res.data;
+    return normalizeResponse(res);
   },
 
-  // Fetch single task
   async getTaskById(taskId) {
     const res = await api.get(`/tasks/${taskId}`);
-    return res.data.data || res.data;
+    return normalizeResponse(res);
+  },
+
+  async addComment(taskId, text) {
+    const res = await api.post(`/tasks/${taskId}/comments`, { text });
+    return normalizeResponse(res);
   }
 };

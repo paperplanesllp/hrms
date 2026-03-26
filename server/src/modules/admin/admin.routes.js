@@ -45,4 +45,8 @@ router.post("/hr-team/discussions/:id/reply", adminController.addHRDiscussionRep
 router.get("/company-location", adminController.getCompanyLocation);
 router.post("/company-location", requireRole(ROLES.ADMIN), adminController.setCompanyLocation);
 
+// Working Days Configuration (Only Admin can set, but HR can view)
+router.get("/working-days", adminController.getWorkingDays);
+router.post("/working-days", requireRole(ROLES.ADMIN), adminController.setWorkingDays);
+
 export default router;

@@ -1,6 +1,8 @@
 import { Attendance } from "../attendance/Attendance.model.js";
 import { Leave } from "../leave/Leave.model.js";
 import { Event } from "./Event.model.js";
+import { User } from "../users/User.model.js";
+import { ROLES } from "../../middleware/roles.js";
 
 /**
  * Indian Public Holidays 2025
@@ -58,6 +60,28 @@ function isShortHours(record) {
 }
 
 /**
+ * Get company working days configuration
+ * Returns array of day numbers [0-6] that are working days
+ * Defaults to [1,2,3,4,5] (Monday-Friday)
+ */
+async function getCompanyWorkingDays() {
+  try {
+    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+    
+    if (!company) {
+      const firstAdmin = await User.findOne({ role: ROLES.ADMIN });
+      if (!firstAdmin) return [1, 2, 3, 4, 5]; // Default Monday-Friday
+      return firstAdmin.workingDays || [1, 2, 3, 4, 5];
+    }
+    
+    return company.workingDays || [1, 2, 3, 4, 5];
+  } catch (error) {
+    console.error("Error fetching working days config:", error);
+    return [1, 2, 3, 4, 5]; // Default fallback
+  }
+}
+
+/**
  * Get attendance status for a user for a given month
  * Returns array of dates with their status (PRESENT, SHORT_HOURS, or ABSENT) and holiday info
  * 
@@ -65,6 +89,7 @@ function isShortHours(record) {
  * - User took an APPROVED leave
  * - No check-in activity (status is ABSENT)
  * - Public Holiday
+ * - Non-working day (weekend)
  * 
  * SHORT_HOURS if:
  * - Clock-in is after shift start
@@ -79,6 +104,9 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
   const monthEnd = `${year}-${String(month + 1).padStart(2, "0")}-${new Date(year, month + 1, 0).getDate()}`;
 
   try {
+    // Get working days configuration
+    const workingDays = await getCompanyWorkingDays();
+
     // Get all attendance records for the month
     const attendanceRecords = await Attendance.find({
       userId,
@@ -96,10 +124,21 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
     // Build a map of dates -> {status, eventName}
     const statusMap = {};
 
+    // Mark non-working days as "WEEKEND"
+    const [startDate, endDate] = [new Date(monthStart), new Date(monthEnd)];
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split("T")[0];
+      const dayOfWeek = d.getDay();
+      
+      if (!workingDays.includes(dayOfWeek)) {
+        statusMap[dateStr] = { status: "WEEKEND", isWeekend: true };
+      }
+    }
+
     // Mark public holidays as ABSENT with holiday name
     INDIAN_HOLIDAYS.forEach((holiday) => {
       if (holiday.date >= monthStart && holiday.date <= monthEnd) {
-        statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name };
+        statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name, isHoliday: true };
       }
     });
 
@@ -114,7 +153,7 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split("T")[0];
         if (!statusMap[dateStr]?.eventName) {
-          statusMap[dateStr] = { status: "ABSENT" };
+          statusMap[dateStr] = { status: "ABSENT", isLeave: true };
         }
       }
     });
@@ -124,7 +163,9 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       // If holiday, don't override
       if (statusMap[record.date]?.eventName) return;
       // If leave already marked, don't override
-      if (statusMap[record.date]?.status === "ABSENT") return;
+      if (statusMap[record.date]?.isLeave) return;
+      // If weekend, don't override
+      if (statusMap[record.date]?.isWeekend) return;
 
       // Use the actual status from the record
       if (record.status === "ABSENT") {
@@ -141,7 +182,10 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       date,
       status: data.status,
       ...(data.eventName && { eventName: data.eventName }),
-      ...(data.checkIn && { checkIn: data.checkIn })
+      ...(data.checkIn && { checkIn: data.checkIn }),
+      ...(data.isWeekend && { isWeekend: true }),
+      ...(data.isHoliday && { isHoliday: true }),
+      ...(data.isLeave && { isLeave: true })
     }));
 
     return result;

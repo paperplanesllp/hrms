@@ -338,7 +338,12 @@ export default function CalendarPage() {
   const day=i+1;
   const status=getDateStatus(day);
   const dateStr = `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  const dayOfWeek = new Date(year, month, day).getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // 0=Sunday, 6=Saturday
   const dayEvents = events.filter(e => e.date === dateStr);
+  
+  const weekendBgClass = isWeekend ? "bg-slate-50 opacity-60" : "bg-white";
+  const weekendBorderClass = isWeekend ? "border-slate-300" : "border-slate-200";
 
   return(
 
@@ -346,11 +351,19 @@ export default function CalendarPage() {
   onMouseEnter={() => setHoveringDate(day)}
   onMouseLeave={() => setHoveringDate(null)}
   onClick={() => handleDayClick(day)}
-  className="relative group p-3 transition border shadow-sm cursor-pointer rounded-xl hover:shadow-lg hover:-translate-y-[2px] border-slate-200"
+  className={`relative group p-3 transition border shadow-sm cursor-pointer rounded-xl hover:shadow-lg hover:-translate-y-[2px] ${weekendBgClass} ${weekendBorderClass}`}
   >
 
+  <div className="flex items-start justify-between mb-1">
   <div className="font-semibold text-slate-800">
   {day}
+  </div>
+  
+  {isWeekend && (
+  <div className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+  Week Off
+  </div>
+  )}
   </div>
 
   {status?.checkIn && (
@@ -366,7 +379,7 @@ export default function CalendarPage() {
   </div>
   )}
 
-  {status?.status==="ABSENT" && (
+  {status?.status==="ABSENT" && !isWeekend && (
   <div className="mt-1 text-xs text-red-500">
   Absent
   </div>
@@ -385,10 +398,17 @@ export default function CalendarPage() {
     <div className="absolute w-3 h-3 rotate-45 -translate-x-1/2 bg-white border -bottom-1 left-1/2 border-slate-200" />
     
     {/* Tooltip Card */}
-    <div className="p-4 space-y-3 bg-white border shadow-2xl border-slate-200 rounded-xl">
+    <div className={`p-4 space-y-3 bg-white border shadow-2xl border-slate-200 rounded-xl ${isWeekend ? 'opacity-75' : ''}`}>
       {/* Date Header */}
+      <div className="flex items-center justify-between">
       <div className="text-sm font-semibold text-slate-900">
         {new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+      </div>
+      {isWeekend && (
+      <div className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+      Week Off
+      </div>
+      )}
       </div>
       
       {/* Check-in */}
@@ -400,7 +420,7 @@ export default function CalendarPage() {
       )}
       
       {/* Status */}
-      {status?.status && (
+      {status?.status && !isWeekend && (
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Status</span>
           <span className={`font-semibold ${status.status === 'PRESENT' ? 'text-green-600' : status.status === 'SHORT_HOURS' ? 'text-yellow-600' : 'text-red-600'}`}>

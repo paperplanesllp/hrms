@@ -428,3 +428,104 @@ export const notifyNewsPolicyUpdate = (newsItem, policyTitle) => {
     });
   }
 };
+
+// ==================== TASK EVENT BROADCASTERS ====================
+
+/**
+ * Notify when a new task is created
+ * @param {Object} task - The newly created task
+ * @param {string} createdBy - User ID of the creator
+ */
+export const notifyTaskCreated = (task, createdBy) => {
+  if (io) {
+    // If task has assignedTo, notify the assigned user
+    if (task.assignedTo && task.assignedTo._id) {
+      io.to(`user_${task.assignedTo._id}`).emit("task:created", {
+        task,
+        message: `New task assigned: ${task.title}`,
+        createdBy,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Broadcast to HR/Admin room for administrative visibility
+    io.to("hr_management").emit("task:created", {
+      task,
+      message: `New task created: ${task.title}`,
+      createdBy,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Notify when a task is updated
+ * @param {Object} task - The updated task
+ * @param {string} changedBy - User ID who made the change
+ */
+export const notifyTaskUpdated = (task, changedBy) => {
+  if (io) {
+    // Notify the assigned user
+    if (task.assignedTo && task.assignedTo._id) {
+      io.to(`user_${task.assignedTo._id}`).emit("task:updated", {
+        task,
+        message: `Task updated: ${task.title}`,
+        changedBy,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Broadcast to HR/Admin room
+    io.to("hr_management").emit("task:updated", {
+      task,
+      message: `Task updated: ${task.title}`,
+      changedBy,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Notify when a task status changes
+ * @param {Object} task - The task with updated status
+ * @param {string} changedBy - User ID who changed the status
+ */
+export const notifyTaskStatusChanged = (task, changedBy) => {
+  if (io) {
+    // Notify the task creator (if they assigned it)
+    if (task.createdBy && task.createdBy._id) {
+      io.to(`user_${task.createdBy._id}`).emit("task:status-changed", {
+        task,
+        message: `Task "${task.title}" status changed to ${task.status}`,
+        changedBy,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Broadcast to HR/Admin room
+    io.to("hr_management").emit("task:status-changed", {
+      task,
+      message: `Task "${task.title}" status changed to ${task.status}`,
+      changedBy,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Notify when a task is deleted
+ * @param {string} taskId - The ID of the deleted task
+ * @param {string} taskTitle - The title of the deleted task
+ * @param {string} deletedBy - User ID who deleted the task
+ */
+export const notifyTaskDeleted = (taskId, taskTitle, deletedBy) => {
+  if (io) {
+    // Broadcast to all HR/Admin users
+    io.to("hr_management").emit("task:deleted", {
+      taskId,
+      message: `Task "${taskTitle}" has been deleted`,
+      deletedBy,
+      timestamp: new Date().toISOString()
+    });
+  }
+};

@@ -184,3 +184,30 @@ export const getCompanyLocation = asyncHandler(async (req, res) => {
   const company = await adminService.getCompanyLocation();
   res.json(company);
 });
+
+/**
+ * POST /admin/working-days - Set company working days
+ * Only admin can set this
+ * Body: { workingDays: [1,2,3,4,5] } where 0=Sun, 1=Mon, ..., 6=Sat
+ */
+export const setWorkingDays = asyncHandler(async (req, res) => {
+  const { workingDays } = req.body;
+  
+  if (!Array.isArray(workingDays)) {
+    throw new Error("workingDays must be an array");
+  }
+  
+  const result = await adminService.setWorkingDays(workingDays);
+  res.json({ 
+    message: "Working days configuration updated",
+    data: result 
+  });
+});
+
+/**
+ * GET /admin/working-days - Get company working days configuration
+ */
+export const getWorkingDays = asyncHandler(async (req, res) => {
+  const result = await adminService.getWorkingDays();
+  res.json(result);
+});

@@ -26,6 +26,19 @@ const userSchema = new mongoose.Schema(
     officeLongitude: { type: Number, default: 0 },
     isCompanyLocation: { type: Boolean, default: false }, // true = this is company HQ location
 
+    // Working Days Configuration (0=Sunday, 1=Monday, ..., 6=Saturday)
+    // Default: [1,2,3,4,5] = Monday to Friday (Saturday & Sunday are off)
+    workingDays: { 
+      type: [Number], 
+      default: [1, 2, 3, 4, 5],
+      validate: {
+        validator: function(v) {
+          return Array.isArray(v) && v.every(day => day >= 0 && day <= 6);
+        },
+        message: "Working days must be numbers between 0-6"
+      }
+    },
+
     // Department & Designation
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Department", default: null },
     designationId: { type: mongoose.Schema.Types.ObjectId, ref: "Designation", default: null },

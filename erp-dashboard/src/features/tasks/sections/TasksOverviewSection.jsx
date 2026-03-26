@@ -4,6 +4,7 @@ import Button from '../../../components/ui/Button.jsx';
 import { Loader } from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
+import { getSocket } from '../../../lib/socket.js';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -56,6 +57,42 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
   useEffect(() => {
     fetchStats();
     fetchRecentTasks();
+  }, [fetchStats, fetchRecentTasks]);
+
+  // Setup real-time socket listeners for task updates
+  useEffect(() => {
+    console.log('🔌 [Overview] Setting up socket listeners');
+    const socket = getSocket();
+    
+    if (!socket) {
+      console.warn('⚠️ [Overview] Socket not available');
+      return;
+    }
+
+    // Handle task events - refresh stats and recent tasks
+    const handleTaskEventWithRefresh = (data) => {
+      console.log('📡 [Overview] Task event received, refreshing stats');
+      // Refresh stats and recent tasks after a short delay to ensure backend has updated
+      setTimeout(() => {
+        fetchStats();
+        fetchRecentTasks();
+      }, 300);
+    };
+
+    // Register socket listeners
+    socket.on('task:created', handleTaskEventWithRefresh);
+    socket.on('task:updated', handleTaskEventWithRefresh);
+    socket.on('task:status-changed', handleTaskEventWithRefresh);
+    socket.on('task:deleted', handleTaskEventWithRefresh);
+
+    // Cleanup: Remove listeners when component unmounts
+    return () => {
+      console.log('🔌 [Overview] Cleaning up socket listeners');
+      socket.off('task:created', handleTaskEventWithRefresh);
+      socket.off('task:updated', handleTaskEventWithRefresh);
+      socket.off('task:status-changed', handleTaskEventWithRefresh);
+      socket.off('task:deleted', handleTaskEventWithRefresh);
+    };
   }, [fetchStats, fetchRecentTasks]);
 
   // Summary stats based on real data

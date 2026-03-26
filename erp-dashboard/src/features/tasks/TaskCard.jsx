@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   CheckCircle2, 
   Clock, 
   AlertCircle, 
-  Edit2, 
-  Trash2,
   MessageSquare,
-  Share2,
+  Eye,
   Tag
 } from 'lucide-react';
 import Card from '../../components/ui/Card.jsx';
@@ -28,9 +26,7 @@ export default function TaskCard({
   onStatusChange,
   onViewDetails,
   isEmployee = false
-}) {
-  const [showActions, setShowActions] = useState(false);
-  
+}) {  
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
   const isOverdue = isTaskOverdue(task.dueDate, task.status);
@@ -193,51 +189,22 @@ export default function TaskCard({
 
           {/* Actions */}
           {!isEmployee && (
-            <div
-              className="flex items-center gap-1"
-              onMouseEnter={() => setShowActions(true)}
-              onMouseLeave={() => setShowActions(false)}
-            >
-              {showActions ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit && onEdit(task);
-                    }}
-                    className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
-                  >
-                    <Edit2 size={14} />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm('Delete this task?')) {
-                        onDelete && onDelete(task._id);
-                      }
-                    }}
-                    className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowActions(true);
-                  }}
-                  className="text-slate-500"
-                >
-                  <Share2 size={14} />
-                </Button>
-              )}
+            <div className="flex items-center gap-2">
+              {/* View Icon */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewDetails && onViewDetails(task);
+                }}
+                className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
+                title="View task details"
+              >
+                <Eye size={16} />
+              </Button>
+
+              {/* Edit/Delete removed per request */}
             </div>
           )}
         </div>

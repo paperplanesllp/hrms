@@ -7,8 +7,6 @@ import {
   Filter, 
   ArrowUpDown, 
   Eye, 
-  Trash2, 
-  Edit2,
   X,
   Grid3x3,
   List,
@@ -34,6 +32,7 @@ export default function TasksListSection() {
   const [viewMode, setViewMode] = useState('table');
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [taskViewType, setTaskViewType] = useState('assigned-to-me'); // 'assigned-to-me' or 'assigned-by-me'
   
   // Real data state
   const [allTasks, setAllTasks] = useState([]);
@@ -51,14 +50,20 @@ export default function TasksListSection() {
       setLoading(true);
       setError(null);
       
-      // Use appropriate endpoint based on user role
+      // Use appropriate endpoint based on user role and view type
       let tasks;
       if (isAdminOrHR) {
         // Admin/HR can see all tasks
         tasks = await taskService.getAllTasks();
       } else {
-        // Regular users can only see their own tasks
-        tasks = await taskService.getMyTasks();
+        // Regular users: fetch based on view type
+        if (taskViewType === 'assigned-by-me') {
+          console.log('📋 Fetching tasks assigned BY current user...');
+          tasks = await taskService.getMyAssignedTasks();
+        } else {
+          console.log('📋 Fetching tasks assigned TO current user...');
+          tasks = await taskService.getMyTasks();
+        }
       }
       
       setAllTasks(tasks || []);
@@ -72,7 +77,7 @@ export default function TasksListSection() {
     } finally {
       setLoading(false);
     }
-  }, [isAdminOrHR]);
+  }, [isAdminOrHR, taskViewType]);
 
   // Fetch tasks on mount
   useEffect(() => {
@@ -116,6 +121,13 @@ export default function TasksListSection() {
   // Filter and search logic
   const filteredTasks = useMemo(() => {
     return allTasks.filter(task => {
+      // View-based filter
+      if (taskViewType === 'assigned-to-me') {
+        if (task.assignedTo?._id !== user._id) return false;
+      } else if (taskViewType === 'assigned-by-me') {
+        if (task.assignedBy?._id !== user._id) return false;
+      }
+
       const matchesSearch = 
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -135,7 +147,7 @@ export default function TasksListSection() {
 
       return matchesSearch && matchesPriority && matchesStatus && matchesDepartment;
     });
-  }, [searchQuery, selectedPriorities, selectedStatuses, selectedDepartments, allTasks]);
+  }, [searchQuery, selectedPriorities, selectedStatuses, selectedDepartments, allTasks, taskViewType, user._id]);
 
   // Sort logic
   const sortedTasks = useMemo(() => {
@@ -296,11 +308,47 @@ export default function TasksListSection() {
             </Card>
           )}
 
+          {/* Task View Type Tabs */}
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => {
+                setTaskViewType('assigned-to-me');
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                taskViewType === 'assigned-to-me'
+                  ? 'bg-brand-accent text-white shadow-md'
+                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              }`}
+            >
+              Tasks Assigned to Me
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-white/30">
+                {allTasks.filter(t => t.assignedTo?._id === user._id).length}
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                setTaskViewType('assigned-by-me');
+                setCurrentPage(1);
+              }}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                taskViewType === 'assigned-by-me'
+                  ? 'bg-brand-accent text-white shadow-md'
+                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              }`}
+            >
+              Tasks I Assigned
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-white/30">
+                {allTasks.filter(t => t.assignedBy?._id === user._id).length}
+              </span>
+            </button>
+          </div>
+
           {/* Header with title and view mode toggle */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
-                {isAdminOrHR ? 'All Tasks' : 'My Tasks'}
+                {taskViewType === 'assigned-to-me' ? 'Tasks Assigned to Me' : 'Tasks I Assigned'}
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''} found
@@ -496,6 +544,21 @@ export default function TasksListSection() {
         )}
       </Card>
 
+      {/* No Tasks in Current View */}
+      {!loading && !error && filteredTasks.length === 0 && allTasks.length > 0 && (
+        <Card className="p-12 text-center">
+          <AlertCircle className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-600 dark:text-slate-400 font-medium mb-2">
+            No {taskViewType === 'assigned-to-me' ? 'tasks assigned to you' : 'tasks assigned by you'}
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-500">
+            {taskViewType === 'assigned-to-me' 
+              ? 'No tasks match your current filters. Try adjusting your search criteria.'
+              : 'You haven\'t assigned any tasks yet. Create your first assignment!'}
+          </p>
+        </Card>
+      )}
+
       {/* TABLE VIEW */}
       {viewMode === 'table' && (
         <Card className="overflow-hidden">
@@ -620,18 +683,7 @@ export default function TasksListSection() {
                           >
                             <Eye className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                           </button>
-                          <button
-                            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                          </button>
-                          <button
-                            className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
+                          {/* Edit/Delete removed per request */}
                         </div>
                       </td>
                     </tr>
@@ -783,13 +835,7 @@ export default function TasksListSection() {
                       <Eye className="w-4 h-4" />
                       View
                     </button>
-                    <button className="flex-1 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                      <Edit2 className="w-4 h-4" />
-                      Edit
-                    </button>
-                    <button className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors text-red-600 dark:text-red-400">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* Edit/Delete removed per request */}
                   </div>
                 </div>
               </Card>

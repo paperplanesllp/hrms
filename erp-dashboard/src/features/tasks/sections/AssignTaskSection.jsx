@@ -39,6 +39,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
     priority: 'medium',
     status: 'pending',
     dueDate: '',
+    dueTime: '',
     remarks: '',
   });
 
@@ -57,8 +58,19 @@ export default function AssignTaskSection({ onTaskCreated }) {
           api.get('/users'),
           api.get('/department')
         ]);
-        setUsers(usersRes.data.data || []);
-        setDepartments(deptRes.data.data || []);
+        setUsers(usersRes.data || []);
+        setDepartments(deptRes.data || []);
+
+        // Set default date and time to today
+        const today = new Date();
+        const dateString = today.toISOString().split('T')[0];
+        const timeString = today.toTimeString().slice(0, 5); // HH:MM format
+        
+        setFormData(prev => ({
+          ...prev,
+          dueDate: dateString,
+          dueTime: timeString
+        }));
       } catch (error) {
         console.error('Error fetching users/departments:', error);
         toast({
@@ -73,6 +85,38 @@ export default function AssignTaskSection({ onTaskCreated }) {
 
     fetchData();
   }, []);
+
+  // Auto-populate department when assignedTo changes
+  useEffect(() => {
+    if (formData.assignedTo && users.length > 0) {
+      console.log('Finding user for ID:', formData.assignedTo);
+      console.log('Available users:', users.map(u => ({ id: u._id, name: u.name, deptId: u.departmentId })));
+      
+      const selectedUser = users.find(u => {
+        const userId = u._id?.toString() || u._id;
+        const assignedId = formData.assignedTo?.toString() || formData.assignedTo;
+        return userId === assignedId;
+      });
+      
+      console.log('Selected user:', selectedUser);
+      
+      if (selectedUser && selectedUser.departmentId) {
+        console.log('Setting department to:', selectedUser.departmentId);
+        setFormData(prev => ({
+          ...prev,
+          department: selectedUser.departmentId
+        }));
+        
+        // Clear department error
+        setErrors(prev => ({
+          ...prev,
+          department: ''
+        }));
+      } else {
+        console.log('No department found for user or user not found');
+      }
+    }
+  }, [formData.assignedTo, users]);
 
   // Validation rules
   const validateForm = () => {
@@ -189,23 +233,36 @@ export default function AssignTaskSection({ onTaskCreated }) {
       try {
         setSubmitting(true);
         
-        // Submit task to API
-        await api.post('/tasks', {
-          title: formData.title,
-          description: formData.description,
-          assignedTo: formData.assignedTo,
-          assignedBy: formData.assignedBy,
-          department: formData.department,
-          priority: formData.priority.toUpperCase(),
-          status: formData.status,
-          dueDate: formData.dueDate,
-          remarks: formData.remarks,
+        // Create FormData for multipart/form-data submission (for file uploads)
+        const submitFormData = new FormData();
+        
+        // Add task fields to FormData
+        submitFormData.append('title', formData.title);
+        submitFormData.append('description', formData.description);
+        submitFormData.append('assignedTo', formData.assignedTo);
+        submitFormData.append('assignedBy', formData.assignedBy);
+        submitFormData.append('department', formData.department);
+        submitFormData.append('priority', formData.priority.toUpperCase());
+        submitFormData.append('status', formData.status);
+        submitFormData.append('dueDate', formData.dueDate);
+        submitFormData.append('remarks', formData.remarks);
+        
+        // Add attachments to FormData
+        attachments.forEach((file) => {
+          submitFormData.append('attachments', file);
+        });
+
+        // Submit task to API with attachments
+        await api.post('/tasks', submitFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         });
 
         // Show success message
         toast({
           title: 'Task created successfully',
-          message: `"${formData.title}" has been assigned`,
+          message: `"${formData.title}" has been assigned${attachments.length > 0 ? ` with ${attachments.length} attachment(s)` : ''}`,
           type: 'success'
         });
 
@@ -218,6 +275,10 @@ export default function AssignTaskSection({ onTaskCreated }) {
 
         // Reset form after 2 seconds
         setTimeout(() => {
+          const today = new Date();
+          const dateString = today.toISOString().split('T')[0];
+          const timeString = today.toTimeString().slice(0, 5);
+
           setFormData({
             title: '',
             description: '',
@@ -226,7 +287,8 @@ export default function AssignTaskSection({ onTaskCreated }) {
             department: '',
             priority: 'medium',
             status: 'pending',
-            dueDate: '',
+            dueDate: dateString,
+            dueTime: timeString,
             remarks: '',
           });
           setErrors({});
@@ -258,6 +320,11 @@ export default function AssignTaskSection({ onTaskCreated }) {
   };
 
   const handleReset = () => {
+    // Set reset date and time to today
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0];
+    const timeString = today.toTimeString().slice(0, 5);
+
     setFormData({
       title: '',
       description: '',
@@ -266,7 +333,8 @@ export default function AssignTaskSection({ onTaskCreated }) {
       department: '',
       priority: 'medium',
       status: 'pending',
-      dueDate: '',
+      dueDate: dateString,
+      dueTime: timeString,
       remarks: '',
     });
     setErrors({});
@@ -274,9 +342,9 @@ export default function AssignTaskSection({ onTaskCreated }) {
   };
 
   // Get assigned user and department for preview
-  const assignedUser = users.find(u => u.id === formData.assignedTo);
-  const assignedByUser = users.find(u => u.id === formData.assignedBy);
-  const selectedDept = departments.find(d => d.id === formData.department);
+  const assignedUser = users.find(u => u._id === formData.assignedTo);
+  const assignedByUser = users.find(u => u._id === formData.assignedBy);
+  const selectedDept = departments.find(d => d._id === formData.department);
 
   // Priority colors
   const getPriorityBadge = (priority) => {
@@ -434,8 +502,8 @@ export default function AssignTaskSection({ onTaskCreated }) {
                   >
                     <option value="">Select team member...</option>
                     {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} {user.id === 'user-current' ? '(You)' : ''}
+                      <option key={user._id} value={user._id}>
+                        {user.name}
                       </option>
                     ))}
                   </select>
@@ -490,7 +558,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
                   >
                     <option value="">Select department...</option>
                     {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>
+                      <option key={dept._id} value={dept._id}>
                         {dept.name}
                       </option>
                     ))}
@@ -571,6 +639,25 @@ export default function AssignTaskSection({ onTaskCreated }) {
                       {errors.dueDate}
                     </p>
                   )}
+                </div>
+
+                {/* Due Time Field */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
+                    Due Time
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute w-5 h-5 transform -translate-y-1/2 pointer-events-none text-slate-400 left-3 top-1/2" />
+                    <input
+                      type="time"
+                      name="dueTime"
+                      value={formData.dueTime}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className="w-full py-3 pl-10 pr-4 transition-all bg-white border rounded-lg border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

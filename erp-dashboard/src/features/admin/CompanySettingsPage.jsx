@@ -8,7 +8,7 @@ import GoogleMapSelector from "../../components/ui/GoogleMapSelector.jsx";
 import { toast } from "../../store/toastStore.js";
 import api from "../../lib/api.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
-import { MapPin, Loader, Save, Navigation, Map, Zap, Globe } from "lucide-react";
+import { MapPin, Loader, Save, Navigation, Map, Zap, Globe, Calendar } from "lucide-react";
 
 export default function CompanySettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -17,21 +17,33 @@ export default function CompanySettingsPage() {
   const [longitude, setLongitude] = useState("");
   const [currentLocation, setCurrentLocation] = useState(null);
   const [isSet, setIsSet] = useState(false);
+  
+  // Working Days Configuration
+  const [workingDays, setWorkingDays] = useState([1, 2, 3, 4, 5]); // Default Monday-Friday
+  const [savingWorkingDays, setSavingWorkingDays] = useState(false);
 
-  // Load current company location
-  const loadCompanyLocation = async () => {
+  const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  // Load current company location and working days
+  const loadCompanySettings = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/admin/company-location");
-      setLatitude(res.data.latitude || "");
-      setLongitude(res.data.longitude || "");
-      setIsSet(res.data.isSet);
-      console.log("✅ Company location loaded:", res.data);
+      const [locationRes, workingDaysRes] = await Promise.all([
+        api.get("/admin/company-location"),
+        api.get("/admin/working-days")
+      ]);
+      
+      setLatitude(locationRes.data.latitude || "");
+      setLongitude(locationRes.data.longitude || "");
+      setIsSet(locationRes.data.isSet);
+      setWorkingDays(workingDaysRes.data.workingDays || [1, 2, 3, 4, 5]);
+      
+      console.log("✅ Company settings loaded");
     } catch (e) {
-      console.error("❌ Failed to load company location:", e);
+      console.error("❌ Failed to load company settings:", e);
       toast({
         title: "Failed to load settings",
-        description: e?.response?.data?.message || "Could not fetch company location",
+        description: e?.response?.data?.message || "Could not fetch company settings",
         type: "error",
       });
     } finally {
@@ -40,7 +52,7 @@ export default function CompanySettingsPage() {
   };
 
   useEffect(() => {
-    loadCompanyLocation();
+    loadCompanySettings();
   }, []);
 
   // Handle map location selection
@@ -129,6 +141,52 @@ export default function CompanySettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Toggle working day
+  const toggleWorkingDay = (dayOfWeek) => {
+    if (workingDays.includes(dayOfWeek)) {
+      setWorkingDays(workingDays.filter(d => d !== dayOfWeek));
+    } else {
+      setWorkingDays([...workingDays, dayOfWeek].sort((a, b) => a - b));
+    }
+  };
+
+  // Save working days
+  const handleSaveWorkingDays = async () => {
+    if (workingDays.length === 0) {
+      toast({
+        title: "Invalid Configuration",
+        description: "At least one working day must be selected",
+        type: "error",
+      });
+      return;
+    }
+
+    setSavingWorkingDays(true);
+    try {
+      console.log("💾 Saving working days configuration...", workingDays);
+      const res = await api.post("/admin/working-days", {
+        workingDays
+      });
+      
+      console.log("✅ Working days saved:", res.data);
+      
+      toast({
+        title: "Working Days Updated",
+        description: `Company now operates on: ${workingDays.map(d => dayLabels[d]).join(", ")}`,
+        type: "success",
+      });
+    } catch (e) {
+      console.error("❌ Save failed:", e);
+      toast({
+        title: "Failed to Save",
+        description: e?.response?.data?.message || "Could not save working days configuration",
+        type: "error",
+      });
+    } finally {
+      setSavingWorkingDays(false);
     }
   };
 
@@ -401,6 +459,85 @@ export default function CompanySettingsPage() {
 
 
       </div>
+
+      {/* Working Days Configuration Card */}
+      <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+              <Calendar className="w-6 h-6 text-green-600" />
+              Working Days Configuration
+            </h2>
+            <p className="mt-1 text-gray-600">
+              Set which days of the week are working days. Saturday and Sunday are typically week-off days.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {/* Day Selection Grid */}
+          <div>
+            <label className="block mb-3 text-sm font-semibold text-gray-700">
+              Select Working Days
+            </label>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
+              {dayLabels.map((label, dayNum) => (
+                <button
+                  key={dayNum}
+                  onClick={() => toggleWorkingDay(dayNum)}
+                  className={`p-3 rounded-lg font-semibold transition-all border-2 ${
+                    workingDays.includes(dayNum)
+                      ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              💡 Click buttons to toggle working days. By default, Saturday and Sunday are week-off days.
+            </p>
+          </div>
+
+          {/* Selected Working Days Display */}
+          <div className="p-4 border rounded-lg bg-green-50 border-green-200">
+            <p className="text-sm font-medium text-green-900">📅 Selected Working Days:</p>
+            <p className="mt-2 text-sm text-green-800">
+              {workingDays.length > 0 
+                ? workingDays.map(d => dayLabels[d]).join(", ")
+                : "No working days selected"}
+            </p>
+            <p className="mt-2 text-xs text-green-700">
+              <strong>Week-off Days:</strong> {[0,1,2,3,4,5,6]
+                .filter(d => !workingDays.includes(d))
+                .map(d => dayLabels[d])
+                .join(", ")}
+            </p>
+          </div>
+
+          {/* Save Button */}
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={handleSaveWorkingDays}
+              disabled={savingWorkingDays}
+              className="flex items-center justify-center flex-1 gap-2 bg-green-600 hover:bg-green-700"
+            >
+              {savingWorkingDays ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Working Days
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
