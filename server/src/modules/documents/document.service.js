@@ -1,7 +1,6 @@
 import { DocumentType } from "./DocumentType.model.js";
 import { EmployeeDocument } from "./EmployeeDocument.model.js";
 import { User } from "../users/User.model.js";
-import { Department } from "../department/department.model.js";
 import Notification from "../notifications/Notification.model.js";
 
 // ==================== DOCUMENT TYPE OPERATIONS ====================
