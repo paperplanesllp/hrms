@@ -1,0 +1,507 @@
+Project root: c:/Users/HP/OneDrive/Desktop/erp-project
+
+Files and folders (relative paths):
+
+ACTIVITY_LOGGING_ARCHITECTURE.md
+ACTIVITY_LOGGING_CHECKLIST.md
+ACTIVITY_LOGGING_IMPLEMENTATION.md
+ACTIVITY_LOGGING_INTEGRATION_EXAMPLES.md
+ACTIVITY_LOGGING_QUICKSTART.md
+ACTIVITY_LOGGING_SUMMARY.md
+AUTO_ATTENDANCE_MARKING_GUIDE.md
+AUTO_ATTENDANCE_QUICKSTART.md
+COMPLAINT_SYSTEM_ARCHITECTURE.md
+COMPLAINT_SYSTEM_IMPLEMENTATION_SUMMARY.md
+COMPLAINT_SYSTEM_QUICK_REFERENCE.md
+COMPLAINT_SYSTEM_QUICKSTART.md
+COMPLAINT_SYSTEM_SETUP.md
+CONSOLE_DEBUG_GUIDE.md
+DELIVERABLES.md
+DOCUMENT_DEBUGGING_GUIDE.md
+DOCUMENT_DOWNLOAD_FIX.md
+EDIT_BUTTON_FIX_SUMMARY.md
+ERROR_DEBUGGING_CHECKLIST.md
+GET_FILE_URLS_DEBUGGING.md
+GETTING_STARTED_CHECKLIST.md
+GEOLOCATION_ARCHITECTURE.md
+GEOLOCATION_DEVELOPER_GUIDE.md
+GEOLOCATION_DEVELOPER_IMPLEMENTATION.md
+GEOLOCATION_DOCS_INDEX.md
+GEOLOCATION_IMPLEMENTATION_COMPLETE.md
+GEOLOCATION_QUICK_START.md
+GEOLOCATION_README.md
+GEOLOCATION_TESTING_CHECKLIST.md
+GEOLOCATION_TRACKING_IMPLEMENTATION.md
+GOOGLE_MAPS_INTEGRATION.md
+GOOGLE_MAPS_QUICKSTART.md
+IMPLEMENTATION_COMPLETE_SUMMARY.md
+LIVE_TIMELINE_SETUP.md
+LIVE_TIMELINE_TESTING.md
+MAPS_ARCHITECTURE.md
+MAPS_DEPLOYMENT_CHECKLIST.md
+MAPS_IMPLEMENTATION_SUMMARY.md
+MYTASKS_TABLE_REDESIGN.md
+PAYROLL_MANAGEMENT_GUIDE.md
+PAYROLL_QUICK_REFERENCE.md
+QUICK_FIX.md
+QUICK_REFERENCE_CARD.md
+README.md
+README_EXECUTIVE_SUMMARY.md
+TASK_CARD_CRUD_ICONS_IMPLEMENTATION.md
+TASK_DASHBOARD_REALTIME_IMPLEMENTATION.md
+TASK_DASHBOARD_VISUAL_GUIDE.md
+TASK_DETAILS_MODAL_FIX_SUMMARY.md
+TASK_IMPLEMENTATION_STATUS.md
+TASK_MANAGEMENT_COMPLETE.md
+TASK_MANAGEMENT_DELIVERY_COMPLETE.md
+TASK_MANAGEMENT_IMPLEMENTATION_COMPLETE.md
+TASK_MANAGEMENT_PHASE_1_2_3_SUMMARY.md
+TASK_MANAGEMENT_PHASE_1_COMPLETE.md
+TASK_MANAGEMENT_PHASE_1_INDEX.md
+TASK_MANAGEMENT_PHASE_1_QUICKSTART.md
+TASK_MANAGEMENT_PHASE_1_SUMMARY.md
+TASK_MANAGEMENT_PHASE_2_ARCHITECTURE.md
+TASK_MANAGEMENT_PHASE_2_OVERVIEW_COMPLETE.md
+TASK_MANAGEMENT_PHASE_2_QUICKSTART.md
+TASK_MANAGEMENT_PHASE_2_VISUAL_GUIDE.md
+TASK_MANAGEMENT_PHASE_3_ARCHITECTURE.md
+TASK_MANAGEMENT_PHASE_3_COMPLETE.md
+TASK_MANAGEMENT_PHASE_3_QUICKSTART.md
+TASK_MANAGEMENT_PHASE_3_VISUAL_GUIDE.md
+TASK_MANAGEMENT_VERIFICATION_CHECKLIST.md
+TASK_MANAGEMENT_VISUAL_REFERENCE.md
+TASKS_PAGE_FIX_COMPLETE.md
+TASKS_QUICKSTART.md
+TASKS_SYSTEM_IMPLEMENTATION.md
+TASKS_TROUBLESHOOTING_GUIDE.md
+TODO_ATTENDANCE_FIX.md
+TODO_COMPLAINTS_SYSTEM.md
+WELCOME_EMAIL_IMPLEMENTATION.md
+WELCOME_EMAIL_QUICKSTART.md
+WELCOME_EMAIL_SUMMARY.md
+WORKSHEET_PAUSE_RESUME_GUIDE.md
+WORKSHEET_PAUSE_RESUME_IMPLEMENTATION.md
+
+assets/
+  Videos/
+    video.mp4
+  html-templates/
+    PREMIUM_CHAT_INTERFACE.html
+    premium-chat-responsive.html
+    premium-chat-demo.html
+    messaging-responsive.html
+    chat-responsive-fixed.html
+    calendar-responsive-fixed.html
+    attention-badge-card.html
+
+docs/
+  INDEX.md
+  API_FIXES_AND_FEATURES.md
+  ARCHITECTURE_FLOW_DIAGRAMS.md
+  ADMIN_PANEL_ENHANCEMENTS.md
+  ADMIN_FEATURES_QUICK_REFERENCE.md
+  ADMIN_GOD_VIEW_IMPLEMENTATION.md
+  CALENDAR_AND_HR_FEATURES.md
+  CALENDAR_SETUP.md
+  CALENDAR_SYSTEM.md
+  CHECKIN_MULTIPLE_TIMES_FIX.md
+  COMPLETE_ERROR_FIX.md
+  DESIGN_SYSTEM.md
+  DESIGN_SYSTEM_MANIFEST.md
+  E2E_QUICK_REFERENCE.md
+  END_TO_END_ENCRYPTION.md
+  ERROR_SOLUTION_SUMMARY.md
+  FIXES_SUMMARY.md
+  GETTING_STARTED_GUIDE.md
+  GROUP_CHAT_DEPLOYMENT.md
+  GROUP_CHAT_IMPLEMENTATION.md
+  GROUP_CHAT_QUICKSTART.md
+  GROUP_CHAT_TECHNICAL_REFERENCE.md
+  HR_TEAM_IMPLEMENTATION_COMPLETE.md
+  HR_TEAM_PREMIUM_FEATURE.md
+  HR_TEAM_QUICK_START.md
+  IMAGE_FIX_SUMMARY.md
+  NEWS_AND_UPDATES_IMPLEMENTATION.md
+  PREMUIM_REDESIGN_COMPLETION.md
+  PREMUIM_SaaS_DESIGN_IMPLEMENTATION.md
+  QUICK_FIX_401.md
+  QUICK_REFERENCE_REALTIME_STATUS.md
+  README_RUN_NOW.md
+  README_SIDEBAR_IMPLEMENTATION.md
+  REALTIME_USER_STATUS_DOCS.md
+  REALTIME_USER_STATUS_FIX_SUMMARY.md
+  SIDEBAR_INTEGRATION_GUIDE.md
+  TROUBLESHOOTING_CHECKLIST.md
+  UI_UX_ENHANCEMENTS.md
+  WEBSOCKET_AUTH_TROUBLESHOOTING.md
+  WEBSOCKET_FIX_GUIDE.md
+  WEBSOCKET_401_FIX_COMPLETE.md
+
+scripts/
+  README.md
+  START_SERVERS.ps1
+  WEBSOCKET_DIAGNOSTIC_CONSOLE.js
+  FIX_ALL_ERRORS.js
+  DIAGNOSE_401.js
+  check-server.js
+  test-api.js
+  test-endpoints.js
+  test-checkin-workflow.js
+  test-forgot-password.js
+  test-hr-edit.js
+  test-news-fixed.js
+  test-news-full.js
+  test-news.js
+
+server/
+  .env
+  .env.example
+  package.json
+  package-lock.json
+  scripts/
+    setup-policy.js
+  uploads/
+    documents/
+      2-1773736897219-745389387.pdf
+      qwert.pdf
+      ppp-1773726210633-84276544.pdf
+      pintrest-1774517440240-80178297.jpg
+      2.pdf
+    news/
+      holi-1772605675673-844232653.jpg
+      holi-1772605620783-96766119.jpg
+      holi-1772605381670-931428828.jpg
+      holi-1772604614367-642140856.jpg
+      holi-1772604508441-933087749.jpg
+      holi-1772604343526-766440077.jpg
+      ChatGPT Image Mar 2, 2026, 10_05_53 AM-1773297151692-128891968.png
+    policy/
+      color-1772608136625-115827919.jpg
+      HR Policy Handbook Paperplanes LLP_2026 (3).pdf
+    profile-images/
+      69a7c82cfe351df162f4fdfa_1773380286008.jpg
+      69a7c82cfe351df162f4fdfa_1773379567112.jpg
+      69a6c3cf24b59e1b1966df8b_1773631080233.jpg
+      69a7c82cfe351df162f4fdfa_1773393466496.jpg
+      69a7c82cfe351df162f4fdfa_1773634004927.jpg
+    voice/
+      voice-1772624938365.webm
+      voice-1772624932217.webm
+      voice-1772624091521.webm
+
+  src/
+    app.js
+    server.js
+    seed.js
+    config/
+      db.js
+      cors.js
+      env.js
+    middleware/
+      auth.js
+      error.js
+      noCache.js
+      rateLimit.js
+      roles.js
+      upload.js
+    utils/
+      apiError.js
+      asyncHandler.js
+      audit.js
+      cronJobs.js
+      emailService.js
+      geofencing.js
+      responseHelpers.js
+      socket.js
+      tokens.js
+      workingDays.js
+    uploads/
+      policies/
+        1774239320995-HR Policy Handbook Paperplanes LLP_2026 (3).pdf
+    routes/
+      health.js
+    modules/
+      auth/
+        auth.controller.js
+        auth.routes.js
+        auth.schemas.js
+        auth.service.js
+      users/
+        users.controller.js
+        users.routes.js
+        users.schemas.js
+        users.service.js
+        User.model.js
+      department/
+        department.controller.js
+        department.routes.js
+        department.schemas.js
+        department.service.js
+        Department.model.js
+        Designation.model.js
+      attendance/
+        attendance.controller.js
+        attendance.routes.js
+        attendance.schemas.js
+        attendance.service.js
+        Attendance.model.js
+      activity/
+        activity.controller.js
+        activity.routes.js
+        activity.service.js
+        ActivityLog.model.js
+        activity.seed.js
+      tasks/
+        tasks.controller.js
+        tasks.routes.js
+        tasks.service.js
+        Task.model.js
+      news/
+        news.controller.js
+        news.routes.js
+        news.schemas.js
+        news.service.js
+        News.model.js
+      calendar/
+        calendar.controller.js
+        calendar.routes.js
+        calendar.schemas.js
+        calendar.service.js
+        Calendar.model.js
+        Event.model.js
+      chat/
+        chat.controller.js
+        chat.routes.js
+        chat.service.js
+        Chat.model.js
+        Message.model.js
+      worksheet/
+        worksheet.controller.js
+        worksheet.routes.js
+        worksheet.service.js
+        Worksheet.model.js
+        worksheet.schemas.js
+        extensionRequest.controller.js
+        extensionRequest.service.js
+        ExtensionRequest.model.js
+      documents/
+        document.controller.js
+        document.routes.js
+        document.service.js
+        EmployeeDocument.model.js
+        DocumentType.model.js
+      complaints/
+        complaints.controller.js
+        complaints.routes.js
+        complaints.schemas.js
+        complaints.service.js
+        Complaint.model.js
+      audit/
+        audit.routes.js
+        audit.controller.js
+        audit.service.js
+        AuditLog.model.js
+      dashboard/
+        dashboard.controller.js
+        dashboard.routes.js
+        dashboard.service.js
+      admin/
+        admin.routes.js
+        admin.controller.js
+        admin.service.js
+      payroll/
+        payroll.routes.js
+        payroll.controller.js
+        payroll.service.js
+        payroll.schemas.js
+        Payroll.model.js
+      policy/
+        policy.routes.js
+        policy.controller.js
+        policy.service.js
+        Policy.model.js
+      leave/
+        leave.routes.js
+        leave.controller.js
+        leave.service.js
+        leave.schemas.js
+        Leave.model.js
+      leaveType/
+        leaveType.routes.js
+        leaveType.controller.js
+        leaveType.service.js
+        leaveType.schemas.js
+        leaveType.seed.js
+        LeaveType.model.js
+      policies/
+        policies.routes.js
+        policies.controller.js
+        policies.service.js
+        Policies.model.js
+      notifications/
+        notification.routes.js
+        notification.controller.js
+        notification.service.js
+        Notification.model.js
+
+erp-dashboard/
+  index.html
+  package.json
+  package-lock.json
+  .env
+  .env.example
+  .gitignore
+  vite.config.js
+  tailwind.config.js
+  postcss.config.js
+  eslint.config.js
+  README.md
+  GOOGLE_MAPS_SETUP.md
+  POLICY_403_TROUBLESHOOTING.md
+  public/
+    vite.svg
+  src/
+    main.jsx
+    App.jsx
+    App.css
+    app/
+      routes.jsx
+      constants.js
+    assets/
+      react.svg
+    features/
+      auth/
+        LoginPage.jsx
+        SignupPage.jsx
+        ResetPasswordPage.jsx
+      admin/
+        AdminAttendancePage.jsx
+        AdminAnalyticsDashboard.jsx
+        ActivityTimelinePage.jsx
+        AdminDocumentManagementPage.jsx
+        CompanySettingsPage.jsx
+        HRDiscussionPanel.jsx
+        HRActivityFeed.jsx
+        HRMeetingPanel.jsx
+        HRTimelineFeed.jsx
+      attendance/
+        AttendancePage.jsx
+        attendanceUtils.js
+      worksheet/
+        WorksheetPage.jsx
+      users/
+        UsersPage.jsx
+        HrPage.jsx
+      hr/
+        HRDocumentsManagementPage.jsx
+        HRActivityTimelinePage.jsx
+      news/
+        NewsPage.jsx
+        NewsStudio.jsx
+      payroll/
+        PayrollManagePage.jsx
+        PayrollForm.jsx
+        PayrollMyPage.jsx
+      policy/
+        PolicyPage.jsx
+        PolicyEditor.jsx
+        PrivacyPolicyPage.jsx
+      policies/
+        PoliciesPage.jsx
+        PolicyFormModal.jsx
+      tasks/
+        TaskDashboard.jsx
+        TaskCard.jsx
+        TaskForm.jsx
+        TaskFilters.jsx
+        TaskDetailsModal.jsx
+        TasksManagePage.jsx
+        TasksPage.jsx
+        taskService.js
+        taskUtils.js
+      chat/
+        ChatPage.jsx
+        PremiumChatPage.jsx
+        AudioPlayer.jsx
+        EncryptionSettings.jsx
+        DeleteConversationModal.jsx
+        ClearChatConfirmationModal.jsx
+        GroupCreationModal.jsx
+        GroupManagementModal.jsx
+      documents/
+        DocumentsPage.jsx
+      calendar/
+        CalendarPage.jsx
+      leave/
+        LeaveTypeManagementPage.jsx
+        LeaveMyPage.jsx
+        LeaveManagePage.jsx
+        HRLeaveApprovalPage.jsx
+      complaints/
+        ComplaintsPage.jsx
+        StaffComplaintsDashboard.jsx
+        AdminComplaintsPage.jsx
+    components/
+      ui/
+        Button.jsx
+        Card.jsx
+        Modal.jsx
+        Input.jsx
+        Table.jsx
+        Toast.jsx
+        Spinner.jsx
+        StatusTimeline.jsx
+        Badge.jsx
+        NotificationCenter.jsx
+        RejectionModal.jsx
+        PolicyCard.jsx
+        GoogleMapSelector.jsx
+        DigitalClock.jsx
+      layout/
+        AppLayout.jsx
+        HeaderBar.jsx
+        RoleBasedSidebar.jsx
+      common/
+        ActivityTimeline.jsx
+        PageTitle.jsx
+        EmptyState.jsx
+        ProtectedRoute.jsx
+        StatCard.jsx
+      charts/
+        AnalyticsChart.jsx
+      providers/
+        ThemeProvider.jsx
+        SocketProvider.jsx
+    lib/
+      api.js
+      auth.js
+      socket.js
+      date.js
+      encryption.js
+      errorFormatter.js
+      geolocation.js
+      useGeolocationTracker.js
+      useNewsNotifications.js
+      useActivityTimeline.js
+      useSocket.js
+      rbac.js
+      payrollPdfGenerator.js
+      locationTracker.js
+    hooks/
+      useGeolocationTracking.js
+      useActivityTimeline.js
+      useSocket.js
+    store/
+      authStore.js
+      toastStore.js
+      notificationStore.js
+      enterpriseNotificationStore.js
+    styles/
+      index.css
+      premium-chat.css
+      universal-responsive.css
+      chat.css
+
+Other notable files: various remaining .md docs in project root and docs/
+
+End of listing.

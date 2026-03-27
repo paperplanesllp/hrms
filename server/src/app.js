@@ -71,7 +71,6 @@ export function createApp() {
     }
     
     // CORS headers
-    res.header("Access-Control-Allow-Origin", corsOptions.origin);
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Cache-Control", "public, max-age=3600");
     next();
