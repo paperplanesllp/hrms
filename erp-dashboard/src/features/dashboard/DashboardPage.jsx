@@ -383,6 +383,7 @@ export default function DashboardPage() {
                 color="deep-navy"
                 icon={AlertCircle}
               />
+              {(isAdmin || isHR) && (
               <StatCard
                 title="Absent Today"
                 value={stats.absentToday || 0}
@@ -390,6 +391,7 @@ export default function DashboardPage() {
                 color="steel-blue"
                 icon={XCircle}
               />
+              )}
             </div>
           )}
 
@@ -397,7 +399,8 @@ export default function DashboardPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Left Column - Quick Stats and Info */}
             <div className="space-y-6 lg:col-span-1">
-              {/* Leave Balance Card */}
+              {/* Leave Balance Card - Only show for HR and Employees, not Admin */}
+              {!isAdmin && (
               <Card elevated className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-900/30">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -470,6 +473,7 @@ export default function DashboardPage() {
                   )}
                 </div>
               </Card>
+              )}
 
               {/* Payroll Card */}
               <Card elevated className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-900/30">
@@ -799,7 +803,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Absent Employees Section - Admin/HR Only */}
-          {(isAdmin || isHR) && absentEmployees.length > 0 && (
+          {(isAdmin || isHR) && (
             <Card elevated className="bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-900/30 mt-6">
               <div className="p-6 border-b border-rose-200 dark:border-rose-800/50">
                 <div className="flex items-center justify-between">
@@ -815,24 +819,32 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="p-6">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {absentEmployees.map((employee) => (
-                    <div key={employee._id} className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-rose-200 dark:border-rose-800/30 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-[#0A1931] dark:text-white text-sm">{employee.name}</h4>
-                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">{employee.email}</p>
+                {absentEmployees.length > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {absentEmployees.map((employee) => (
+                      <div key={employee._id} className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-rose-200 dark:border-rose-800/30 hover:shadow-md transition-all">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-[#0A1931] dark:text-white text-sm">{employee.name}</h4>
+                            <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">{employee.email}</p>
+                          </div>
+                          <span className="px-2 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                            {employee.role}
+                          </span>
                         </div>
-                        <span className="px-2 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                          {employee.role}
-                        </span>
+                        {employee.phone && (
+                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-2">📞 {employee.phone}</p>
+                        )}
                       </div>
-                      {employee.phone && (
-                        <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-2">📞 {employee.phone}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm font-semibold text-[#0A1931] dark:text-white">All Employees Present</p>
+                    <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Everyone has checked in today or on approved leave</p>
+                  </div>
+                )}
               </div>
             </Card>
           )}

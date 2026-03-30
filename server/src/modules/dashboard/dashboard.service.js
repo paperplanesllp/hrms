@@ -89,10 +89,9 @@ export async function getDashboardStats() {
   });
 
   // Count absent today - employees with no check-in and no approved leave
-  // Get all active employees (role !== "ADMIN" to exclude admins from attendance)
-  const totalActiveEmployees = await User.countDocuments({ 
-    role: { $in: ["HR", "USER"] },
-    isActive: true 
+  // Get all employees (role !== "ADMIN" to exclude admins from attendance)
+  const totalEmployees = await User.countDocuments({ 
+    role: { $in: ["HR", "USER"] }
   });
 
   // Get employees who have attendance records today (any status)
@@ -114,7 +113,7 @@ export async function getDashboardStats() {
   ]);
 
   // Absent = Total employees - (those with activity + those on leave)
-  const absentToday = totalActiveEmployees - usersWithActivityToday.size;
+  const absentToday = totalEmployees - usersWithActivityToday.size;
 
   // Count pending leaves
   const leavePending = await Leave.countDocuments({ 
@@ -139,10 +138,9 @@ export async function getAbsentEmployees() {
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const todayDate = new Date(today);
 
-  // Get all active employees (exclude ADMIN)
-  const activeEmployees = await User.find({ 
-    role: { $in: ["HR", "USER"] },
-    isActive: true 
+  // Get all employees (exclude ADMIN)
+  const allEmployees = await User.find({ 
+    role: { $in: ["HR", "USER"] }
   }).lean();
 
   // Get employees who have attendance records today
@@ -164,7 +162,7 @@ export async function getAbsentEmployees() {
   ]);
 
   // Filter absent employees
-  const absentEmployees = activeEmployees.filter(emp => 
+  const absentEmployees = allEmployees.filter(emp => 
     !usersWithActivityToday.has(emp._id.toString())
   );
 
