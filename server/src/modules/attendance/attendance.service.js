@@ -18,7 +18,14 @@ function calculateTotalHours(checkIn, checkOut) {
   const [outH, outM] = checkOut.split(":").map(Number);
   const inMinutes = inH * 60 + inM;
   const outMinutes = outH * 60 + outM;
-  const diffMinutes = outMinutes - inMinutes;
+  
+  // If checkout is before checkin, it means checkout is next day (e.g., night shift)
+  let diffMinutes = outMinutes - inMinutes;
+  if (diffMinutes < 0) {
+    // Assume checkout is next day, add 24 hours
+    diffMinutes += 24 * 60;
+  }
+  
   return Math.max(0, Math.round((diffMinutes / 60) * 100) / 100); // Round to 2 decimals
 }
 
@@ -109,11 +116,37 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
         status = "PRESENT";
       }
     } else {
-      // Checked in AND checked out - determine based on hours/timing
-      // If checked in after shift start, mark as SHORT_HOURS (late arrival)
+      // Checked in AND checked out - determine based on timing and validity
+      
+      // Check if times are valid (checkOut >= checkIn or next day)
+      const [inH, inM] = newCheckIn.split(":").map(Number);
+      const [outH, outM] = newCheckOut.split(":").map(Number);
+      const inMinutes = inH * 60 + inM;
+      const outMinutes = outH * 60 + outM;
+      
+      // If checkOut is before checkIn and not next day, mark as INVALID/ABSENT
+      if (outMinutes < inMinutes) {
+        // This might be next-day checkout (night shift) - OK
+        // Or it might be invalid data entry - also OK for now
+        status = "PRESENT"; // Assume night shift
+      }
+      
+      // Check if checked in after shift start
       if (compareTime(newCheckIn, shiftStart) > 0) {
-        status = "SHORT_HOURS";
+        // Check how late they are
+        const [shiftH, shiftM] = shiftStart.split(":").map(Number);
+        const shiftMinutes = shiftH * 60 + shiftM;
+        const lateMins = inMinutes - shiftMinutes;
+        
+        if (lateMins > 60) {
+          // More than 1 hour late = ABSENT (very late)
+          status = "ABSENT";
+        } else if (lateMins > 0) {
+          // Less than 1 hour late = SHORT_HOURS
+          status = "SHORT_HOURS";
+        }
       } else {
+        // Checked in on time
         status = "PRESENT";
       }
     }
@@ -154,7 +187,7 @@ export async function getMyAttendance(userId, from, to) {
   });
 }
 
-export async function getAllAttendance(from, to, userRole) {
+export async function getAllAttendance(from, to, userRole, userId = null) {
   try {
     // Default to last 30 days if not specified
     let fromDate = from;
@@ -167,9 +200,15 @@ export async function getAllAttendance(from, to, userRole) {
       fromDate = thirtyDaysAgo.toISOString().split("T")[0];
     }
     
+    // Build query - filter by date and optionally by userId
     const query = { date: { $gte: fromDate, $lte: toDate } };
     
-    // Get all attendance records with user details
+    // If userId is provided, filter by that specific user
+    if (userId && userId !== "" && userId !== "null") {
+      query.userId = userId;
+    }
+    
+    // Get attendance records with user details
     const records = await Attendance.find(query)
       .populate("userId", "name email role")
       .sort({ date: -1 });
@@ -467,4 +506,130 @@ export async function adminEditShift(userId, date, shiftStart, shiftEnd) {
     { upsert: true, new: true }
   );
   return doc;
+}
+
+/**
+ * Recalculate all attendance records with fixed logic
+ * Fixes issues like:
+ * - totalHours showing 0 when it should calculate
+ * - Status not properly calculated for late check-ins
+ * - Night shift handling
+ * 
+ * @param {String} fromDate - Optional from date (YYYY-MM-DD)
+ * @param {String} toDate - Optional to date (YYYY-MM-DD)
+ * @returns {Object} - { total: count, recalculated: count, fixed: count, errors: count }
+ */
+export async function recalculateAllAttendance(fromDate = null, toDate = null) {
+  try {
+    console.log("🔄 Starting attendance recalculation...");
+    
+    // Set default date range to last 90 days if not provided
+    let query = {};
+    if (fromDate && toDate) {
+      query.date = { $gte: fromDate, $lte: toDate };
+    } else {
+      const today = new Date();
+      const ninetyDaysAgo = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+      query.date = { 
+        $gte: ninetyDaysAgo.toISOString().split('T')[0],
+        $lte: today.toISOString().split('T')[0]
+      };
+    }
+    
+    // Get all attendance records in range
+    const records = await Attendance.find(query);
+    console.log(`📋 Found ${records.length} records to recalculate`);
+    
+    let recalculatedCount = 0;
+    let fixedCount = 0;
+    let errorCount = 0;
+    
+    for (const record of records) {
+      try {
+        // Get shift for this date
+        const { shiftStart, shiftEnd } = await getShiftForDate(record.date);
+        
+        const oldStatus = record.status;
+        const oldHours = record.totalHours;
+        
+        // Recalculate totalHours with fixed logic
+        const newTotalHours = calculateTotalHours(record.checkIn, record.checkOut);
+        
+        // Recalculate status with fixed logic
+        let newStatus = "PRESENT";
+        
+        if (!record.checkIn) {
+          newStatus = "ABSENT";
+        } else if (record.checkIn && !record.checkOut) {
+          const today = new Date().toISOString().split("T")[0];
+          if (record.date < today) {
+            newStatus = "ABSENT";
+          } else {
+            newStatus = "PRESENT";
+          }
+        } else {
+          // Has both check-in and check-out
+          const [inH, inM] = record.checkIn.split(":").map(Number);
+          const inMinutes = inH * 60 + inM;
+          
+          // Check if checked in after shift start
+          if (compareTime(record.checkIn, shiftStart) > 0) {
+            const [shiftH, shiftM] = shiftStart.split(":").map(Number);
+            const shiftMinutes = shiftH * 60 + shiftM;
+            const lateMins = inMinutes - shiftMinutes;
+            
+            if (lateMins > 60) {
+              newStatus = "ABSENT"; // More than 1 hour late
+            } else if (lateMins > 0) {
+              newStatus = "SHORT_HOURS"; // Less than 1 hour late
+            }
+          } else {
+            newStatus = "PRESENT";
+          }
+        }
+        
+        // Check if anything changed
+        if (oldStatus !== newStatus || oldHours !== newTotalHours) {
+          await Attendance.findByIdAndUpdate(record._id, {
+            $set: {
+              status: newStatus,
+              totalHours: newTotalHours
+            }
+          });
+          
+          fixedCount++;
+          console.log(`  ✓ Fixed: ${record.date} - Status: ${oldStatus} → ${newStatus}, Hours: ${oldHours} → ${newTotalHours}`);
+        }
+        
+        recalculatedCount++;
+      } catch (error) {
+        console.error(`  ⚠️ Error recalculating record ${record._id}:`, error.message);
+        errorCount++;
+      }
+    }
+    
+    const result = {
+      dateRange: {
+        from: fromDate || (new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
+        to: toDate || new Date().toISOString().split('T')[0]
+      },
+      total: records.length,
+      recalculated: recalculatedCount,
+      fixed: fixedCount,
+      errors: errorCount,
+      message: `Recalculated ${recalculatedCount} records, fixed ${fixedCount} issues, ${errorCount} errors`
+    };
+    
+    console.log(`\n✅ Recalculation completed:`, result);
+    return result;
+  } catch (error) {
+    console.error("❌ Error in recalculateAllAttendance:", error.message);
+    return {
+      total: 0,
+      recalculated: 0,
+      fixed: 0,
+      errors: 1,
+      error: error.message
+    };
+  }
 }

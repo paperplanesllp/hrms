@@ -12,6 +12,7 @@ import { ROLES } from "../../app/constants.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
 import { getSocket } from "../../lib/socket.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
+import QuickAttendanceMarking from "./QuickAttendanceMarking.jsx";
 import { Users, TrendingUp, Clock, AlertCircle, CheckCircle, XCircle, Eye, LogIn, LogOut, Timer, Home, Calendar, DollarSign, AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -393,6 +394,11 @@ export default function DashboardPage() {
               />
               )}
             </div>
+          )}
+
+          {/* Quick Attendance Marking - Only for HR */}
+          {isHR && (
+            <QuickAttendanceMarking />
           )}
 
           {/* Main Content Grid - Two/Three Column Layout */}

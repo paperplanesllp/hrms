@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { markSchema, editAttendanceSchema, adminEditShiftSchema } from "./attendance.schemas.js";
-import { markMyAttendance, getMyAttendance, getAllAttendance, editAttendanceHRorAdmin, adminEditShift, editAttendanceById, autoMarkAbsentees, getAttendanceSummaryForToday } from "./attendance.service.js";
+import { markMyAttendance, getMyAttendance, getAllAttendance, editAttendanceHRorAdmin, adminEditShift, editAttendanceById, autoMarkAbsentees, getAttendanceSummaryForToday, recalculateAllAttendance } from "./attendance.service.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { Attendance } from "./Attendance.model.js";
@@ -89,7 +89,8 @@ export const getMine = asyncHandler(async (req, res) => {
 export const getAll = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
-  const rows = await getAllAttendance(from, to, req.user.role);
+  const userId = String(req.query.userId || ""); // Get userId from query params
+  const rows = await getAllAttendance(from, to, req.user.role, userId); // Pass userId to service
   res.json(rows);
 });
 
@@ -172,5 +173,23 @@ export const getAttendanceByDate = asyncHandler(async (req, res) => {
     success: true,
     data: attendance,
     message: attendance ? undefined : "No attendance record found for this date"
+  });
+});
+
+/**
+ * POST /attendance/admin/recalculate
+ * Recalculate all attendance records with fixed status/hours calculation
+ * This fixes issues like wrong totalHours and incorrect status
+ * ADMIN ONLY
+ */
+export const triggerRecalculateAttendance = asyncHandler(async (req, res) => {
+  const { fromDate, toDate } = req.query;
+
+  const result = await recalculateAllAttendance(fromDate, toDate);
+
+  res.json({
+    success: true,
+    data: result,
+    message: result.message || "Attendance recalculation completed"
   });
 });

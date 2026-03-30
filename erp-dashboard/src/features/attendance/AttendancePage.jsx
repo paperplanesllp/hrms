@@ -22,7 +22,7 @@ export default function AttendancePage() {
   const [rows, setRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [filterHROnly, setFilterHROnly] = useState(isAdmin);
+  const [filterHROnly, setFilterHROnly] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -99,7 +99,10 @@ export default function AttendancePage() {
       const toDate = today.toISOString().split("T")[0];
       const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
       
-      const res = await api.get("/attendance", {
+      // For regular users: fetch only own records
+      // For Admin: fetch all HR/USER records
+      const endpoint = isAdmin ? "/attendance" : "/attendance/me";
+      const res = await api.get(endpoint, {
         params: { from: fromDate, to: toDate }
       });
       setRows(res.data || []);
@@ -252,10 +255,10 @@ export default function AttendancePage() {
 
   // Calculate statistics
   const stats = {
-    total: rows.length,
-    present: rows.filter(r => r.status === "PRESENT").length,
-    shortHours: rows.filter(r => r.status === "SHORT_HOURS").length,
-    absent: rows.filter(r => r.status === "ABSENT").length
+    total: filteredRows.length,
+    present: filteredRows.filter(r => r.status === "PRESENT").length,
+    shortHours: filteredRows.filter(r => r.status === "SHORT_HOURS").length,
+    absent: filteredRows.filter(r => r.status === "ABSENT").length
   };
 
   // Check if someone checked in but forgot to check out

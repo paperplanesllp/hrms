@@ -46,7 +46,9 @@ import ChatPage from "../features/chat/PremiumChatPage.jsx";
 import StaffComplaintsDashboard from "../features/complaints/StaffComplaintsDashboard.jsx";
 import DepartmentManagePage from "../features/department/DepartmentManagePage.jsx";
 import HRActivityTimelinePage from "../features/hr/HRActivityTimelinePage.jsx";
+import HRAttendanceManagementPage from "../features/hr/HRAttendanceManagementPage.jsx";
 import ActivityTimelinePage from "../features/admin/ActivityTimelinePage.jsx";
+import AdminAttendanceManagementPage from "../features/admin/AdminAttendanceManagementPage.jsx";
 import EmployeeAnalyticsDashboard from "../features/analytics/EmployeeAnalyticsDashboard.jsx";
 
 import { ROLES } from "./constants.js";
@@ -230,10 +232,26 @@ export default function AppRoutes() {
           }
         />
         <Route
+          path="hr/attendance-management"
+          element={
+            <ProtectedRoute roles={[ROLES.HR]}>
+              <HRAttendanceManagementPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="admin/activity-timeline"
           element={
             <ProtectedRoute roles={[ROLES.ADMIN]}>
               <ActivityTimelinePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/attendance-management"
+          element={
+            <ProtectedRoute roles={[ROLES.ADMIN]}>
+              <AdminAttendanceManagementPage />
             </ProtectedRoute>
           }
         />

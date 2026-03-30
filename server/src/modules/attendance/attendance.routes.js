@@ -10,7 +10,8 @@ import {
   patchShiftAdmin,
   triggerAutoMarkAbsentees,
   getAttendanceSummary,
-  getAttendanceByDate
+  getAttendanceByDate,
+  triggerRecalculateAttendance
 } from "./attendance.controller.js";
 
 const router = express.Router();
@@ -49,5 +50,8 @@ router.get("/admin/auto-mark", requireAuth, requireRole(ROLES.ADMIN), triggerAut
 
 // Get today's attendance summary
 router.get("/admin/summary", requireAuth, requireRole(ROLES.ADMIN), getAttendanceSummary);
+
+// Recalculate all attendance records with fixed logic (admin can fix bad data)
+router.post("/admin/recalculate", requireAuth, requireRole(ROLES.ADMIN), triggerRecalculateAttendance);
 
 export default router;
