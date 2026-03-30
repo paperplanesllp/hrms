@@ -2,7 +2,7 @@ import { Payroll } from "./Payroll.model.js";
 import { User } from "../users/User.model.js";
 import { ROLES } from "../../middleware/roles.js";
 
-// Get logged-in user's payroll records
+// Get logged-in user's payroll records (only their own)
 export async function getMyPayroll(userId) {
   return Payroll.find({ userId })
     .populate("createdBy", "name email")
@@ -10,13 +10,21 @@ export async function getMyPayroll(userId) {
     .sort({ month: -1 });
 }
 
-// Get all payroll records (with role-based filtering)
-export async function listPayrollAll(userRole, filters = {}) {
+// Get payroll records based on role hierarchy:
+// ADMIN → See & manage HR payroll
+// HR → See & manage Employee payroll + their own payroll
+// EMPLOYEE → See only their own payroll
+export async function listPayrollAll(userRole, userId, filters = {}) {
   try {
     let query = {};
     
-    // HR cannot see Admin payroll
-    if (userRole === ROLES.HR) {
+    if (userRole === ROLES.ADMIN) {
+      // Admin sees only HR staff payroll
+      const hrUsers = await User.find({ role: ROLES.HR }).select("_id");
+      const hrIds = hrUsers.map(u => u._id);
+      query.userId = { $in: hrIds };
+    } else if (userRole === ROLES.HR) {
+      // HR sees only Employee payroll (not admin, not other HR staff)
       const adminUsers = await User.find({ role: ROLES.ADMIN }).select("_id");
       const adminIds = adminUsers.map(u => u._id);
       query.userId = { $nin: adminIds };
@@ -119,14 +127,20 @@ export async function deletePayroll(payrollId) {
 }
 
 // Get payroll statistics for dashboard
-export async function getPayrollStats(userRole, year, month) {
+export async function getPayrollStats(userRole, userId, year, month) {
   try {
     let query = { year };
     if (month) {
       query.month = month;
     }
     
-    if (userRole === ROLES.HR) {
+    if (userRole === ROLES.ADMIN) {
+      // Admin sees stats for HR staff payroll only
+      const hrUsers = await User.find({ role: ROLES.HR }).select("_id");
+      const hrIds = hrUsers.map(u => u._id);
+      query.userId = { $in: hrIds };
+    } else if (userRole === ROLES.HR) {
+      // HR sees stats for Employee payroll only (not admin)
       const adminUsers = await User.find({ role: ROLES.ADMIN }).select("_id");
       const adminIds = adminUsers.map(u => u._id);
       query.userId = { $nin: adminIds };

@@ -3,13 +3,15 @@ import { Leave } from "../leave/Leave.model.js";
 import { User } from "../users/User.model.js";
 import { Department } from "../department/Department.model.js";
 import { Payroll } from "../payroll/Payroll.model.js";
+import { LeaveType } from "../leaveType/LeaveType.model.js";
 
-// Calculate leave balance for a user
+// Calculate leave balance for a user - supports multiple leave types
 export async function getLeaveBalance(userId) {
-  const TOTAL_LEAVE_DAYS = 20; // Company policy: 20 days per year
+  // Get all active leave types
+  const leaveTypes = await LeaveType.find({ isActive: true }).lean();
   
-  // Get all leaves for the user
-  const leaves = await Leave.find({ userId }).lean();
+  // Get all leaves for the user (across all types)
+  const allLeaves = await Leave.find({ userId }).lean();
   
   // Calculate days from leave records
   const calculateDays = (fromDate, toDate) => {
@@ -20,27 +22,59 @@ export async function getLeaveBalance(userId) {
     return Math.max(days, 1); // At least 1 day
   };
   
-  // Count approved leaves (used days)
-  const usedDays = leaves
-    .filter(leave => leave.status === "APPROVED")
-    .reduce((sum, leave) => sum + calculateDays(leave.fromDate, leave.toDate), 0);
+  // Build leave balance by type
+  const balanceByType = leaveTypes.map(leaveType => {
+    // Get leaves for this specific type
+    const typedLeaves = allLeaves.filter(leave => leave.leaveType === leaveType.name);
+    
+    // Calculate used days (approved leaves only)
+    const usedDays = typedLeaves
+      .filter(leave => leave.status === "APPROVED")
+      .reduce((sum, leave) => sum + calculateDays(leave.fromDate, leave.toDate), 0);
+    
+    // Count pending leaves for this type
+    const pendingDays = typedLeaves
+      .filter(leave => leave.status === "PENDING")
+      .reduce((sum, leave) => sum + calculateDays(leave.fromDate, leave.toDate), 0);
+    
+    const pendingRequests = typedLeaves.filter(leave => leave.status === "PENDING").length;
+    
+    // Calculate remaining days for this type
+    const remainingDays = Math.max(leaveType.maxDaysPerYear - usedDays, 0);
+    
+    return {
+      leaveTypeName: leaveType.name,
+      maxDaysPerYear: leaveType.maxDaysPerYear,
+      usedDays,
+      pendingDays,
+      pendingRequests,
+      remainingDays,
+      color: leaveType.color
+    };
+  });
   
-  // Count pending leaves
-  const pendingRequests = leaves.filter(leave => leave.status === "PENDING").length;
-  
-  // Calculate remaining days
-  const remainingDays = Math.max(TOTAL_LEAVE_DAYS - usedDays, 0);
+  // Calculate totals across all leave types
+  const totalMaxDays = leaveTypes.reduce((sum, type) => sum + type.maxDaysPerYear, 0);
+  const totalUsedDays = balanceByType.reduce((sum, type) => sum + type.usedDays, 0);
+  const totalPendingDays = balanceByType.reduce((sum, type) => sum + type.pendingDays, 0);
+  const totalPendingRequests = balanceByType.reduce((sum, type) => sum + type.pendingRequests, 0);
+  const totalRemainingDays = Math.max(totalMaxDays - totalUsedDays, 0);
   
   return {
-    total: TOTAL_LEAVE_DAYS,
-    used: usedDays,
-    pending: pendingRequests,
-    remaining: remainingDays
+    // Overall summary
+    total: totalMaxDays,
+    used: totalUsedDays,
+    pending: totalPendingRequests,
+    remaining: totalRemainingDays,
+    
+    // Detailed breakdown by leave type
+    byType: balanceByType
   };
 }
 
 export async function getDashboardStats() {
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const todayDate = new Date(today);
 
   // Count present today (includes SHORT_HOURS)
   const presentToday = await Attendance.countDocuments({ 
@@ -54,11 +88,33 @@ export async function getDashboardStats() {
     status: "SHORT_HOURS" 
   });
 
-  // Count absent today (no activity)
-  const absentToday = await Attendance.countDocuments({ 
-    date: today, 
-    status: "ABSENT" 
+  // Count absent today - employees with no check-in and no approved leave
+  // Get all active employees (role !== "ADMIN" to exclude admins from attendance)
+  const totalActiveEmployees = await User.countDocuments({ 
+    role: { $in: ["HR", "USER"] },
+    isActive: true 
   });
+
+  // Get employees who have attendance records today (any status)
+  const employeesWithAttendanceToday = await Attendance.distinct('userId', { 
+    date: today 
+  });
+
+  // Get employees with approved leave for today
+  const employeesWithLeaveToday = await Leave.find({
+    status: "APPROVED",
+    fromDate: { $lte: todayDate },
+    toDate: { $gte: todayDate }
+  }).distinct('userId');
+
+  // Merge both arrays and get unique count
+  const usersWithActivityToday = new Set([
+    ...employeesWithAttendanceToday.map(id => id.toString()),
+    ...employeesWithLeaveToday.map(id => id.toString())
+  ]);
+
+  // Absent = Total employees - (those with activity + those on leave)
+  const absentToday = totalActiveEmployees - usersWithActivityToday.size;
 
   // Count pending leaves
   const leavePending = await Leave.countDocuments({ 
@@ -72,10 +128,59 @@ export async function getDashboardStats() {
   return {
     presentToday,
     shortHoursToday,
-    absentToday,
+    absentToday: Math.max(0, absentToday),
     leavePending,
     payrollPending
   };
+}
+
+// Get list of all absent employees (not checked in and no approved leave)
+export async function getAbsentEmployees() {
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const todayDate = new Date(today);
+
+  // Get all active employees (exclude ADMIN)
+  const activeEmployees = await User.find({ 
+    role: { $in: ["HR", "USER"] },
+    isActive: true 
+  }).lean();
+
+  // Get employees who have attendance records today
+  const employeesWithAttendanceToday = await Attendance.distinct('userId', { 
+    date: today 
+  });
+
+  // Get employees with approved leave for today
+  const employeesWithLeaveToday = await Leave.find({
+    status: "APPROVED",
+    fromDate: { $lte: todayDate },
+    toDate: { $gte: todayDate }
+  }).distinct('userId');
+
+  // Create set of IDs who have activity
+  const usersWithActivityToday = new Set([
+    ...employeesWithAttendanceToday.map(id => id.toString()),
+    ...employeesWithLeaveToday.map(id => id.toString())
+  ]);
+
+  // Filter absent employees
+  const absentEmployees = activeEmployees.filter(emp => 
+    !usersWithActivityToday.has(emp._id.toString())
+  );
+
+  // Sort by name and return with essential info
+  return absentEmployees
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(emp => ({
+      _id: emp._id,
+      name: emp.name,
+      email: emp.email,
+      role: emp.role,
+      departmentId: emp.departmentId,
+      designationId: emp.designationId,
+      phone: emp.phone,
+      gender: emp.gender
+    }));
 }
 
 function getDateRange(range) {

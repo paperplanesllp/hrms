@@ -34,6 +34,7 @@ export const postMarkMine = asyncHandler(async (req, res) => {
     );
   }
   
+  // Use client-provided time if available, otherwise use server time
   const checkIn = data.checkIn || getCurrentTime();
   const doc = await markMyAttendance(
     req.user.id, 

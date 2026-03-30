@@ -91,14 +91,31 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
     // Calculate total worked hours
     const totalHours = calculateTotalHours(newCheckIn, newCheckOut);
 
-    // Determine status based on check-in time
+    // Determine status based on check-in/check-out and date
     let status = "PRESENT";
-    if (newCheckIn) {
-      // If checked in after shift start, mark as SHORT_HOURS (late)
-      status = compareTime(newCheckIn, shiftStart) > 0 ? "SHORT_HOURS" : "PRESENT";
-    } else {
+    
+    if (!newCheckIn) {
       // No check-in means ABSENT
       status = "ABSENT";
+    } else if (newCheckIn && !newCheckOut) {
+      // Checked in but no check-out
+      // If this is a past date, mark as ABSENT (forgot to checkout)
+      const today = new Date().toISOString().split("T")[0];
+      if (date < today) {
+        // Past date with no checkout = ABSENT
+        status = "ABSENT";
+      } else {
+        // Today or future - don't mark as absent yet (might checkout later)
+        status = "PRESENT";
+      }
+    } else {
+      // Checked in AND checked out - determine based on hours/timing
+      // If checked in after shift start, mark as SHORT_HOURS (late arrival)
+      if (compareTime(newCheckIn, shiftStart) > 0) {
+        status = "SHORT_HOURS";
+      } else {
+        status = "PRESENT";
+      }
     }
 
     const doc = await Attendance.findOneAndUpdate(
@@ -121,7 +138,20 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
 }
 
 export async function getMyAttendance(userId, from, to) {
-  return Attendance.find({ userId, date: { $gte: from, $lte: to } }).sort({ date: 1 });
+  const records = await Attendance.find({ userId, date: { $gte: from, $lte: to } }).sort({ date: 1 });
+  
+  // Recalculate status for past dates (in case they forgot to checkout)
+  const today = new Date().toISOString().split("T")[0];
+  return records.map(record => {
+    // If it's a past date, has check-in but no check-out, mark as ABSENT
+    if (record.date < today && record.checkIn && !record.checkOut) {
+      return {
+        ...record.toObject(),
+        status: "ABSENT"
+      };
+    }
+    return record;
+  });
 }
 
 export async function getAllAttendance(from, to, userRole) {
@@ -144,25 +174,34 @@ export async function getAllAttendance(from, to, userRole) {
       .populate("userId", "name email role")
       .sort({ date: -1 });
 
-    // Transform records to include user details
+    // Transform records to include user details and recalculate status for past dates
+    const today = new Date().toISOString().split("T")[0];
     return records
       .filter(record => record.userId) // Filter out records without user (deleted users)
-      .map(record => ({
-        _id: record._id,
-        date: record.date,
-        checkIn: record.checkIn,
-        checkOut: record.checkOut,
-        shiftStart: record.shiftStart,
-        shiftEnd: record.shiftEnd,
-        shiftName: record.shiftName,
-        shiftHours: calculateShiftHours(record.shiftStart, record.shiftEnd),
-        totalHours: record.totalHours,
-        status: record.status,
-        userId: record.userId._id,
-        userName: record.userId.name || "Unknown User",
-        email: record.userId.email || "N/A",
-        userRole: record.userId.role || "USER"
-      }));
+      .map(record => {
+        // Recalculate status for past dates: if no checkout on a past date, mark as ABSENT
+        let status = record.status;
+        if (record.date < today && record.checkIn && !record.checkOut) {
+          status = "ABSENT";
+        }
+        
+        return {
+          _id: record._id,
+          date: record.date,
+          checkIn: record.checkIn,
+          checkOut: record.checkOut,
+          shiftStart: record.shiftStart,
+          shiftEnd: record.shiftEnd,
+          shiftName: record.shiftName,
+          shiftHours: calculateShiftHours(record.shiftStart, record.shiftEnd),
+          totalHours: record.totalHours,
+          status: status,  // Use recalculated status
+          userId: record.userId._id,
+          userName: record.userId.name || "Unknown User",
+          email: record.userId.email || "N/A",
+          userRole: record.userId.role || "USER"
+        };
+      });
   } catch (error) {
     console.error("Error fetching all attendance:", error);
     throw error;

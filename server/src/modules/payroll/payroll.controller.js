@@ -20,7 +20,7 @@ export const getMinePayroll = asyncHandler(async (req, res) => {
   res.json(rows);
 });
 
-// Get all payroll records (HR/Admin)
+// Get all payroll records (with role-based hierarchy)
 export const getAllPayroll = asyncHandler(async (req, res) => {
   const { paymentStatus, month, year } = req.query;
   const filters = {};
@@ -29,7 +29,14 @@ export const getAllPayroll = asyncHandler(async (req, res) => {
   if (month) filters.month = month;
   if (year) filters.year = parseInt(year);
   
-  const rows = await listPayrollAll(req.user.role, filters);
+  // Only Admin and HR can access payroll management
+  if (req.user.role !== ROLES.ADMIN && req.user.role !== ROLES.HR) {
+    return res.status(403).json({ 
+      message: "Only Admin and HR can view payroll records" 
+    });
+  }
+  
+  const rows = await listPayrollAll(req.user.role, req.user.id, filters);
   res.json(rows);
 });
 
@@ -107,6 +114,6 @@ export const getPayrollStatsHandler = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "year parameter is required" });
   }
   
-  const stats = await getPayrollStats(req.user.role, parseInt(year), month);
+  const stats = await getPayrollStats(req.user.role, req.user.id, parseInt(year), month);
   res.json(stats);
 });
