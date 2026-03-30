@@ -29,7 +29,7 @@ export default function HeaderBar({ onMenu }) {
       <div className="flex items-center justify-between h-16 px-4 md:px-8 lg:px-10">
 
         {/* LEFT SIDE */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           
           {/* Mobile Menu Button */}
           <button
@@ -41,9 +41,7 @@ export default function HeaderBar({ onMenu }) {
           </button>
 
           {/* Digital Clock */}
-          <div className="flex items-center px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-inner">
-            <DigitalClock />
-          </div>
+          <DigitalClock />
 
         </div>
 
