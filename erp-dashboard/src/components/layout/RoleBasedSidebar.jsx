@@ -54,7 +54,7 @@ export default function RoleBasedSidebar({ open, setOpen }) {
   const isHR = user?.role === ROLES.HR;
 
   const mainLinks = [
-    { to: "/admin/analytics", icon: <TrendingUp className="w-4 h-4" />, label: "Analytics", end: true },
+    { to: isAdmin || isHR ? "/admin/analytics" : "/analytics", icon: <TrendingUp className="w-4 h-4" />, label: "Analytics", end: true },
     { to: "/", icon: <LayoutDashboard className="w-4 h-4" />, label: "Dashboard" },
     { to: "/profile", icon: <User className="w-4 h-4" />, label: "Profile" },
     { to: "/chat", icon: <MessageCircle className="w-4 h-4" />, label: "Messages" },

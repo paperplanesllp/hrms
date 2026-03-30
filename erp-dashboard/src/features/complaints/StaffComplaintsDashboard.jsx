@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useTheme } from "../../components/providers/ThemeProvider.jsx";
 import { useAuthStore } from "../../store/authStore.js";
+import { useNavigate } from "react-router-dom";
+import { ROLES } from "../../app/constants.js";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Button from "../../components/ui/Button.jsx";
 import Card from "../../components/ui/Card.jsx";
@@ -192,8 +194,21 @@ const ComplaintCard = ({ complaint, isExpanded, onToggle }) => {
 export default function StaffComplaintsDashboard() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
 
-  
+  // Redirect admins and HR to their respective pages
+  useEffect(() => {
+    if (user?.role === ROLES.ADMIN || user?.role === ROLES.HR) {
+      navigate("/admin/complaints", { replace: true });
+    }
+  }, [user, navigate]);
+
+  // Early return for admin/HR
+  if (user?.role === ROLES.ADMIN || user?.role === ROLES.HR) {
+    return null;
+  }
+
   const [loading, setLoading] = useState(true);
   const [complaints, setComplaints] = useState([]);
   const [showForm, setShowForm] = useState(false);

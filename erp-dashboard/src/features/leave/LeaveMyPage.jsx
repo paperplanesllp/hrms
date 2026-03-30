@@ -31,6 +31,8 @@ export default function LeaveMyPage() {
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTypes, setLoadingTypes] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState({ total: 0, used: 0, pending: 0, remaining: 0, byType: [] });
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   const [form, setForm] = useState({
     from: "",
@@ -56,6 +58,22 @@ export default function LeaveMyPage() {
       toast({ title: "Failed to load leave types", type: "error" });
     } finally {
       setLoadingTypes(false);
+    }
+  };
+
+  /* ---------------- LOAD LEAVE BALANCE ---------------- */
+
+  const loadLeaveBalance = async () => {
+    try {
+      setBalanceLoading(true);
+      const res = await api.get("/dashboard/leave-balance");
+      if (res.data) {
+        setLeaveBalance(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load leave balance:", err);
+    } finally {
+      setBalanceLoading(false);
     }
   };
 
@@ -87,8 +105,12 @@ export default function LeaveMyPage() {
 
     loadLeaveTypes();
     load();
+    loadLeaveBalance();
 
-    const handleLeaveUpdate = () => load();
+    const handleLeaveUpdate = () => {
+      load();
+      loadLeaveBalance();
+    };
 
     window.addEventListener("leaveStatusUpdate", handleLeaveUpdate);
 
@@ -224,6 +246,85 @@ export default function LeaveMyPage() {
   }
   />
 
+  {/* ---------------- LEAVE BALANCE SUMMARY ---------------- */}
+  <Card className="rounded-2xl shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-900/30 border border-emerald-200 dark:border-emerald-800">
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-emerald-600" />
+          Leave Balance Summary
+        </h3>
+      </div>
+
+      {balanceLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <Clock className="animate-spin text-emerald-600 w-5 h-5" />
+          <span className="ml-2 text-sm text-gray-600">Loading balance...</span>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Overall Summary */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Total Days</span>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{leaveBalance.total}</p>
+            </div>
+            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-orange-100 dark:border-orange-800/30">
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Used</span>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{leaveBalance.used}</p>
+            </div>
+            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-amber-100 dark:border-amber-800/30">
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Pending</span>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{leaveBalance.pending}</p>
+            </div>
+            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Remaining</span>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{leaveBalance.remaining}</p>
+            </div>
+          </div>
+
+          {/* Leave Type Breakdown */}
+          {leaveBalance.byType && leaveBalance.byType.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-emerald-200 dark:border-emerald-800/50">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Breakdown by Leave Type</h4>
+              <div className="grid gap-3 md:grid-cols-2">
+                {leaveBalance.byType.map((type, idx) => (
+                  <div key={idx} className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: type.color || "#3b82f6" }}
+                        />
+                        <span className="font-medium text-gray-900 dark:text-white">{type.leaveTypeName}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                        {type.remainingDays}/{type.maxDaysPerYear}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full transition-all"
+                        style={{ 
+                          width: `${(type.remainingDays / type.maxDaysPerYear) * 100}%`,
+                          backgroundColor: type.color || "#3b82f6"
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      <span>Used: {type.usedDays}</span>
+                      <span>Pending: {type.pendingDays} days</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  </Card>
+
   {/* ---------------- STATS ---------------- */}
 
   <div className="grid gap-6 md:grid-cols-3">
@@ -351,72 +452,175 @@ export default function LeaveMyPage() {
 
   {/* ---------------- MODAL ---------------- */}
 
-  <Modal open={open} onOpenChange={setOpen} title="Request Leave">
+  <Modal open={open} onClose={() => setOpen(false)} title="Request Leave" size="lg">
+    <form onSubmit={(e) => { e.preventDefault(); requestLeave(); }} className="space-y-8">
+      
+      {/* Leave Type Selection */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-indigo-600" />
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+            Leave Type <span className="text-red-500">*</span>
+          </label>
+        </div>
+        <select
+          value={form.leaveType}
+          onChange={(e) => setForm({...form, leaveType: e.target.value})}
+          disabled={loadingTypes}
+          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-gray-400 dark:hover:border-gray-500"
+        >
+          {loadingTypes ? (
+            <option disabled>Loading leave types...</option>
+          ) : leaveTypes.length > 0 ? (
+            <>
+              <option value="" disabled selected>Select a leave type</option>
+              {leaveTypes.map(type => (
+                <option key={type._id} value={type._id}>
+                  {type.name} • {type.maxDaysPerYear} days/year
+                </option>
+              ))}
+            </>
+          ) : (
+            <option disabled>No leave types available</option>
+          )}
+        </select>
+        {form.leaveType && leaveTypes.find(t => t._id === form.leaveType) && (
+          <div className="flex items-start gap-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-100 dark:border-indigo-800/30">
+            <Calendar className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-indigo-700 dark:text-indigo-300">
+              {leaveTypes.find(t => t._id === form.leaveType)?.description || 'Leave type selected'}
+            </p>
+          </div>
+        )}
+      </div>
 
-  <div className="space-y-4">
+      {/* Date Range Section */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-indigo-600" />
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+            Leave Duration <span className="text-red-500">*</span>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          {/* From Date */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">From</label>
+            <input
+              type="date"
+              value={form.from}
+              onChange={(e) => setForm({...form, from: e.target.value})}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              required
+            />
+            {form.from && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                {new Date(form.from).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            )}
+          </div>
 
-  <Select
-  label="Leave Type"
-  value={form.leaveType}
-  onChange={(e)=>setForm({...form,leaveType:e.target.value})}
-  disabled={loadingTypes}
-  >
-  {loadingTypes ? (
-    <option>Loading leave types...</option>
-  ) : leaveTypes.length > 0 ? (
-    leaveTypes.map(type => (
-      <option key={type._id} value={type._id}>
-        {type.name}
-      </option>
-    ))
-  ) : (
-    <option disabled>No leave types available</option>
-  )}
-  </Select>
+          {/* To Date */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">To</label>
+            <input
+              type="date"
+              value={form.to}
+              onChange={(e) => setForm({...form, to: e.target.value})}
+              min={form.from}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              required
+            />
+            {form.to && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                {new Date(form.to).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
 
-  <Input
-  label="From Date"
-  type="date"
-  value={form.from}
-  onChange={(e)=>setForm({...form,from:e.target.value})}
-  />
+      {/* Days Display */}
+      {form.from && form.to && (
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border border-indigo-200 dark:border-indigo-800/30 rounded-xl p-4 flex items-center justify-between">
+          <span className="text-sm font-medium text-indigo-900 dark:text-indigo-300">Total Leave Duration</span>
+          <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+            {Math.ceil((new Date(form.to) - new Date(form.from)) / (1000 * 60 * 60 * 24)) + 1} days
+          </span>
+        </div>
+      )}
 
-  <Input
-  label="To Date"
-  type="date"
-  value={form.to}
-  onChange={(e)=>setForm({...form,to:e.target.value})}
-  />
+      {/* Leave Balance Info */}
+      {leaveBalance.byType && leaveBalance.byType.length > 0 && form.leaveType && (
+        <div>
+          {leaveBalance.byType.find(t => t.leaveTypeName === leaveTypes.find(lt => lt._id === form.leaveType)?.name) && (
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800/30 rounded-xl p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-emerald-900 dark:text-emerald-300">Available Balance</span>
+                  <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {leaveBalance.byType.find(t => t.leaveTypeName === leaveTypes.find(lt => lt._id === form.leaveType)?.name)?.remainingDays || 0} days
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-emerald-200 dark:bg-emerald-800/50 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-400 dark:to-emerald-500 transition-all"
+                    style={{
+                      width: `${Math.min(100, (leaveBalance.byType.find(t => t.leaveTypeName === leaveTypes.find(lt => lt._id === form.leaveType)?.name)?.remainingDays || 0) / (leaveTypes.find(t => t._id === form.leaveType)?.maxDaysPerYear || 1) * 100)}%`
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-  <textarea
-  placeholder="Reason"
-  rows="3"
-  value={form.reason}
-  onChange={(e)=>setForm({...form,reason:e.target.value})}
-  className="w-full px-4 py-3 border rounded-lg"
-  />
+      {/* Reason */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-indigo-600" />
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+            Reason for Leave <span className="text-red-500">*</span>
+          </label>
+        </div>
+        <textarea
+          placeholder="Provide details about your leave request..."
+          rows="4"
+          value={form.reason}
+          onChange={(e) => setForm({...form, reason: e.target.value})}
+          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all resize-none hover:border-gray-400 dark:hover:border-gray-500"
+          required
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {form.reason.length}/500 characters
+          </p>
+          {form.reason.length > 450 && (
+            <p className="text-xs text-orange-600 dark:text-orange-400">Approaching limit</p>
+          )}
+        </div>
+      </div>
 
-  <div className="flex justify-end gap-3 pt-4">
-
-  <Button
-  variant="secondary"
-  onClick={()=>setOpen(false)}
-  >
-  Cancel
-  </Button>
-
-  <Button
-  onClick={requestLeave}
-  disabled={!form.from || !form.to || !form.reason.trim()}
-  className="text-white bg-indigo-600 hover:bg-indigo-700"
-  >
-  Submit Request
-  </Button>
-
-  </div>
-
-  </div>
-
+      {/* Action Buttons */}
+      <div className="flex items-center gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="flex-1 px-6 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 active:scale-95 transition-all duration-200"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!form.from || !form.to || !form.reason.trim() || !form.leaveType || loadingTypes}
+          className="flex-1 px-6 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Submit Request</span>
+        </button>
+      </div>
+    </form>
   </Modal>
 
   </div>

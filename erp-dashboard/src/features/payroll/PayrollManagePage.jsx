@@ -78,8 +78,19 @@ export default function PayrollManagePage() {
         })
       ]);
       
+      // Filter employees based on role hierarchy
+      let employeeList = employeesRes.data || [];
+      
+      if (isAdmin) {
+        // Admin only sees HR staff
+        employeeList = employeeList.filter(e => e.role === ROLES.HR);
+      } else if (isHR) {
+        // HR only sees regular employees (not admin, not other HR)
+        employeeList = employeeList.filter(e => e.role !== ROLES.ADMIN && e.role !== ROLES.HR);
+      }
+      
       setPayrolls(payrollRes.data || []);
-      setEmployees(employeesRes.data || []);
+      setEmployees(employeeList);
       setStats(statsRes.data || {});
     } catch (err) {
       console.error("Load data error:", err);
@@ -92,7 +103,7 @@ export default function PayrollManagePage() {
     } finally {
       setLoading(false);
     }
-  }, [filterMonth, filterYear, filterStatus, isAdmin]);
+  }, [filterMonth, filterYear, filterStatus, isAdmin, isHR]);
 
   // Load data on mount and when filters change
   useEffect(() => {
@@ -238,7 +249,7 @@ export default function PayrollManagePage() {
     <div className="space-y-6 animate-fadeIn">
       <PageTitle
         title="Payroll Management"
-        subtitle={`${isHR ? "HR can view all employees except Admin." : "Admin has full access."}`}
+        subtitle={isAdmin ? "Manage HR staff payroll records." : "Manage employee payroll records."}
         actions={
           <Button 
             onClick={() => { setEditingPayroll(null); setOpenForm(true); }} 

@@ -5,6 +5,17 @@ function toMinutes(hhmm) {
   return h * 60 + m;
 }
 
+// Convert 24-hour format (HH:MM) to 12-hour format (h:MM AM/PM)
+export function convertTo12HourFormat(time24) {
+  if (!time24) return "";
+  
+  const [hours, minutes] = time24.split(":").map(Number);
+  const meridiem = hours >= 12 ? "PM" : "AM";
+  const hours12 = hours % 12 || 12; // Convert 0 to 12 for midnight
+  
+  return `${hours12}:${String(minutes).padStart(2, "0")} ${meridiem}`;
+}
+
 export function arrivalStatus(checkInHHMM) {
   const start = toMinutes(SHIFT.START);
   const inMin = toMinutes(checkInHHMM);

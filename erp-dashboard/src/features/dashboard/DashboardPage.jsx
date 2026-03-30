@@ -11,6 +11,7 @@ import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
 import { getSocket } from "../../lib/socket.js";
+import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import { Users, TrendingUp, Clock, AlertCircle, CheckCircle, XCircle, Eye, LogIn, LogOut, Timer, Home, Calendar, DollarSign, AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -30,9 +31,11 @@ export default function DashboardPage() {
 
   const [recentNews, setRecentNews] = useState([]);
   const [recentUpdates, setRecentUpdates] = useState([]);
+  const [absentEmployees, setAbsentEmployees] = useState([]);
+  const [absentLoading, setAbsentLoading] = useState(false);
   
   // Additional data for realistic dashboard
-  const [leaveBalance, setLeaveBalance] = useState({ total: 20, used: 5, pending: 2, remaining: 13 });
+  const [leaveBalance, setLeaveBalance] = useState({ total: 0, used: 0, pending: 0, remaining: 0, byType: [] });
   const [payrollInfo, setPayrollInfo] = useState({ nextPayDate: "2026-03-25", status: "On Track", lastPaid: "2026-03-10" });
   const [pendingTasks, setPendingTasks] = useState([
     { id: 1, title: "Complete Q1 Performance Review", dueDate: "2026-03-20", priority: "high" },
@@ -120,7 +123,13 @@ export default function DashboardPage() {
     try {
       setAttendanceLoading(true);
       const location = await requestGeolocation();
+      
+      // Get current time from client
+      const now = new Date();
+      const clientCheckInTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
       const res = await api.post("/attendance/checkin", {
+        checkIn: clientCheckInTime,
         checkInLatitude: location.latitude,
         checkInLongitude: location.longitude
       });
@@ -132,7 +141,7 @@ export default function DashboardPage() {
       });
       
       setHasCheckedInToday(true);
-      setCheckInTime(res.data.attendance?.checkIn || new Date().toTimeString().slice(0, 5));
+      setCheckInTime(res.data.attendance?.checkIn || clientCheckInTime);
     } catch (e) {
       toast({ title: "Check-in failed: " + (e?.response?.data?.message || e.message), type: "error" });
     } finally {
@@ -143,7 +152,14 @@ export default function DashboardPage() {
   const handleCheckOut = async () => {
     try {
       setAttendanceLoading(true);
-      await api.post("/attendance/checkout");
+      
+      // Get current time from client
+      const now = new Date();
+      const clientCheckOutTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      await api.post("/attendance/checkout", {
+        checkOut: clientCheckOutTime
+      });
       toast({ title: "✅ Checked out successfully", type: "success" });
       
       setHasCheckedOutToday(true);
@@ -165,19 +181,25 @@ export default function DashboardPage() {
         // For regular staff users, don't fetch activity timeline (no access)
         // For HR/Admin, fetch appropriate role-based timeline
         let activityPromise = Promise.resolve({ data: {} });
+        let absentPromise = Promise.resolve({ data: [] });
         
         if (isAdmin || isHR) {
           const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=10" : "/activity/hr-timeline?limit=10";
           activityPromise = api.get(activityEndpoint).catch(() => 
             api.get("/audit/recent?limit=5")
           );
+          // Fetch absent employees for admin/HR
+          absentPromise = api.get("/dashboard/absent-employees").catch(() => 
+            Promise.resolve({ data: [] })
+          );
         }
 
-        const [s, n, u, lb] = await Promise.all([
+        const [s, n, u, lb, ae] = await Promise.all([
           api.get("/dashboard/stats"),
           api.get("/news?limit=5"),
           activityPromise,
           api.get("/dashboard/leave-balance"),
+          absentPromise,
         ]);
         setStats(s.data || stats);
         setRecentNews(n.data || []);
@@ -189,6 +211,11 @@ export default function DashboardPage() {
         // Update leave balance if available
         if (lb.data) {
           setLeaveBalance(lb.data);
+        }
+        
+        // Update absent employees
+        if (ae.data && Array.isArray(ae.data)) {
+          setAbsentEmployees(ae.data);
         }
       } catch {
         // if backend doesn't have these endpoints yet, UI still loads nicely
@@ -285,7 +312,7 @@ export default function DashboardPage() {
                       {attendanceLoading && <span className="ml-1 animate-spin">⏳</span>}
                     </button>
                     {hasCheckedInToday && checkInTime && (
-                      <p className="mt-2 text-xs text-center text-gray-600 dark:text-gray-300">at {checkInTime}</p>
+                      <p className="mt-2 text-xs text-center text-gray-600 dark:text-gray-300">at {convertTo12HourFormat(checkInTime)}</p>
                     )}
                   </div>
 
@@ -359,7 +386,7 @@ export default function DashboardPage() {
               <StatCard
                 title="Absent Today"
                 value={stats.absentToday || 0}
-                hint="No check-in activity"
+                hint="Employees without check-in"
                 color="steel-blue"
                 icon={XCircle}
               />
@@ -378,40 +405,69 @@ export default function DashboardPage() {
                     <Calendar className="w-5 h-5 text-emerald-600" />
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Total</span>
-                      <span className="text-lg font-bold text-[#0A1931] dark:text-white">{leaveBalance.total} days</span>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Spinner />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Used</span>
-                      <span className="text-sm font-semibold text-orange-600">{leaveBalance.used} days</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Pending</span>
-                      <span className="text-sm font-semibold text-amber-600">{leaveBalance.pending} requests</span>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="pt-3 mt-4 border-t border-emerald-300 dark:border-emerald-800/50">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-[#4A7FA7] dark:text-slate-400">Remaining</span>
-                        <span className="text-sm font-bold text-emerald-600">{leaveBalance.remaining} days</span>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Total</span>
+                        <span className="text-lg font-bold text-[#0A1931] dark:text-white">{leaveBalance.total} days</span>
                       </div>
-                      <div className="w-full h-2 bg-gray-200 rounded-full dark:bg-slate-700">
-                        <div 
-                          className="h-2 transition-all rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                          style={{ width: `${(leaveBalance.remaining / leaveBalance.total) * 100}%` }}
-                        />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Used</span>
+                        <span className="text-sm font-semibold text-orange-600">{leaveBalance.used} days</span>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-[#4A7FA7] dark:text-slate-400">Pending</span>
+                        <span className="text-sm font-semibold text-amber-600">{leaveBalance.pending} requests</span>
+                      </div>
+                      
+                      {/* Show leave type breakdown if available */}
+                      {leaveBalance.byType && leaveBalance.byType.length > 0 && (
+                        <div className="pt-3 mt-4 border-t border-emerald-300 dark:border-emerald-800/50">
+                          <span className="text-xs font-semibold text-[#4A7FA7] dark:text-slate-400 block mb-2">By Type:</span>
+                          <div className="space-y-2">
+                            {leaveBalance.byType.map((type, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-2 h-2 rounded-full" 
+                                    style={{ backgroundColor: type.color || "#3b82f6" }}
+                                  />
+                                  <span className="text-slate-600 dark:text-slate-400">{type.leaveTypeName}</span>
+                                </div>
+                                <span className="font-medium text-slate-900 dark:text-white">
+                                  {type.remainingDays}/{type.maxDaysPerYear}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Progress Bar */}
+                      <div className="pt-3 mt-4 border-t border-emerald-300 dark:border-emerald-800/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-[#4A7FA7] dark:text-slate-400">Remaining</span>
+                          <span className="text-sm font-bold text-emerald-600">{leaveBalance.remaining} days</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 rounded-full dark:bg-slate-700">
+                          <div 
+                            className="h-2 transition-all rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                            style={{ width: `${leaveBalance.total > 0 ? (leaveBalance.remaining / leaveBalance.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => navigate("/leave")}
+                        className="w-full px-3 py-2 mt-3 text-sm font-semibold transition-colors rounded-lg text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/30">
+                        Manage Leave →
+                      </button>
                     </div>
-                    
-                    <button 
-                      onClick={() => navigate("/leave")}
-                      className="w-full px-3 py-2 mt-3 text-sm font-semibold transition-colors rounded-lg text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/30">
-                      Manage Leave →
-                    </button>
-                  </div>
+                  )}
                 </div>
               </Card>
 
@@ -553,7 +609,7 @@ export default function DashboardPage() {
 
               <div className="p-6">
                 <div className="space-y-4">
-                  {/* Timeline Items */}
+                  {/* Timeline Items - Limited to 3 */}
                   {(recentUpdates.length > 0 ? recentUpdates : [
                     {
                       time: "No updates yet",
@@ -563,7 +619,7 @@ export default function DashboardPage() {
                       changes: "Timeline is empty",
                       color: "slate"
                     }
-                  ]).map((item, idx) => {
+                  ]).slice(0, 3).map((item, idx) => {
                     // Handle both activity logs and audit logs
                     const isActivityLog = item.actionType !== undefined;
                     
@@ -726,16 +782,60 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* View All Updates */}
-                <div className="mt-4 pt-4 border-t border-[#B3CFE5] dark:border-slate-700">
-                  <button className="w-full px-4 py-2 text-center text-sm font-semibold text-[#4A7FA7] dark:text-slate-300 hover:text-[#0A1931] dark:hover:text-white transition-colors rounded-lg hover:bg-[#B3CFE5]/10">
-                    View Complete Activity Log →
-                  </button>
-                </div>
+                {/* View All Updates - Only show if more than 3 items */}
+                {recentUpdates.length > 3 && (
+                  <div className="mt-4 pt-4 border-t border-[#B3CFE5] dark:border-slate-700">
+                    <button 
+                      onClick={() => navigate(isAdmin ? "/admin/activity-timeline" : isHR ? "/hr/activity-timeline" : "#")}
+                      className="w-full px-4 py-2 text-center text-sm font-semibold text-[#4A7FA7] dark:text-slate-300 hover:text-[#0A1931] dark:hover:text-white transition-colors rounded-lg hover:bg-[#B3CFE5]/10"
+                    >
+                      View Complete Activity Log →
+                    </button>
+                  </div>
+                )}
               </div>
             </Card>
             )}
           </div>
+
+          {/* Absent Employees Section - Admin/HR Only */}
+          {(isAdmin || isHR) && absentEmployees.length > 0 && (
+            <Card elevated className="bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-900/30 mt-6">
+              <div className="p-6 border-b border-rose-200 dark:border-rose-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-rose-600 to-orange-600 dark:from-rose-500 dark:to-orange-500">
+                      <AlertTriangle className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[#0A1931] dark:text-white">Absent Today</h3>
+                      <p className="text-xs text-[#4A7FA7] dark:text-slate-400">Employees without check-in ({absentEmployees.length})</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {absentEmployees.map((employee) => (
+                    <div key={employee._id} className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-rose-200 dark:border-rose-800/30 hover:shadow-md transition-all">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-[#0A1931] dark:text-white text-sm">{employee.name}</h4>
+                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">{employee.email}</p>
+                        </div>
+                        <span className="px-2 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                          {employee.role}
+                        </span>
+                      </div>
+                      {employee.phone && (
+                        <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-2">📞 {employee.phone}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>

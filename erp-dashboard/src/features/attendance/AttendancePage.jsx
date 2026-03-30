@@ -10,6 +10,7 @@ import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
+import { convertTo12HourFormat } from "./attendanceUtils.js";
 import { Clock, AlertCircle, CheckCircle2, Search, LogIn, LogOut, TrendingUp, Calendar, User, Timer, X, ChevronDown } from "lucide-react";
 
 export default function AttendancePage() {
@@ -138,8 +139,13 @@ export default function AttendancePage() {
       const location = await requestGeolocation();
       console.log("✅ Location captured:", location);
       
+      // Get current time from client
+      const now = new Date();
+      const clientCheckInTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
       // Send check-in with location data
       const res = await api.post("/attendance/checkin", {
+        checkIn: clientCheckInTime,
         checkInLatitude: location.latitude,
         checkInLongitude: location.longitude
       });
@@ -154,7 +160,7 @@ export default function AttendancePage() {
       // Immediately disable check-in button and start timer from ZERO
       setHasCheckedInToday(true);
       // Set current time for fresh timer start (not from database balance)
-      setCheckInTime(new Date().toTimeString().slice(0, 5));
+      setCheckInTime(clientCheckInTime);
       // Reset elapsed time to zero
       setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
       load();
@@ -167,7 +173,14 @@ export default function AttendancePage() {
   const checkOut = async () => {
     try {
       console.log("🔚 Attempting check-out...");
-      const res = await api.post("/attendance/checkout");
+      
+      // Get current time from client
+      const now = new Date();
+      const clientCheckOutTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      const res = await api.post("/attendance/checkout", {
+        checkOut: clientCheckOutTime
+      });
       console.log("✅ Check-out successful:", res.data);
       toast({ title: "Checked out successfully", type: "success" });
       
@@ -312,13 +325,13 @@ export default function AttendancePage() {
               <div className="p-4 bg-white border-l-4 dark:bg-slate-800 rounded-xl border-l-green-500">
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 font-semibold uppercase">Check In</p>
                 <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">
-                  {rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkIn || "—"}
+                  {convertTo12HourFormat(rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkIn) || "—"}
                 </p>
               </div>
               <div className="p-4 bg-white border-l-4 dark:bg-slate-800 rounded-xl border-l-orange-500">
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 font-semibold uppercase">Check Out</p>
                 <p className="mt-1 text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkOut || "—"}
+                  {convertTo12HourFormat(rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkOut) || "—"}
                 </p>
               </div>
               {/* Real-time Timer Display */}
@@ -537,7 +550,7 @@ export default function AttendancePage() {
                             <div>
                               <p className="font-semibold text-[var(--text-main)] flex items-center justify-center gap-2">
                                 <LogIn className="w-4 h-4 text-green-600" />
-                                {record.checkIn}
+                                {convertTo12HourFormat(record.checkIn)}
                               </p>
                               {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600">Late</p>}
                             </div>
@@ -550,7 +563,7 @@ export default function AttendancePage() {
                             <div>
                               <p className="font-semibold text-[var(--text-main)] flex items-center justify-center gap-2">
                                 <LogOut className="w-4 h-4 text-orange-600" />
-                                {record.checkOut}
+                                {convertTo12HourFormat(record.checkOut)}
                               </p>
                               {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600">Early</p>}
                             </div>

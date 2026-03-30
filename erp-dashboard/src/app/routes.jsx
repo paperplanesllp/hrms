@@ -47,6 +47,7 @@ import StaffComplaintsDashboard from "../features/complaints/StaffComplaintsDash
 import DepartmentManagePage from "../features/department/DepartmentManagePage.jsx";
 import HRActivityTimelinePage from "../features/hr/HRActivityTimelinePage.jsx";
 import ActivityTimelinePage from "../features/admin/ActivityTimelinePage.jsx";
+import EmployeeAnalyticsDashboard from "../features/analytics/EmployeeAnalyticsDashboard.jsx";
 
 import { ROLES } from "./constants.js";
 
@@ -70,6 +71,7 @@ export default function AppRoutes() {
 
         {/* Common pages */}
         <Route path="profile" element={<MyProfilePage />} />
+        <Route path="analytics" element={<EmployeeAnalyticsDashboard />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="leave" element={<LeaveMyPage />} />

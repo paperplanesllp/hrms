@@ -7,11 +7,12 @@ import api from "../../lib/api.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { Link } from "react-router-dom";
-import { DollarSign, TrendingUp, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, Calendar, Shield } from "lucide-react";
 
 export default function PayrollMyPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === ROLES.ADMIN;
+  const isHR = user?.role === ROLES.HR;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -33,17 +34,51 @@ export default function PayrollMyPage() {
   }, []);
 
   // Calculate total salary
-  const totalSalary = Array.isArray(items) ? items.reduce((sum, item) => sum + (item.amount || 0), 0) : 0;
+  const totalSalary = Array.isArray(items) ? items.reduce((sum, item) => sum + (item.netSalary || 0), 0) : 0;
 
+  // For Admin: Show different message and button
+  if (isAdmin) {
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <PageTitle
+          title="Payroll Management"
+          subtitle="Admin has full access."
+          actions={
+            <Link to="/payroll/manage">
+              <Button variant="secondary" className="bg-white hover:bg-[#F6FAFD] text-[#0A1931] border border-[#B3CFE5] shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)]">
+                Manage HR Payroll
+              </Button>
+            </Link>
+          }
+        />
+
+        <Card className="p-8 bg-gradient-to-br from-[#E6F4EA] to-[#F1F8F6] border-l-4 border-l-[#137333] shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+          <div className="flex items-start gap-4">
+            <Shield className="w-8 h-8 text-[#137333] flex-shrink-0 mt-1" />
+            <div>
+              <h3 className="text-lg font-semibold text-[#137333]">Company Owner</h3>
+              <p className="text-sm text-[#70757A] mt-2">
+                As the company owner, you don't have payroll records. Use the <strong>Manage HR Payroll</strong> button to manage salary for your HR staff members.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // For HR and Employees: Show their payroll
   return (
     <div className="space-y-6 animate-fadeIn">
       <PageTitle
         title="Payroll"
-        subtitle="Review your salary breakdowns, earnings, and deductions. Complete earnings history below."
+        subtitle={isHR ? "Review your salary and manage employee payroll." : "Review your salary breakdowns, earnings, and deductions. Complete earnings history below."}
         actions={
-          isAdmin ? (
+          isHR ? (
             <Link to="/payroll/manage">
-              <Button variant="secondary" className="bg-white hover:bg-[#F6FAFD] text-[#0A1931] border border-[#B3CFE5] shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)]">Manage Payroll</Button>
+              <Button variant="secondary" className="bg-white hover:bg-[#F6FAFD] text-[#0A1931] border border-[#B3CFE5] shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)]">
+                Manage Employee Payroll
+              </Button>
             </Link>
           ) : null
         }
@@ -102,19 +137,19 @@ export default function PayrollMyPage() {
                 items.map((item, idx) => (
                   <tr key={item._id} className={`border-t border-[var(--border-soft)] hover:bg-[var(--pistachio)] transition-colors ${idx % 2 === 0 ? 'bg-[var(--bone-white)]' : 'bg-[var(--ivory)]'}`}>
                     <td className="px-6 py-4 font-medium text-[var(--text-main)]">{item.month}</td>
-                    <td className="px-6 py-4 font-semibold text-[var(--clay)]">₹{item.amount.toLocaleString()}</td>
+                    <td className="px-6 py-4 font-semibold text-[var(--clay)]">₹{item.netSalary?.toLocaleString() || 0}</td>
                     <td className="px-6 py-4">
                       <Badge className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${
-                        item.status === 'PROCESSED' 
+                        item.paymentStatus === 'PAID' 
                           ? 'bg-green-100 border-green-500 text-green-700'
-                          : item.status === 'PENDING'
-                          ? 'bg-red-100 border-red-500 text-red-700'
+                          : item.paymentStatus === 'PENDING'
+                          ? 'bg-yellow-100 border-yellow-500 text-yellow-700'
                           : 'bg-[var(--pistachio)] border-[var(--eucalyptus)] text-[var(--text-main)]'
                       }`}>
-                        {item.status}
+                        {item.paymentStatus || 'PENDING'}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-[var(--text-muted)]">{item.note || '—'}</td>
+                    <td className="px-6 py-4 text-[var(--text-muted)]">{item.notes || '—'}</td>
                   </tr>
                 ))
               ) : (
