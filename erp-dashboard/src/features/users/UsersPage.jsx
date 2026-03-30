@@ -276,7 +276,7 @@ export default function UsersPage() {
             : "Global view of all staff members with full Read/Write access. Manage roles and permissions."
           }
         />
-        {currentUser?.role === ROLES.ADMIN && (
+        {(currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.HR) && (
           <Button
             onClick={async () => {
               await loadCompanyLocation();
