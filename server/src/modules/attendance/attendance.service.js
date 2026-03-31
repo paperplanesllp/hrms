@@ -64,14 +64,22 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
 
     // Validate geofencing if checking in with GPS coordinates
     if (newCheckIn && checkInLatitude !== undefined && checkInLongitude !== undefined) {
-      // Get employee's current location
-      const employee = await User.findById(userId).select("officeLatitude officeLongitude");
-      
-      // Get company location from first admin marked as company location
-      const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-      const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
-      
-      if (adminUser && adminUser.officeLatitude !== 0 && adminUser.officeLongitude !== 0) {
+      // Get the checking-in user's role — admins are exempt from geofence
+      const checkingUser = await User.findById(userId).select("role");
+      const isAdmin = checkingUser && checkingUser.role === ROLES.ADMIN;
+
+      if (!isAdmin) {
+        // Get company location from first admin marked as company location
+        const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+        const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+
+        // If office location is not configured, block check-in for non-admin users
+        if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
+          throw new Error(
+            "Office location has not been configured yet. Please ask your admin to set the company location in settings."
+          );
+        }
+
         // Validate distance
         const geofenceCheck = isWithinGeofence(
           checkInLatitude,
@@ -79,19 +87,25 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
           adminUser.officeLatitude,
           adminUser.officeLongitude
         );
-        
+
         // Store geofencing data
         checkInData.checkInLatitude = checkInLatitude;
         checkInData.checkInLongitude = checkInLongitude;
         checkInData.isWithinGeofence = geofenceCheck.isWithinGeofence;
         checkInData.distanceFromOffice = geofenceCheck.distance;
-        
+
         // Block check-in if outside geofence
         if (!geofenceCheck.isWithinGeofence) {
           throw new Error(
             `You are ${geofenceCheck.distance}m away from office (${geofenceCheck.radius}m allowed). Cannot check in.`
           );
         }
+      } else {
+        // Admin is exempt — just record their location without enforcing geofence
+        checkInData.checkInLatitude = checkInLatitude;
+        checkInData.checkInLongitude = checkInLongitude;
+        checkInData.isWithinGeofence = true;
+        checkInData.distanceFromOffice = 0;
       }
     }
 
