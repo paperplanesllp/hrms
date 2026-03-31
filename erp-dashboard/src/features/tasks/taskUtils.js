@@ -190,22 +190,41 @@ export const getDaysUntilDue = (dueDate) => {
 };
 
 /**
- * Get due date display format (e.g., "Today", "Tomorrow", "3 days", "Overdue")
+ * Get due date display format with actual date, time and relative info
  * @param {Date} dueDate
  * @param {string} status
- * @returns {string}
+ * @returns {string} Formatted date with time (e.g., "26 Mar 2026, 05:30 am")
  */
 export const getDueDateDisplay = (dueDate, status) => {
-  const days = getDaysUntilDue(dueDate);
-  
   if (status === 'completed') return 'Completed';
-  if (days < 0) return `${Math.abs(days)} days overdue`;
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Tomorrow';
-  if (days < 7) return `${days} days`;
   
-  const date = new Date(new Date(dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+  if (!dueDate) return 'No due date';
+  
+  try {
+    const date = new Date(dueDate);
+    
+    // Get date components in Asia/Kolkata timezone
+    const dateStr = date.toLocaleString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'Asia/Kolkata'
+    });
+    
+    // Get time components separately to ensure proper formatting
+    const timeStr = date.toLocaleString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    });
+    
+    // Format: "26 Mar 2026, 05:30 am"
+    return `${dateStr}, ${timeStr}`;
+  } catch (err) {
+    console.error('Error formatting date:', err);
+    return 'Invalid date';
+  }
 };
 
 /**

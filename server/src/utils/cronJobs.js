@@ -3,6 +3,7 @@ import { createReminderNotifications } from "../modules/notifications/notificati
 import { autoDeleteOldPayrolls } from "../modules/payroll/payroll.service.js";
 import { autoMarkAbsentees, getAttendanceSummaryForToday } from "../modules/attendance/attendance.service.js";
 import { sendDocumentDeadlineReminders, markOverdueDocuments } from "../modules/documents/document.service.js";
+import { initializeTaskScheduler } from "../services/taskScheduler.service.js";
 
 export const startCronJobs = () => {
   // Clock-in reminder: Monday-Friday at 9:30 AM
@@ -107,6 +108,18 @@ export const startCronJobs = () => {
   }, {
     timezone: "Asia/Kolkata"
   });
+
+  // ============================================
+  // TASK REMINDERS & OVERDUE TRACKING
+  // ============================================
+  // Initialize task scheduler for due reminders and overdue notifications
+  try {
+    console.log('\n🎯 [TASKS] Initializing task reminder scheduler...');
+    initializeTaskScheduler();
+    console.log('✅ Task scheduler initialized - checking every minute for due reminders and overdue tasks');
+  } catch (error) {
+    console.error('[TASKS] Failed to initialize task scheduler:', error);
+  }
 
   console.log('Cron jobs started successfully');
 };

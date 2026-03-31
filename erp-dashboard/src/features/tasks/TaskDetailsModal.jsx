@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, MessageSquare, MoreVertical, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye } from 'lucide-react';
+import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import {
@@ -7,7 +7,8 @@ import {
   getStatusStyles,
   getPriorityLabel,
   getStatusLabel,
-  isTaskOverdue
+  isTaskOverdue,
+  getDaysUntilDue
 } from './taskUtils.js';
 
 export default function TaskDetailsModal({
@@ -18,9 +19,6 @@ export default function TaskDetailsModal({
   onStatusChange,
   isLoading = false
 }) {
-  const [comments, setComments] = useState(task?.comments || []);
-  const [commentText, setCommentText] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
   if (!task) return null;
@@ -29,27 +27,16 @@ export default function TaskDetailsModal({
   const statusStyles = getStatusStyles(task.status);
   const isOverdue = isTaskOverdue(task.dueDate, task.status);
 
-  const handleAddComment = (e) => {
-    e.preventDefault();
-    if (commentText.trim()) {
-      // This would typically call an API
-      setComments([
-        ...comments,
-        {
-          _id: Date.now(),
-          userId: { name: 'You', avatar: '' },
-          text: commentText,
-          createdAt: new Date()
-        }
-      ]);
-      setCommentText('');
-    }
-  };
-
   const handleStatusChange = async () => {
     const nextStatus = task.status === 'completed' ? 'pending' : 'completed';
     if (onStatusChange) {
       await onStatusChange(task._id, nextStatus);
+    }
+  };
+
+  const handleHoldTask = async () => {
+    if (onStatusChange) {
+      await onStatusChange(task._id, 'on-hold');
     }
   };
 
@@ -111,22 +98,6 @@ export default function TaskDetailsModal({
           </div>
 
           <div className="flex gap-2">
-            {/* Menu */}
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowMenu(!showMenu)}
-              >
-                <MoreVertical size={18} />
-              </Button>
-              {showMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
-                  <div className="w-full text-sm text-slate-600 dark:text-slate-400 px-4 py-3">No actions available</div>
-                </div>
-              )}
-            </div>
-
             {/* Close Button */}
             <Button
               variant="ghost"
@@ -154,37 +125,34 @@ export default function TaskDetailsModal({
 
           {/* Meta Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {/* Assigned To */}
-            <div className={`p-3 rounded-lg ${priorityStyles.bg} border ${priorityStyles.border}`}>
-              <p className={`text-xs font-semibold ${priorityStyles.text} mb-1`}>Assigned To</p>
-              <div className="flex items-center gap-2">
-                {task.assignedTo?.avatar ? (
-                  <img
-                    src={task.assignedTo.avatar}
-                    alt={task.assignedTo?.name}
-                    className="w-6 h-6 rounded-full"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-600" />
-                )}
-                <span className="text-sm font-medium text-slate-900 dark:text-white">
-                  {task.assignedTo?.name || 'Unassigned'}
-                </span>
-              </div>
-            </div>
-
             {/* Due Date */}
             <div className={`p-3 rounded-lg ${isOverdue ? 'bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700' : statusStyles.bg + ' border ' + statusStyles.border}`}>
               <p className={`text-xs font-semibold ${isOverdue ? 'text-red-700 dark:text-red-300' : statusStyles.text} mb-1`}>
-                {isOverdue ? 'OVERDUE' : 'Due Date'}
+                {isOverdue ? 'OVERDUE' : 'Due Date & Time'}
               </p>
               <p className={`text-sm font-medium ${isOverdue ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-white'}`}>
-                {new Date(task.dueDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}
+                {(() => {
+                  const date = new Date(task.dueDate);
+                  const dateStr = date.toLocaleString('en-IN', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    timeZone: 'Asia/Kolkata'
+                  });
+                  const timeStr = date.toLocaleString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
+                  });
+                  return `${dateStr}, ${timeStr}`;
+                })()}
               </p>
+              {isOverdue && (
+                <p className="text-xs font-semibold text-red-600 dark:text-red-300 mt-1">
+                  Overdue for {Math.abs(getDaysUntilDue(task.dueDate))} days
+                </p>
+              )}
             </div>
 
             {/* Progress */}
@@ -219,7 +187,26 @@ export default function TaskDetailsModal({
               </div>
             )}
 
-            {/* Assigned-by removed per user request */}
+            {/* Assigned By */}
+            {task.assignedBy && (
+              <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-700">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned By</p>
+                <div className="flex items-center gap-2">
+                  {task.assignedBy?.avatar ? (
+                    <img
+                      src={task.assignedBy.avatar}
+                      alt={task.assignedBy?.name}
+                      className="w-6 h-6 rounded-full"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  )}
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    {task.assignedBy?.name || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Created At */}
             <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-700">
@@ -252,7 +239,7 @@ export default function TaskDetailsModal({
           )}
 
           {/* Status Action */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               onClick={handleStatusChange}
               disabled={isLoading}
@@ -260,6 +247,28 @@ export default function TaskDetailsModal({
             >
               <CheckCircle2 size={16} />
               {task.status === 'completed' ? 'Mark Incomplete' : 'Mark Complete'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleHoldTask}
+              disabled={isLoading}
+            >
+              Hold
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => console.log('Forward task')}
+            >
+              Forward
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {}}
+            >
+              Reassign
             </Button>
           </div>
 
@@ -381,66 +390,7 @@ export default function TaskDetailsModal({
             </div>
           )}
 
-          {/* Comments Section */}
-          <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
-              <MessageSquare size={16} />
-              Comments ({task.comments?.length || 0})
-            </h3>
 
-            {/* Add Comment */}
-            <form onSubmit={handleAddComment} className="mb-4 space-y-2">
-              <textarea
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Add a comment..."
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                rows="2"
-              />
-              <Button
-                type="submit"
-                disabled={!commentText.trim()}
-                size="sm"
-                className="w-full"
-              >
-                Post Comment
-              </Button>
-            </form>
-
-            {/* Comments List */}
-            <div className="space-y-3">
-              {task.comments && task.comments.length > 0 ? (
-                task.comments.map((comment) => (
-                  <div key={comment._id} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2 mb-1">
-                      {comment.userId?.avatar ? (
-                        <img
-                          src={comment.userId.avatar}
-                          alt={comment.userId?.name}
-                          className="w-5 h-5 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full bg-slate-300 dark:bg-slate-600" />
-                      )}
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {comment.userId?.name || 'Anonymous'}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {new Date(comment.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
-                      {comment.text}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
-                  No comments yet
-                </p>
-              )}
-            </div>
-          </div>
         </div>
       </Card>
     </div>

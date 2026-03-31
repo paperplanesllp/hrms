@@ -16,7 +16,8 @@ import TaskForm from './TaskForm.jsx';
 
 export default function TasksManagePage() {
   const [view, setView] = useState('table'); // grid, table, dashboard
-  const [tasks, setTasks] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
+  const [filteredTasks, setFilteredTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ export default function TasksManagePage() {
     if (view !== 'dashboard') {
       filterAndSortTasks();
     }
-  }, [filters, sortField, sortDirection, tasks]);
+  }, [filters, sortField, sortDirection, allTasks]);
 
   const loadData = async () => {
     try {
@@ -55,7 +56,7 @@ export default function TasksManagePage() {
         api.get('/users'),
         api.get('/department')
       ]);
-      setTasks(tasksRes.data.data || []);
+      setAllTasks(tasksRes.data.data || []);
       setUsers(usersRes.data.data || []);
       setDepartments(deptsRes.data.data || []);
     } catch (err) {
@@ -70,7 +71,7 @@ export default function TasksManagePage() {
   };
 
   const filterAndSortTasks = () => {
-    let filtered = [...tasks];
+    let filtered = [...allTasks];
 
     // Apply filters
     if (filters.search) {
@@ -154,7 +155,7 @@ export default function TasksManagePage() {
       return 0;
     });
 
-    setTasks(filtered);
+    setFilteredTasks(filtered);
   };
 
   const handleSort = (field, direction) => {
@@ -272,7 +273,9 @@ export default function TasksManagePage() {
             </div>
           ]}
         />
-        <TaskDashboard userId={null} />
+        <TaskDashboard userId={null} onFilterChange={(newFilters) => {
+          setFilters(prev => ({ ...prev, ...newFilters }));
+        }} />
       </div>
     );
   }
@@ -319,7 +322,7 @@ export default function TasksManagePage() {
       {/* Content */}
       {loading ? (
         <Spinner className="mt-20" />
-      ) : tasks.length === 0 ? (
+      ) : filteredTasks.length === 0 ? (
         <Card className="p-12 text-center">
           <p className="text-slate-500 dark:text-slate-400 text-lg">
             No tasks found. Create your first task to get started.
@@ -329,7 +332,7 @@ export default function TasksManagePage() {
         <>
           {view === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {tasks.map(task => (
+              {filteredTasks.map(task => (
                 <TaskCard
                   key={task._id}
                   task={task}
@@ -343,7 +346,7 @@ export default function TasksManagePage() {
           ) : (
             <Card className="p-6">
               <TaskTable
-                tasks={tasks}
+                tasks={filteredTasks}
                 onEdit={setEditingTask}
                 onDelete={handleDeleteTask}
                 onView={setSelectedTask}

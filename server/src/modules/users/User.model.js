@@ -50,6 +50,18 @@ const userSchema = new mongoose.Schema(
     lastLocationUpdate: { type: Date, default: null },
     isActive: { type: Boolean, default: false }, // true when user is actively logged in
 
+    // Email Notification Preferences
+    emailNotificationPreferences: {
+      taskAssigned: { type: Boolean, default: true },
+      taskAccepted: { type: Boolean, default: true },
+      taskRejected: { type: Boolean, default: true },
+      taskCompleted: { type: Boolean, default: true },
+      taskReassigned: { type: Boolean, default: true },
+      taskForwarded: { type: Boolean, default: true },
+      dueReminder: { type: Boolean, default: true },
+      taskOverdue: { type: Boolean, default: true }
+    },
+
     refreshTokenHash: { type: String, default: "" },
     resetPasswordToken: { type: String, default: "" },
     resetPasswordExpires: { type: Date },

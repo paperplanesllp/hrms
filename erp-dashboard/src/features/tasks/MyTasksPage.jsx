@@ -247,7 +247,9 @@ export default function MyTasksPage() {
             </div>
           ]}
         />
-        <TaskDashboard userId={null} />
+        <TaskDashboard userId={null} onFilterChange={(newFilters) => {
+          setFilters(prev => ({ ...prev, ...newFilters }));
+        }} />
       </div>
     );
   }

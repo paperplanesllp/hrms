@@ -9,8 +9,23 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["news", "policy", "reminder", "system"],
-    required: true
+    enum: [
+      "news", 
+      "policy", 
+      "reminder", 
+      "system",
+      // Task-specific notifications
+      "task-assigned",
+      "task-accepted",
+      "task-rejected",
+      "task-completed",
+      "task-reassigned",
+      "task-forwarded",
+      "task-due-reminder",
+      "task-overdue"
+    ],
+    required: true,
+    index: true
   },
   title: {
     type: String,
@@ -32,6 +47,18 @@ const notificationSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Policy"
   },
+  // Task-specific field
+  taskId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Task",
+    default: null
+  },
+  // Related user (who performed the action)
+  triggeredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
   isRead: {
     type: Boolean,
     default: false,
@@ -40,6 +67,15 @@ const notificationSchema = new mongoose.Schema({
   isPolicyUpdate: {
     type: Boolean,
     default: false
+  },
+  // Track if email was sent
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
+  emailSentAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

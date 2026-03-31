@@ -572,7 +572,7 @@ export default function AttendancePage() {
                             </div>
                           ) : forgotCheckOut ? (
                             <div className="text-center">
-                              <p className="font-semibold text-red-600 dark:text-red-400 flex items-center justify-center gap-2">
+                              <p className="flex items-center justify-center gap-2 font-semibold text-red-600 dark:text-red-400">
                                 <AlertCircle className="w-4 h-4" />
                                 Forgot
                               </p>
@@ -587,7 +587,7 @@ export default function AttendancePage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {forgotCheckOut ? (
-                            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm border-2 bg-red-50 border-red-500 text-red-700 dark:bg-red-900/30 dark:border-red-600 dark:text-red-400">
+                            <div className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-red-700 border-2 border-red-500 rounded-lg bg-red-50 dark:bg-red-900/30 dark:border-red-600 dark:text-red-400">
                               <AlertCircle className="w-4 h-4" />
                               ⚠️ Forgot Check-out
                             </div>
@@ -632,8 +632,8 @@ export default function AttendancePage() {
               
               <div className="relative z-10 flex items-start justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold text-white mb-1">Edit Attendance</h2>
-                  <p className="text-blue-100 text-sm">Date: {editingRecord.date}</p>
+                  <h2 className="mb-1 text-3xl font-bold text-white">Edit Attendance</h2>
+                  <p className="text-sm text-blue-100">Date: {editingRecord.date}</p>
                 </div>
                 <button
                   onClick={handleCancelEdit}
@@ -648,31 +648,31 @@ export default function AttendancePage() {
             <div className="p-8 space-y-6 max-h-[calc(90vh-140px)] overflow-y-auto">
               {/* Shift Information */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-blue-50/40 to-slate-50">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Shift Information</h3>
+                <h3 className="mb-4 text-lg font-bold text-slate-900">Shift Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Shift Start</p>
-                    <p className="text-base font-medium text-slate-900 mt-2">{editingRecord.shiftStart}</p>
+                    <p className="text-xs font-semibold tracking-wide uppercase text-slate-500">Shift Start</p>
+                    <p className="mt-2 text-base font-medium text-slate-900">{editingRecord.shiftStart}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Shift End</p>
-                    <p className="text-base font-medium text-slate-900 mt-2">{editingRecord.shiftEnd}</p>
+                    <p className="text-xs font-semibold tracking-wide uppercase text-slate-500">Shift End</p>
+                    <p className="mt-2 text-base font-medium text-slate-900">{editingRecord.shiftEnd}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Expected Hours</p>
-                    <p className="text-base font-medium text-slate-900 mt-2">{editingRecord.shiftHours || '8h'}</p>
+                    <p className="text-xs font-semibold tracking-wide uppercase text-slate-500">Expected Hours</p>
+                    <p className="mt-2 text-base font-medium text-slate-900">{editingRecord.shiftHours || '8h'}</p>
                   </div>
                 </div>
               </div>
 
               {/* Clock In/Out Times */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-green-50/40 to-slate-50">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Clock In/Out Times</h3>
+                <h3 className="mb-4 text-lg font-bold text-slate-900">Clock In/Out Times</h3>
                 
                 <div className="space-y-4">
                   {/* Clock In */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                    <label className="flex items-center block gap-2 mb-2 text-sm font-semibold text-slate-700">
                       <LogIn className="w-4 h-4 text-green-600" />
                       Clock In Time
                     </label>
@@ -683,13 +683,13 @@ export default function AttendancePage() {
                       className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
                     />
                     {editingRecord.checkIn && (
-                      <p className="text-xs text-slate-500 mt-2">Original: {editingRecord.checkIn}</p>
+                      <p className="mt-2 text-xs text-slate-500">Original: {editingRecord.checkIn}</p>
                     )}
                   </div>
 
                   {/* Clock Out */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                    <label className="flex items-center block gap-2 mb-2 text-sm font-semibold text-slate-700">
                       <LogOut className="w-4 h-4 text-orange-600" />
                       Clock Out Time
                     </label>
@@ -700,7 +700,7 @@ export default function AttendancePage() {
                       className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
                     />
                     {editingRecord.checkOut && (
-                      <p className="text-xs text-slate-500 mt-2">Original: {editingRecord.checkOut}</p>
+                      <p className="mt-2 text-xs text-slate-500">Original: {editingRecord.checkOut}</p>
                     )}
                   </div>
                 </div>
@@ -708,10 +708,10 @@ export default function AttendancePage() {
 
               {/* Status */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-purple-50/40 to-slate-50">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Attendance Status</h3>
+                <h3 className="mb-4 text-lg font-bold text-slate-900">Attendance Status</h3>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                  <label className="block mb-2 text-sm font-semibold text-slate-700">Status</label>
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
@@ -722,15 +722,15 @@ export default function AttendancePage() {
                     <option value="SHORT_HOURS">Early Departure</option>
                     <option value="ABSENT">✗ Absent</option>
                   </select>
-                  <p className="text-xs text-slate-500 mt-2">Current: {editingRecord.status}</p>
+                  <p className="mt-2 text-xs text-slate-500">Current: {editingRecord.status}</p>
                 </div>
               </div>
 
               {/* Notes Section */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-amber-50/40 to-slate-50">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Summary</h3>
+                <h3 className="mb-4 text-lg font-bold text-slate-900">Summary</h3>
                 
-                <div className="p-4 bg-white rounded-lg border border-amber-200">
+                <div className="p-4 bg-white border rounded-lg border-amber-200">
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-600">Date:</span>

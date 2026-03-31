@@ -5,7 +5,7 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import api from '../../lib/api.js';
 import { getPriorityStyles, PRIORITY_OPTIONS } from './taskUtils.js';
 
-export default function TaskDashboard({ userId }) {
+export default function TaskDashboard({ userId, onFilterChange }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,7 +48,10 @@ export default function TaskDashboard({ userId }) {
       {/* Primary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {/* Total Tasks */}
-        <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-l-4 border-blue-500">
+        <Card 
+          className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-l-4 border-blue-500 cursor-pointer hover:shadow-lg hover:from-blue-100 hover:to-blue-200 transition-all"
+          onClick={() => onFilterChange?.({ status: null })}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
@@ -65,7 +68,10 @@ export default function TaskDashboard({ userId }) {
         </Card>
 
         {/* Pending */}
-        <Card className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-l-4 border-amber-500">
+        <Card 
+          className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-l-4 border-amber-500 cursor-pointer hover:shadow-lg hover:from-amber-100 hover:to-amber-200 transition-all"
+          onClick={() => onFilterChange?.({ status: 'pending' })}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
@@ -82,7 +88,10 @@ export default function TaskDashboard({ userId }) {
         </Card>
 
         {/* In Progress */}
-        <Card className="p-4 bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900 border-l-4 border-cyan-500">
+        <Card 
+          className="p-4 bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900 border-l-4 border-cyan-500 cursor-pointer hover:shadow-lg hover:from-cyan-100 hover:to-cyan-200 transition-all"
+          onClick={() => onFilterChange?.({ status: 'in-progress' })}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide">
@@ -99,7 +108,10 @@ export default function TaskDashboard({ userId }) {
         </Card>
 
         {/* Completed */}
-        <Card className="p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-l-4 border-green-500">
+        <Card 
+          className="p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-l-4 border-green-500 cursor-pointer hover:shadow-lg hover:from-green-100 hover:to-green-200 transition-all"
+          onClick={() => onFilterChange?.({ status: 'completed' })}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase tracking-wide">
@@ -116,7 +128,10 @@ export default function TaskDashboard({ userId }) {
         </Card>
 
         {/* Overdue */}
-        <Card className="p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-l-4 border-red-500">
+        <Card 
+          className="p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-l-4 border-red-500 cursor-pointer hover:shadow-lg hover:from-red-100 hover:to-red-200 transition-all"
+          onClick={() => onFilterChange?.({ dateRange: 'overdue' })}
+        >
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">

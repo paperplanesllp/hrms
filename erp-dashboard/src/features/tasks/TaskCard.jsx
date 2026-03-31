@@ -16,7 +16,8 @@ import {
   getPriorityLabel,
   getStatusLabel,
   getDueDateDisplay,
-  isTaskOverdue
+  isTaskOverdue,
+  getDaysUntilDue
 } from './taskUtils.js';
 
 export default function TaskCard({
@@ -80,7 +81,7 @@ export default function TaskCard({
               {isOverdue && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-300 dark:border-red-700">
                   <AlertCircle size={12} />
-                  Overdue
+                  {Math.abs(getDaysUntilDue(task.dueDate))} days overdue
                 </span>
               )}
             </div>

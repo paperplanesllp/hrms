@@ -42,8 +42,8 @@ const taskSchema = new mongoose.Schema(
     // Task Status & Priority
     status: {
       type: String,
-      enum: ['pending', 'in-progress', 'completed', 'on-hold', 'cancelled'],
-      default: 'pending',
+      enum: ['new', 'pending', 'in-progress', 'on-hold', 'under-review', 'completed', 'overdue', 'cancelled'],
+      default: 'new',
       index: true
     },
 
@@ -64,6 +64,19 @@ const taskSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
       default: null
+    },
+
+    // Workload & Performance
+    estimatedHours: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    actualHours: {
+      type: Number,
+      min: 0,
+      default: 0
     },
 
     // Metadata
@@ -93,13 +106,38 @@ const taskSchema = new mongoose.Schema(
       createdAt: { type: Date, default: Date.now }
     }],
 
-    // Activity
+    // Activity & Comments
     comments: [{
       _id: mongoose.Schema.Types.ObjectId,
       userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      username: String,
       text: String,
       createdAt: { type: Date, default: Date.now }
     }],
+
+    // Task forwarding history
+    forwardedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    forwardedAt: {
+      type: Date,
+      default: null
+    },
+
+    // Reassignment tracking
+    reassignedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    reassignedAt: {
+      type: Date,
+      default: null
+    },
 
     // Recurrence (optional)
     isRecurring: { type: Boolean, default: false },
@@ -123,8 +161,46 @@ const taskSchema = new mongoose.Schema(
       sent: { type: Boolean, default: false }
     }],
 
+    // Productivity metrics
+    completedOnTime: {
+      type: Boolean,
+      default: null
+    },
+
+    daysOverdue: {
+      type: Number,
+      default: 0
+    },
+
     // Deleted (soft delete)
-    isDeleted: { type: Boolean, default: false, index: true }
+    isDeleted: { type: Boolean, default: false, index: true },
+
+    // Notification tracking
+    isOverdueNotified: { type: Boolean, default: false },
+
+    // Task acceptance/rejection tracking
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    acceptedAt: {
+      type: Date,
+      default: null
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    rejectedAt: {
+      type: Date,
+      default: null
+    },
+    rejectionReason: {
+      type: String,
+      default: ""
+    }
   },
   {
     timestamps: true,

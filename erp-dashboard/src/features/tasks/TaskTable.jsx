@@ -7,7 +7,8 @@ import {
   getPriorityLabel,
   getStatusLabel,
   getDueDateDisplay,
-  isTaskOverdue
+  isTaskOverdue,
+  getDaysUntilDue
 } from './taskUtils.js';
 
 export default function TaskTable({
@@ -202,7 +203,7 @@ export default function TaskTable({
 
                 {/* Due Date */}
                 <td className="px-4 py-3">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-1">
                     <span className={`text-sm font-medium ${
                       isOverdue ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
                     }`}>
@@ -210,7 +211,7 @@ export default function TaskTable({
                     </span>
                     {isOverdue && (
                       <span className="text-xs font-semibold text-red-500 dark:text-red-400">
-                        ⚠ Overdue
+                        ⚠️ {Math.abs(getDaysUntilDue(task.dueDate))} days overdue
                       </span>
                     )}
                   </div>

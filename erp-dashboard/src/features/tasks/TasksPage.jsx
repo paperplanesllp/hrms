@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, Download, Clock, CheckCircle, AlertCircle, TrendingUp, Loader } from 'lucide-react';
+import { Plus, Filter, Download, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore.js';
 import { toast } from '../../store/toastStore.js';
+import api from '../../lib/api.js';
 import PageTitle from '../../components/common/PageTitle.jsx';
 import Button from '../../components/ui/Button.jsx';
-import Card from '../../components/ui/Card.jsx';
+import CreateTaskModal from './modals/CreateTaskModal.jsx';
 import TasksTabNavigation from './TasksTabNavigation.jsx';
 import TasksOverviewSection from './sections/TasksOverviewSection.jsx';
-import TasksListSection from './sections/TasksListSection.jsx';
-import AssignTaskSection from './sections/AssignTaskSection.jsx';
 import MyTasksSection from './sections/MyTasksSection.jsx';
 import AssignedTasksSection from './sections/AssignedTasksSection.jsx';
-import AllTasksSection from './sections/AllTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
 
 export default function TasksPage() {
@@ -21,7 +19,10 @@ export default function TasksPage() {
   const accessToken = useAuthStore(s => s.accessToken);
   
   const [activeTab, setActiveTab] = useState('overview');
-  const [refreshStatsKey, setRefreshStatsKey] = useState(0); // Trigger to refresh stats
+  const [refreshStatsKey, setRefreshStatsKey] = useState(0);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -37,49 +38,76 @@ export default function TasksPage() {
       console.log('✅ [TasksPage] User is authenticated');
       console.log('👤 [TasksPage] User ID:', user?.id);
       console.log('👤 [TasksPage] User Name:', user?.name);
+      loadFormData();
     }
   }, [accessToken, user, navigate]);
 
+  // Load users and departments for task form
+  const loadFormData = async () => {
+    try {
+      console.log('📥 [TasksPage] Loading users and departments...');
+      const [usersRes, deptsRes] = await Promise.all([
+        api.get('/users?limit=1000'),
+        api.get('/department?limit=1000')
+      ]);
+
+      const usersList = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []);
+      const deptsList = Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || []);
+
+      console.log('✅ [TasksPage] Loaded users:', usersList.length);
+      console.log('✅ [TasksPage] Loaded departments:', deptsList.length);
+      
+      setUsers(usersList);
+      setDepartments(deptsList);
+    } catch (err) {
+      console.error('❌ [TasksPage] Error loading form data:', err);
+    }
+  };
+
   // Callback when a task is created
-  const handleTaskCreated = () => {
+  const handleTaskCreated = (newTask) => {
+    console.log('📝 [TasksPage] Task created, refreshing stats');
     // Increment the key to trigger a refresh in TasksOverviewSection
     setRefreshStatsKey(prev => prev + 1);
   };
 
+  // Open create task modal
+  const handleOpenCreateModal = () => {
+    console.log('🎯 [TasksPage] Opening create task modal');
+    setIsCreateModalOpen(true);
+  };
+
+  // Close create task modal
+  const handleCloseCreateModal = () => {
+    console.log('🎯 [TasksPage] Closing create task modal');
+    setIsCreateModalOpen(false);
+  };
+
   const tabs = [
     { id: 'overview', label: 'Overview' },   
-    { id: 'my-tasks', label: 'My Tasks' },
-    { id: 'assigned-tasks', label: 'Tasks I Assigned' },
-    { id: 'all-tasks', label: 'All Tasks' },
+    { 
+      id: 'task-list', 
+      label: 'Task List',
+      children: [
+        { id: 'my-tasks', label: 'My Tasks' },
+        { id: 'assigned-tasks', label: 'Tasks Assigned' }
+      ]
+    },
     { id: 'reports', label: 'Reports' },
   ];
-
-// Quick stats for the header - available for future use
-  // const quickStats = [
-  //   { icon: Clock, label: 'Active Tasks', value: '24', color: 'bg-blue-50', iconColor: 'text-blue-500' },
-  //   { icon: CheckCircle, label: 'Completed', value: '48', color: 'bg-emerald-50', iconColor: 'text-emerald-500' },
-  //   { icon: AlertCircle, label: 'Overdue', value: '3', color: 'bg-red-50', iconColor: 'text-red-500' },
-  //   { icon: TrendingUp, label: 'Completion Rate', value: '92%', color: 'bg-brand-accent/10', iconColor: 'text-brand-accent' },
-  // ];
 
   const renderActiveSection = () => {
     switch (activeTab) {
       case 'overview':
-        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={() => setActiveTab('assign')} onViewAnalytics={() => setActiveTab('reports')} />;
-      case 'task-list':
-        return <TasksListSection />;
-      case 'assign':
-        return <AssignTaskSection onTaskCreated={handleTaskCreated} />;
+        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
       case 'my-tasks':
         return <MyTasksSection />;
       case 'assigned-tasks':
         return <AssignedTasksSection />;
-      case 'all-tasks':
-        return <AllTasksSection />;
       case 'reports':
         return <TaskReportsSection />;
       default:
-        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={() => setActiveTab('assign')} onViewAnalytics={() => setActiveTab('reports')} />;
+        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
     }
   };
 
@@ -112,7 +140,7 @@ export default function TasksPage() {
             variant="primary" 
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => setActiveTab('assign')}
+            onClick={handleOpenCreateModal}
           >
             New Task
           </Button>,
@@ -132,6 +160,15 @@ export default function TasksPage() {
       <div className="animate-fadeIn">
         {renderActiveSection()}
       </div>
+
+      {/* Create Task Modal */}
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={handleCloseCreateModal}
+        onTaskCreated={handleTaskCreated}
+        users={users}
+        departments={departments}
+      />
     </div>
   );
 }
