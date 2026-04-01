@@ -435,7 +435,7 @@ export default function AttendancePage() {
             >
               <option value="all">All Statuses</option>
               <option value="present">✓ Present Only</option>
-              <option value="short">⏰ Short Hours</option>
+              <option value="short"> Short Hours</option>
               <option value="late">Late Arrivals</option>
               <option value="absent">✗ Absent</option>
             </select>

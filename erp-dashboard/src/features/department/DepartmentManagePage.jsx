@@ -482,13 +482,7 @@ export default function DepartmentManagePage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#0A1931] mb-2">Budget (₹)</label>
-              <Input
-                type="number"
-                value={deptForm.budget}
-                onChange={(e) => setDeptForm({ ...deptForm, budget: e.target.value })}
-                placeholder="0"
-              />
+              
             </div>
           </div>
 
