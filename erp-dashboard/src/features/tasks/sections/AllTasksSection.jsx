@@ -406,7 +406,7 @@ export default function AllTasksSection() {
                     {task.title}
                   </h3>
                   <p className="text-xs truncate text-slate-600 dark:text-slate-400">
-                    Assigned to: {task.assignedTo?.name || 'Unknown'} by {task.assignedBy?.name || 'Unknown'}
+                    Assigned to: {Array.isArray(task.assignedTo) ? task.assignedTo.map(a => a?.name || 'Unknown').join(', ') : (task.assignedTo?.name || 'Unknown')} by {task.assignedBy?.name || 'Unknown'}
                   </p>
                 </div>
 
@@ -470,7 +470,7 @@ export default function AllTasksSection() {
               </div>
 
               <div className="flex-1 mb-4 text-xs text-slate-600 dark:text-slate-400">
-                <div>To: {task.assignedTo?.name || 'Unknown'}</div>
+                <div>To: {Array.isArray(task.assignedTo) ? task.assignedTo.map(a => a?.name || 'Unknown').join(', ') : (task.assignedTo?.name || 'Unknown')}</div>
                 <div>By: {task.assignedBy?.name || 'Unknown'}</div>
                 <div>Due: {new Date(new Date(task.dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
               </div>

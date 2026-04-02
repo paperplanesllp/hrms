@@ -187,7 +187,9 @@ export default function TasksAssignedByMePage() {
           hour: '2-digit', minute: '2-digit', hour12: true,
           timeZone: 'Asia/Kolkata'
         }) : '',
-        task.assignedTo?.name || '',
+        task.assignedTo?.length > 0
+          ? (Array.isArray(task.assignedTo) ? task.assignedTo.map(a => a?.name || a).join('; ') : task.assignedTo?.name || '')
+          : '',
         task.department?.name || '',
         task.progress || 0,
         task.description || ''

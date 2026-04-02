@@ -482,7 +482,7 @@ export default function DepartmentManagePage() {
               />
             </div>
             <div>
-              
+
             </div>
           </div>
 
@@ -550,6 +550,7 @@ export default function DepartmentManagePage() {
                 <option value="lead">Lead</option>
                 <option value="manager">Manager</option>
                 <option value="director">Director</option>
+                <option value="intern">Intern</option>
               </select>
             </div>
             <div>

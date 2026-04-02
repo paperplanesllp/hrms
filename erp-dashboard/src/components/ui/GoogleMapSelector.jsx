@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React,  { useEffect, useRef, useState } from "react";
 import { Loader, Search } from "lucide-react";
 import Button from "./Button.jsx";
 import Input from "./Input.jsx";
@@ -156,7 +156,7 @@ export default function GoogleMapSelector({ latitude, longitude, onLocationSelec
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center w-full h-96 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200">
+      <div className="flex items-center justify-center w-full border-2 h-96 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-slate-200">
         <div className="flex flex-col items-center gap-2">
           <Loader className="w-8 h-8 text-blue-600 animate-spin" />
           <p className="text-sm text-slate-600">Loading Google Maps...</p>
@@ -169,8 +169,8 @@ export default function GoogleMapSelector({ latitude, longitude, onLocationSelec
     <div className="w-full space-y-3">
       {/* Address Search Bar */}
       <form onSubmit={handleAddressSearch} className="flex gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+        <div className="relative flex-1">
+          <Search className="absolute w-4 h-4 left-3 top-3 text-slate-400" />
           <Input
             type="text"
             placeholder="Search for an address (e.g., Times Square, NYC or 1600 Pennsylvania Ave, Washington DC)"
@@ -182,7 +182,7 @@ export default function GoogleMapSelector({ latitude, longitude, onLocationSelec
         <Button
           type="submit"
           disabled={searching || !searchAddress.trim()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4"
+          className="px-4 text-white bg-blue-600 hover:bg-blue-700"
         >
           {searching ? (
             <Loader className="w-4 h-4 animate-spin" />
@@ -195,10 +195,10 @@ export default function GoogleMapSelector({ latitude, longitude, onLocationSelec
       {/* Map Container */}
       <div
         ref={mapContainer}
-        className="w-full h-96 rounded-xl border-2 border-slate-200 shadow-md overflow-hidden"
+        className="w-full overflow-hidden border-2 shadow-md h-96 rounded-xl border-slate-200"
         style={{ minHeight: "400px" }}
       />
-      <p className="text-xs text-slate-500 italic">
+      <p className="text-xs italic text-slate-500">
         💡 <strong>Click</strong> anywhere on the map to set location, <strong>drag</strong> the marker to adjust, or <strong>search</strong> for an address above
       </p>
     </div>

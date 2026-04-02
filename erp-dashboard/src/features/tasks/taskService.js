@@ -84,5 +84,32 @@ export const taskService = {
   async addComment(taskId, text) {
     const res = await api.post(`/tasks/${taskId}/comments`, { text });
     return normalizeResponse(res);
-  }
+  },
+
+  // ─── Timer Actions ────────────────────────────────────────────────────────
+
+  async startTask(taskId) {
+    const res = await api.post(`/tasks/${taskId}/start`);
+    return normalizeResponse(res);
+  },
+
+  async pauseTask(taskId, reason) {
+    const res = await api.post(`/tasks/${taskId}/pause`, { reason });
+    return normalizeResponse(res);
+  },
+
+  async resumeTask(taskId) {
+    const res = await api.post(`/tasks/${taskId}/resume`);
+    return normalizeResponse(res);
+  },
+
+  async completeTask(taskId) {
+    const res = await api.post(`/tasks/${taskId}/complete`);
+    return normalizeResponse(res);
+  },
+
+  async getTaskAnalysis(taskId) {
+    const res = await api.get(`/tasks/${taskId}/analysis`);
+    return normalizeResponse(res);
+  },
 };

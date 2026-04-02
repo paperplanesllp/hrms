@@ -1,41 +1,46 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, CheckCircle2, Clock, AlertCircle, Loader, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Eye, CheckCircle2, AlertCircle, Loader, RefreshCw,
+  Search, X, Play, Pause, RotateCcw, BarChart3,
+} from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
 import { getSocket } from '../../../lib/socket.js';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
-import ModalBase from '../../../components/ui/Modal.jsx';
 import TaskDetailsModal from '../TaskDetailsModal.jsx';
-import TaskForm from '../TaskForm.jsx';
+import TaskTimerCard from '../components/TaskTimerCard.jsx';
+import PauseReasonModal from '../components/PauseReasonModal.jsx';
+import { formatSecondsHuman } from '../utils/taskTimerUtils.js';
 
 export default function MyTasksSection() {
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [editingTask, setEditingTask] = useState(null);
-  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [pauseModal, setPauseModal] = useState(null);     // { _id, title }
+  const [completeModal, setCompleteModal] = useState(null); // { _id, title }
 
   const fetchMyTasks = useCallback(async () => {
     try {
       console.log('🔄 [MyTasks] Starting fetch with filter:', filter);
       setLoading(true);
       
-      const tasks = await taskService.getMyTasks({
-        status: filter !== 'all' ? filter : undefined
+      // Map 'paused' UI filter to 'on-hold' status (how it's stored in DB)
+      const apiStatus = filter === 'paused' ? 'on-hold' : (filter !== 'all' ? filter : undefined);
+      const tasks = await taskService.getMyTasks({ status: apiStatus });
+      
+      // Sort: newest first (running tasks still bubble to top)
+      const sorted = [...(tasks || [])].sort((a, b) => {
+        if (a.isRunning && !b.isRunning) return -1;
+        if (!a.isRunning && b.isRunning) return 1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
       });
       
-      console.log('✅ [MyTasks] Fetch successful');
-      console.log('📋 [MyTasks] Retrieved tasks count:', tasks?.length || 0);
-      console.log('📊 [MyTasks] Tasks data:', tasks);
-      
-      if (!tasks || tasks.length === 0) {
-        console.warn('⚠️ [MyTasks] No tasks returned from API');
-      }
-      
-      setMyTasks(tasks || []);
+      setMyTasks(sorted);
     } catch (error) {
       console.error('❌ [MyTasks] ERROR FETCHING TASKS');
       console.error('Error object:', error);
@@ -208,109 +213,194 @@ export default function MyTasksSection() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+  // ─── Timer action handlers ─────────────────────────────────────────────────
 
-  const getISTNow = () => {
-    const now = new Date();
-    const local = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-    return new Date(local);
-  };
-
-  const daysUntilDue = (dateString) => {
-    if (!dateString) return 0;
-    const due = new Date(new Date(dateString).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    const now = getISTNow();
-    const diffTime = due - now;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300';
-      case 'in-progress':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
-      case 'pending':
-        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
-      case 'on-hold':
-        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
-      case 'cancelled':
-        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
-      default:
-        return 'bg-slate-100 dark:bg-slate-800';
+  const handleStartTask = async (taskId) => {
+    setActionLoading(taskId);
+    try {
+      const updated = await taskService.startTask(taskId);
+      setMyTasks(prev => prev.map(t => t._id === taskId ? updated : t));
+      toast({ title: 'Task Started ▶', message: 'Timer is now running', type: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to start task',
+        message: error?.response?.data?.message || 'Unable to start task',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const getPriorityBadgeColor = (priority) => {
-    switch (priority?.toUpperCase()) {
-      case 'URGENT':
-        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800';
-      case 'HIGH':
-        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800';
-      case 'MEDIUM':
-        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800';
-      case 'LOW':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
-      default:
-        return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+  const handlePauseRequest = (task) => {
+    setPauseModal({ _id: task._id, title: task.title });
+  };
+
+  const handlePauseConfirm = async (reason) => {
+    if (!pauseModal) return;
+    const { _id } = pauseModal;
+    setPauseModal(null);
+    setActionLoading(_id);
+    try {
+      const updated = await taskService.pauseTask(_id, reason);
+      setMyTasks(prev => prev.map(t => t._id === _id ? updated : t));
+      toast({ title: 'Task Paused ⏸', message: `Logged: "${reason}"`, type: 'warning' });
+    } catch (error) {
+      toast({
+        title: 'Failed to pause task',
+        message: error?.response?.data?.message || 'Unable to pause task',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const isOverdue = (task) => {
-    const now = getISTNow();
-    const due = new Date(new Date(task.dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    return task.status !== 'completed' && due < now;
+  const handleResumeTask = async (taskId) => {
+    setActionLoading(taskId);
+    try {
+      const updated = await taskService.resumeTask(taskId);
+      setMyTasks(prev => prev.map(t => t._id === taskId ? updated : t));
+      toast({ title: 'Task Resumed ▶', message: 'Timer is running again', type: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to resume task',
+        message: error?.response?.data?.message || 'Unable to resume task',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const filteredTasks = filter === 'all' 
-    ? myTasks 
-    : myTasks.filter(t => t.status === filter.toLowerCase());
+  const handleCompleteRequest = (task) => {
+    setCompleteModal({ _id: task._id, title: task.title });
+  };
+
+  const handleCompleteConfirm = async () => {
+    if (!completeModal) return;
+    const { _id } = completeModal;
+    setCompleteModal(null);
+    setActionLoading(_id);
+    try {
+      const updated = await taskService.completeTask(_id);
+      setMyTasks(prev => prev.map(t => t._id === _id ? updated : t));
+      toast({ title: 'Task Completed ✓', message: 'Great work! Task marked as done.', type: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to complete task',
+        message: error?.response?.data?.message || 'Unable to complete task',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ─── Stats & filtered list ─────────────────────────────────────────────────
+
+  const stats = useMemo(() => {
+    const running   = myTasks.filter(t => t.isRunning).length;
+    const paused    = myTasks.filter(t => t.isPaused).length;
+    const completed = myTasks.filter(t => t.status === 'completed').length;
+    const totalActiveSeconds = myTasks.reduce((acc, t) => acc + (t.totalActiveTimeInSeconds || 0), 0);
+    return { total: myTasks.length, running, paused, completed, totalActiveSeconds };
+  }, [myTasks]);
+
+  const filteredTasks = useMemo(() => {
+    let tasks = myTasks;
+    if (filter !== 'all') {
+      tasks = tasks.filter(t => {
+        if (filter === 'paused') return t.isPaused || t.status === 'on-hold';
+        return t.status === filter;
+      });
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      tasks = tasks.filter(
+        t =>
+          t.title.toLowerCase().includes(q) ||
+          (t.description || '').toLowerCase().includes(q)
+      );
+    }
+    return tasks;
+  }, [myTasks, filter, search]);
+
+  const FILTER_OPTIONS = [
+    { value: 'all',         label: 'All' },
+    { value: 'pending',     label: 'Pending' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'paused',      label: 'Paused' },
+    { value: 'completed',   label: 'Completed' },
+  ];
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Filter Buttons and Refresh */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          {['all', 'pending', 'in-progress', 'completed', 'on-hold'].map((status) => (
+
+      {/* Analytics Summary Bar */}
+      {myTasks.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard label="Total Tasks"    value={stats.total}         color="slate" />
+          <StatCard label="Running"         value={stats.running}       color="blue"    glow={stats.running > 0} />
+          <StatCard label="Paused"          value={stats.paused}        color="orange" />
+          <StatCard label="Active Time"     value={formatSecondsHuman(stats.totalActiveSeconds)} color="purple" isText />
+        </div>
+      )}
+
+      {/* Search + Filter + Refresh row */}
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search tasks..."
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/40 focus:border-brand-accent transition-all"
+          />
+          {search && (
             <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`
-                px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300
-                ${filter === status
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter buttons */}
+        <div className="flex flex-wrap gap-2">
+          {FILTER_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setFilter(opt.value)}
+              className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                filter === opt.value
                   ? 'bg-brand-accent text-slate-900 shadow-lg shadow-brand-accent/30 dark:shadow-brand-accent/20'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }
-              `}
+              }`}
             >
-              {status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+              {opt.label}
             </button>
           ))}
         </div>
+
         <Button
           variant="secondary"
           size="sm"
           leftIcon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}
           onClick={handleRefresh}
           disabled={refreshing}
+          className="shrink-0"
         >
           Refresh
         </Button>
       </div>
 
-      {/* Loading State */}
+      {/* Loading */}
       {loading && (
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center gap-4">
@@ -320,144 +410,95 @@ export default function MyTasksSection() {
         </Card>
       )}
 
-      {/* Empty State */}
+      {/* Empty */}
       {!loading && filteredTasks.length === 0 && (
         <Card className="p-12 text-center border-dashed">
           <div className="flex flex-col items-center gap-3">
             <AlertCircle className="w-12 h-12 text-slate-300 dark:text-slate-600" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No tasks found</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+              {search ? 'No tasks match your search' : 'No tasks found'}
+            </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              No tasks found with the selected filter.
+              {search
+                ? `No tasks match "${search}"`
+                : 'No tasks with the selected filter.'}
             </p>
           </div>
         </Card>
       )}
 
-      {/* Table View */}
+      {/* Task Cards Grid */}
       {!loading && filteredTasks.length > 0 && (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              {/* Table Header */}
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="px-6 py-4 text-left font-semibold text-slate-700 dark:text-slate-300" style={{ width: '60px' }}>
-                    S.No
-                  </th>
-                  <th className="px-6 py-4 text-left font-semibold text-slate-700 dark:text-slate-300">
-                    Task Title
-                  </th>
-                  <th className="px-6 py-4 text-left font-semibold text-slate-700 dark:text-slate-300" style={{ width: '100px' }}>
-                    Priority
-                  </th>
-                  <th className="px-6 py-4 text-left font-semibold text-slate-700 dark:text-slate-300" style={{ width: '150px' }}>
-                    Due Date & Time
-                  </th>
-                  <th className="px-6 py-4 text-left font-semibold text-slate-700 dark:text-slate-300" style={{ width: '80px' }}>
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-center font-semibold text-slate-700 dark:text-slate-300" style={{ width: '120px' }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredTasks.map(task => (
+            <TaskTimerCard
+              key={task._id}
+              task={task}
+              onStart={handleStartTask}
+              onPause={handlePauseRequest}
+              onResume={handleResumeTask}
+              onComplete={handleCompleteRequest}
+              onView={setSelectedTask}
+              loadingAction={actionLoading}
+            />
+          ))}
+        </div>
+      )}
 
-              {/* Table Body */}
-              <tbody>
-                {filteredTasks.map((task, index) => {
-                  const overdue = isOverdue(task);
-                  
-                  return (
-                    <tr
-                      key={task._id}
-                      className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200"
-                    >
-                      {/* S.No */}
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                          {index + 1}
-                        </span>
-                      </td>
+      {/* Result count */}
+      {!loading && myTasks.length > 0 && (
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
+          Showing {filteredTasks.length} of {myTasks.length} tasks
+        </p>
+      )}
 
-                      {/* Task Title */}
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="font-semibold text-slate-900 dark:text-white line-clamp-2">
-                            {task.title}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                            {task.description || 'No description'}
-                          </p>
-                        </div>
-                      </td>
+      {/* ── Modals ── */}
 
-                      {/* Priority */}
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${getPriorityBadgeColor(task.priority)}`}>
-                          {task.priority || 'N/A'}
-                        </span>
-                      </td>
+      {/* Pause Reason Modal */}
+      {pauseModal && (
+        <PauseReasonModal
+          taskTitle={pauseModal.title}
+          onConfirm={handlePauseConfirm}
+          onCancel={() => setPauseModal(null)}
+        />
+      )}
 
-                      {/* Due Date & Time */}
-                      <td className="px-6 py-4">
-                        <div className={overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-600 dark:text-slate-400'}>
-                          <p>{formatDate(task.dueDate)}</p>
-                          <p className={`text-xs mt-1 font-semibold ${overdue ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-500'}`}>
-                            {overdue 
-                              ? `⚠️ ${Math.abs(daysUntilDue(task.dueDate))} days overdue` 
-                              : `📅 ${daysUntilDue(task.dueDate)} days left`
-                            }
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(task.status)}`}>
-                          {task.status.replace('-', ' ').toUpperCase()}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* View Icon */}
-                          <button
-                            onClick={() => setSelectedTask(task)}
-                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
-                            title="View task details"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-
-                          {/* Edit removed per request */}
-
-                          {/* Mark Complete Icon */}
-                          {task.status !== 'completed' && (
-                            <button
-                              onClick={() => handleStatusChange(task._id, 'completed')}
-                              className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded-lg transition-colors duration-200"
-                              title="Mark as completed"
-                            >
-                              <CheckCircle2 className="w-5 h-5" />
-                            </button>
-                          )}
-
-                          {/* Delete removed per request */}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* Complete Confirmation Modal */}
+      {completeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setCompleteModal(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6">
+            <div className="flex items-center justify-center w-14 h-14 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl mx-auto mb-4">
+              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-bold text-center text-slate-900 dark:text-white mb-2">
+              Complete Task?
+            </h3>
+            <p className="text-sm text-center text-slate-500 dark:text-slate-400 mb-6">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                &ldquo;{completeModal.title}&rdquo;
+              </span>{' '}
+              will be marked as completed and the timer will stop.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCompleteModal(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCompleteConfirm}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+              >
+                Complete ✓
+              </button>
+            </div>
           </div>
-
-          {/* Table Footer */}
-          <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 text-sm text-slate-600 dark:text-slate-400">
-            Showing {filteredTasks.length} of {myTasks.length} tasks
-          </div>
-        </Card>
+        </div>
       )}
 
       {/* Task Details Modal */}
@@ -468,8 +509,28 @@ export default function MyTasksSection() {
           onStatusChange={handleStatusChange}
         />
       )}
+    </div>
+  );
+}
 
-      {/* Edit modal removed (UI hidden) */}
+// ─── Compact stat card ─────────────────────────────────────────────────────────
+
+function StatCard({ label, value, color, glow, isText }) {
+  const colorMap = {
+    slate:  'bg-slate-50  dark:bg-slate-700/50  text-slate-700  dark:text-slate-300',
+    blue:   'bg-blue-50   dark:bg-blue-900/20   text-blue-700   dark:text-blue-300',
+    orange: 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300',
+    emerald:'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300',
+    purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300',
+  };
+  return (
+    <div
+      className={`rounded-2xl px-4 py-3 ${colorMap[color] || colorMap.slate} ${
+        glow ? 'ring-1 ring-blue-300 dark:ring-blue-700' : ''
+      }`}
+    >
+      <p className="text-xs font-semibold opacity-70 mb-0.5">{label}</p>
+      <p className={`font-bold leading-tight ${isText ? 'text-sm' : 'text-2xl'}`}>{value}</p>
     </div>
   );
 }

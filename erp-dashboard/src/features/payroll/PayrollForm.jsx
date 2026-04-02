@@ -13,7 +13,7 @@ export default function PayrollForm({
   // Default form state - memoized to prevent recreation
   const defaultForm = useMemo(() => ({
     userId: "",
-    month: `${new Date().getFullYear()}-01`,  // Format as YYYY-MM
+    month: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,  // Format as YYYY-MM
     year: new Date().getFullYear(),
     basicSalary: 0,
     allowances: 0,
@@ -231,7 +231,7 @@ export default function PayrollForm({
               Month <span className="text-red-500">*</span>
             </label>
             <select
-              value={form.month}
+              value={form.month?.split("-")[1] || ""}
               onChange={(e) => handleChange("month", `${form.year}-${e.target.value}`)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#137333] ${
                 errors.month ? "border-red-500" : "border-[#B3CFE5]"
@@ -239,7 +239,7 @@ export default function PayrollForm({
             >
               <option value="">Month</option>
               {months.map(m => (
-                <option key={m.value} value={`${form.year}-${m.value}`}>
+                <option key={m.value} value={m.value}>
                   {m.label}
                 </option>
               ))}

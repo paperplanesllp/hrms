@@ -23,7 +23,7 @@ export const tasksService = {
         throw new Error(`Invalid user ID format: ${userId}`);
       }
       
-      const query = { assignedTo: userObjectId, isDeleted: false };
+      const query = { assignedTo: { $in: [userObjectId] }, isDeleted: false };
       
       // Status filter
       if (filters.status) {
@@ -206,26 +206,33 @@ export const tasksService = {
       throw new Error('Task title is required and must be a string');
     }
     
-    if (!data.assignedTo) {
-      throw new Error('Task must be assigned to a user');
+    // Normalize assignedTo to array
+    const assignedToRaw = Array.isArray(data.assignedTo)
+      ? data.assignedTo
+      : data.assignedTo
+        ? [data.assignedTo]
+        : [];
+
+    if (assignedToRaw.length === 0) {
+      throw new Error('Task must be assigned to at least one user');
     }
-    
+
     if (!data.dueDate) {
       throw new Error('Due date is required');
     }
-    
-    // Validate assignedTo exists
-    const assignedUser = await User.findById(data.assignedTo);
-    if (!assignedUser) {
-      throw new Error('Assigned user not found');
+
+    // Validate each assignee exists
+    for (const uid of assignedToRaw) {
+      const found = await User.findById(uid);
+      if (!found) throw new Error(`Assigned user not found: ${uid}`);
     }
-    
+
     // Validate assignedBy exists
     const assignedByUser = await User.findById(assignedById);
     if (!assignedByUser) {
       throw new Error('Current user not found');
     }
-    
+
     // Validate department if provided
     if (data.department) {
       const dept = await Department.findById(data.department);
@@ -233,17 +240,17 @@ export const tasksService = {
         throw new Error('Department not found');
       }
     }
-    
+
     // Validate priority
     const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
     if (data.priority && !validPriorities.includes(data.priority)) {
       data.priority = 'MEDIUM';
     }
-    
+
     const taskData = {
       title: data.title.trim(),
       description: data.description?.trim() || '',
-      assignedTo: new mongoose.Types.ObjectId(data.assignedTo),
+      assignedTo: assignedToRaw.map(id => new mongoose.Types.ObjectId(id)),
       assignedBy: new mongoose.Types.ObjectId(assignedById),
       department: data.department ? new mongoose.Types.ObjectId(data.department) : null,
       dueDate: new Date(data.dueDate),

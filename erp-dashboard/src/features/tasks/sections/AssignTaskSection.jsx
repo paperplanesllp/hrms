@@ -33,7 +33,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    assignedTo: '',
+    assignedTo: [],
     assignedBy: user?.id, // Auto-filled with logged-in user
     department: '',
     priority: 'medium',
@@ -86,34 +86,19 @@ export default function AssignTaskSection({ onTaskCreated }) {
     fetchData();
   }, []);
 
-  // Auto-populate department when assignedTo changes
+  // Auto-populate department when first assignedTo changes
   useEffect(() => {
-    if (formData.assignedTo && users.length > 0) {
-      console.log('Finding user for ID:', formData.assignedTo);
-      console.log('Available users:', users.map(u => ({ id: u._id, name: u.name, deptId: u.departmentId })));
-      
+    const firstId = Array.isArray(formData.assignedTo) ? formData.assignedTo[0] : formData.assignedTo;
+    if (firstId && users.length > 0) {
+      console.log('Finding user for ID:', firstId);
       const selectedUser = users.find(u => {
         const userId = u._id?.toString() || u._id;
-        const assignedId = formData.assignedTo?.toString() || formData.assignedTo;
+        const assignedId = firstId?.toString() || firstId;
         return userId === assignedId;
       });
-      
-      console.log('Selected user:', selectedUser);
-      
       if (selectedUser && selectedUser.departmentId) {
-        console.log('Setting department to:', selectedUser.departmentId);
-        setFormData(prev => ({
-          ...prev,
-          department: selectedUser.departmentId
-        }));
-        
-        // Clear department error
-        setErrors(prev => ({
-          ...prev,
-          department: ''
-        }));
-      } else {
-        console.log('No department found for user or user not found');
+        setFormData(prev => ({ ...prev, department: selectedUser.departmentId }));
+        setErrors(prev => ({ ...prev, department: '' }));
       }
     }
   }, [formData.assignedTo, users]);
@@ -132,7 +117,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
       newErrors.description = 'Description must be at least 10 characters (or leave empty)';
     }
 
-    if (!formData.assignedTo) {
+    if (!formData.assignedTo || formData.assignedTo.length === 0) {
       newErrors.assignedTo = 'Please assign the task to someone';
     }
 
@@ -239,7 +224,8 @@ export default function AssignTaskSection({ onTaskCreated }) {
         // Add task fields to FormData
         submitFormData.append('title', formData.title);
         submitFormData.append('description', formData.description);
-        submitFormData.append('assignedTo', formData.assignedTo);
+        // Send each assignee ID separately (parsed as array on backend)
+        formData.assignedTo.forEach(id => submitFormData.append('assignedTo', id));
         submitFormData.append('assignedBy', formData.assignedBy);
         submitFormData.append('department', formData.department);
         submitFormData.append('priority', formData.priority.toUpperCase());
@@ -282,7 +268,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
           setFormData({
             title: '',
             description: '',
-            assignedTo: '',
+            assignedTo: [],
             assignedBy: user?.id,
             department: '',
             priority: 'medium',
@@ -328,7 +314,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
     setFormData({
       title: '',
       description: '',
-      assignedTo: '',
+      assignedTo: [],
       assignedBy: user?.id,
       department: '',
       priority: 'medium',
@@ -341,10 +327,21 @@ export default function AssignTaskSection({ onTaskCreated }) {
     setTouched({});
   };
 
-  // Get assigned user and department for preview
-  const assignedUser = users.find(u => u._id === formData.assignedTo);
+  // Get assigned users (array) and department for preview
+  const assignedUsers = users.filter(u => (formData.assignedTo || []).includes(u._id));
   const assignedByUser = users.find(u => u._id === formData.assignedBy);
   const selectedDept = departments.find(d => d._id === formData.department);
+
+  const toggleAssignee = (userId) => {
+    setFormData(prev => {
+      const current = prev.assignedTo || [];
+      const updated = current.includes(userId)
+        ? current.filter(id => id !== userId)
+        : [...current, userId];
+      return { ...prev, assignedTo: updated };
+    });
+    setErrors(prev => ({ ...prev, assignedTo: '' }));
+  };
 
   // Priority colors
   const getPriorityBadge = (priority) => {
@@ -483,30 +480,54 @@ export default function AssignTaskSection({ onTaskCreated }) {
               </div>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Assigned To Field */}
+                {/* Assigned To Field — multi-select checkboxes */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
                     Assign To
                     <span className="text-red-500">*</span>
+                    {formData.assignedTo.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded-full bg-brand-accent/20 text-brand-accent text-xs font-bold">
+                        {formData.assignedTo.length} selected
+                      </span>
+                    )}
                   </label>
-                  <select
-                    name="assignedTo"
-                    value={formData.assignedTo}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    className={`w-full px-4 py-3 rounded-lg border transition-all ${
+                  <div
+                    onBlur={() => setTouched(prev => ({ ...prev, assignedTo: true }))}
+                    className={`w-full rounded-lg border overflow-y-auto max-h-44 transition-all ${
                       errors.assignedTo && touched.assignedTo
-                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500/30'
-                        : 'border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30'
-                    } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 appearance-none`}
+                        ? 'border-red-500 dark:border-red-500'
+                        : 'border-slate-300 dark:border-slate-600'
+                    } bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-slate-700`}
                   >
-                    <option value="">Select team member...</option>
-                    {users.map(user => (
-                      <option key={user._id} value={user._id}>
-                        {user.name}
-                      </option>
-                    ))}
-                  </select>
+                    {users.length === 0 && (
+                      <p className="px-4 py-3 text-sm text-slate-400">No users available</p>
+                    )}
+                    {users.map(u => {
+                      const checked = (formData.assignedTo || []).includes(u._id);
+                      const isYou = u._id === user?.id || u._id === user?._id;
+                      return (
+                        <label
+                          key={u._id}
+                          className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
+                            checked ? 'bg-brand-accent/5 dark:bg-brand-accent/10' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleAssignee(u._id)}
+                            className="accent-brand-accent w-4 h-4 shrink-0"
+                          />
+                          <span className={`text-sm ${checked ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                            {u.name}{isYou ? <span className="ml-1 text-xs font-bold text-brand-accent opacity-80">(you)</span> : null}
+                          </span>
+                          {u.role && (
+                            <span className="ml-auto text-xs text-slate-400 dark:text-slate-500 shrink-0">{u.role}</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
                   {errors.assignedTo && touched.assignedTo && (
                     <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />

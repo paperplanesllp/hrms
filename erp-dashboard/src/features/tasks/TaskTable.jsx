@@ -152,36 +152,25 @@ export default function TaskTable({
 
                 {/* Assigned To */}
                 <td className="px-4 py-3">
-                  {task.assignedTo ? (
-                    <div className="flex items-center gap-2 group">
-                      {task.assignedTo?.avatar ? (
-                        <img
-                          src={task.assignedTo.avatar}
-                          alt={task.assignedTo?.name}
-                          className="w-6 h-6 rounded-full cursor-help"
-                          title={`${task.assignedTo?.name}\n${task.assignedTo?.email}`}
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full bg-blue-500 dark:bg-blue-600 cursor-help"
-                          title={`${task.assignedTo?.name}\n${task.assignedTo?.email}`}>
-                          {task.assignedTo?.name?.charAt(0) || 'U'}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate text-slate-700 dark:text-slate-300">
-                          {task.assignedTo?.name}
-                        </p>
-                        <p className="text-xs truncate text-slate-500 dark:text-slate-400">
-                          {task.assignedTo?.email}
-                        </p>
-                      </div>
-                      
-                      {/* Hover Info Card */}
-                      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg">
-                        <p className="font-semibold">{task.assignedTo?.name}</p>
-                        <p className="opacity-90">{task.assignedTo?.email}</p>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900"></div>
-                      </div>
+                  {task.assignedTo?.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {(Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo]).map((person, idx) => {
+                        const name = person?.name || '?';
+                        const email = person?.email || '';
+                        const initials = name.charAt(0).toUpperCase();
+                        return (
+                          <div key={person?._id || idx} className="flex items-center gap-1 group relative">
+                            {person?.avatar ? (
+                              <img src={person.avatar} alt={name} className="w-6 h-6 rounded-full cursor-help" title={`${name}\n${email}`} />
+                            ) : (
+                              <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full bg-blue-500 dark:bg-blue-600 cursor-help" title={`${name}\n${email}`}>
+                                {initials}
+                              </div>
+                            )}
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[80px]">{name}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">

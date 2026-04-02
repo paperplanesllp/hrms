@@ -17,13 +17,12 @@ const taskSchema = new mongoose.Schema(
       default: ''
     },
 
-    // Assignment
-    assignedTo: {
+    // Assignment (supports multiple assignees)
+    assignedTo: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Task must be assigned to a user'],
       index: true
-    },
+    }],
 
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -200,7 +199,21 @@ const taskSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       default: ""
-    }
+    },
+
+    // === TIMER TRACKING ===
+    startedAt: { type: Date, default: null },
+    currentSessionStartTime: { type: Date, default: null },
+    totalActiveTimeInSeconds: { type: Number, default: 0, min: 0 },
+    totalPausedTimeInSeconds: { type: Number, default: 0, min: 0 },
+    isRunning: { type: Boolean, default: false },
+    isPaused: { type: Boolean, default: false },
+    pauseEntries: [{
+      reason: { type: String, required: true, trim: true },
+      pausedAt: { type: Date, required: true },
+      resumedAt: { type: Date, default: null },
+      pausedDurationInSeconds: { type: Number, default: 0 }
+    }]
   },
   {
     timestamps: true,

@@ -286,22 +286,22 @@ export default function PayrollManagePage() {
         </Card>
 
         {/* Paid Employees */}
-        <Card className="p-6 border-l-4 border-l-green-600 bg-white hover:shadow-md transition">
+        <Card className="p-6 transition bg-white border-l-4 border-l-green-600 hover:shadow-md">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-[#70757A] uppercase tracking-wide">Paid</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">{stats.paidEmployees || 0}</p>
+              <p className="mt-2 text-3xl font-bold text-green-600">{stats.paidEmployees || 0}</p>
             </div>
             <CheckCircle className="w-6 h-6 text-green-600" />
           </div>
         </Card>
 
         {/* Pending Payroll */}
-        <Card className="p-6 border-l-4 border-l-orange-500 bg-white hover:shadow-md transition">
+        <Card className="p-6 transition bg-white border-l-4 border-l-orange-500 hover:shadow-md">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm font-medium text-[#70757A] uppercase tracking-wide">Pending</p>
-              <p className="text-3xl font-bold text-orange-600 mt-2">{stats.pendingPayroll || 0}</p>
+              <p className="mt-2 text-3xl font-bold text-orange-600">{stats.pendingPayroll || 0}</p>
             </div>
             <Calendar className="w-6 h-6 text-orange-600" />
           </div>
@@ -310,7 +310,7 @@ export default function PayrollManagePage() {
 
       {/* Filters Section */}
       <Card className="p-5 bg-white">
-        <div className="grid gap-4 md:grid-cols-5 items-end">
+        <div className="grid items-end gap-4 md:grid-cols-5">
           {/* Search */}
           <div>
             <label className="block text-xs font-medium text-[#0A1931] mb-2 uppercase">Search</label>
@@ -377,7 +377,7 @@ export default function PayrollManagePage() {
           <Button
             onClick={handleDownloadMonthlyReport}
             disabled={payrolls.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white gap-2 w-full"
+            className="w-full gap-2 text-white bg-blue-600 hover:bg-blue-700"
           >
             <Download className="w-4 h-4" />
             Export Report
@@ -386,7 +386,7 @@ export default function PayrollManagePage() {
       </Card>
 
       {/* Payroll Table */}
-      <Card className="p-6 bg-white overflow-x-auto">
+      <Card className="p-6 overflow-x-auto bg-white">
         <h3 className="text-lg font-semibold text-[#0A1931] mb-4">Payroll Records ({filteredPayrolls.length})</h3>
         
         {loading ? (
@@ -394,7 +394,7 @@ export default function PayrollManagePage() {
             <Spinner />
           </div>
         ) : filteredPayrolls.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="py-12 text-center">
             <DollarSign className="w-12 h-12 text-[#B3CFE5] mx-auto mb-3" />
             <p className="text-[#70757A] text-lg">No payroll records found</p>
             <p className="text-[#70757A] text-sm mt-2">
@@ -458,7 +458,7 @@ export default function PayrollManagePage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-center">
+                      <div className="flex justify-center gap-1">
                         <Button
                           onClick={() => { setViewingPayroll(payroll); setOpenViewModal(true); }}
                           title="View Details"
@@ -555,7 +555,7 @@ export default function PayrollManagePage() {
             {/* Employee Info */}
             <div className="bg-[#F6FAFD] p-4 rounded-lg">
               <h4 className="font-bold text-[#0A1931] mb-3">Employee Information</h4>
-              <div className="grid md:grid-cols-2 gap-3 text-sm">
+              <div className="grid gap-3 text-sm md:grid-cols-2">
                 <div>
                   <p className="text-[#70757A]">Name</p>
                   <p className="font-medium text-[#0A1931]">{viewingPayroll.userId?.name}</p>
@@ -576,7 +576,7 @@ export default function PayrollManagePage() {
             </div>
 
             {/* Payroll Period */}
-            <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="p-4 rounded-lg bg-orange-50">
               <h4 className="font-bold text-[#0A1931] mb-2">Payroll Period</h4>
               <p className="text-[#0A1931]">
                 <span className="text-[#70757A]">{viewingPayroll.month}</span>
@@ -584,7 +584,7 @@ export default function PayrollManagePage() {
             </div>
 
             {/* Earnings */}
-            <div className="bg-green-50 p-4 rounded-lg">
+            <div className="p-4 rounded-lg bg-green-50">
               <h4 className="font-bold text-[#0A1931] mb-3">Earnings</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -603,7 +603,7 @@ export default function PayrollManagePage() {
                   <span className="text-[#70757A]">Overtime Pay</span>
                   <span className="font-medium">₹{(viewingPayroll.overtimePay || 0).toLocaleString()}</span>
                 </div>
-                <div className="border-t border-green-200 pt-2 flex justify-between">
+                <div className="flex justify-between pt-2 border-t border-green-200">
                   <span className="font-medium text-[#0A1931]">Total Earnings</span>
                   <span className="font-bold text-green-600">
                     ₹{((viewingPayroll.basicSalary || 0) + (viewingPayroll.allowances || 0) + (viewingPayroll.bonus || 0) + (viewingPayroll.overtimePay || 0)).toLocaleString()}
@@ -613,7 +613,7 @@ export default function PayrollManagePage() {
             </div>
 
             {/* Deductions */}
-            <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="p-4 rounded-lg bg-orange-50">
               <h4 className="font-bold text-[#0A1931] mb-3">Deductions</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -624,7 +624,7 @@ export default function PayrollManagePage() {
                   <span className="text-[#70757A]">Tax (TDS / Income Tax)</span>
                   <span className="font-medium">₹{(viewingPayroll.tax || 0).toLocaleString()}</span>
                 </div>
-                <div className="border-t border-orange-200 pt-2 flex justify-between">
+                <div className="flex justify-between pt-2 border-t border-orange-200">
                   <span className="font-medium text-[#0A1931]">Total Deductions</span>
                   <span className="font-bold text-orange-600">
                     ₹{((viewingPayroll.deductions || 0) + (viewingPayroll.tax || 0)).toLocaleString()}
@@ -635,18 +635,18 @@ export default function PayrollManagePage() {
 
             {/* Net Salary */}
             <div className="bg-[#137333] text-white p-4 rounded-lg">
-              <h4 className="font-bold mb-2">Net Salary</h4>
+              <h4 className="mb-2 font-bold">Net Salary</h4>
               <p className="text-3xl font-bold">
                 ₹{(viewingPayroll.netSalary || 0).toLocaleString()}
               </p>
             </div>
 
             {/* Payment Details */}
-            <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="p-4 rounded-lg bg-gray-50">
               <h4 className="font-bold text-[#0A1931] mb-3">Payment Details</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-[#70757A]">Payment Method</span>
+                  <span className="text-[#8ba5be]">Payment Method</span>
                   <span className="font-medium">
                     {viewingPayroll.paymentMethod === "Other" 
                       ? viewingPayroll.customPaymentMethod 
@@ -676,7 +676,7 @@ export default function PayrollManagePage() {
 
             {/* Notes */}
             {viewingPayroll.notes && (
-              <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="p-4 rounded-lg bg-blue-50">
                 <h4 className="font-bold text-[#0A1931] mb-2">Notes</h4>
                 <p className="text-sm text-[#0A1931]">{viewingPayroll.notes}</p>
               </div>
@@ -686,14 +686,14 @@ export default function PayrollManagePage() {
             <div className="flex gap-2 pt-4 border-t">
               <Button
                 onClick={() => handleDownloadPDF(viewingPayroll)}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
+                className="flex-1 gap-2 text-white bg-green-600 hover:bg-green-700"
               >
                 <Download className="w-4 h-4" />
                 Download PDF
               </Button>
               <Button
                 onClick={() => { setOpenViewModal(false); setEditingPayroll(viewingPayroll); setOpenForm(true); }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                className="flex-1 gap-2 text-white bg-blue-600 hover:bg-blue-700"
               >
                 <Edit className="w-4 h-4" />
                 Edit

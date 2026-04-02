@@ -66,7 +66,6 @@ export default function RoleBasedSidebar({ open, setOpen }) {
     { to: "/leave", icon: <ClipboardList className="w-4 h-4" />, label: "Leave" },
     { to: "/tasks", icon: <CheckCircle2 className="w-4 h-4" />, label: "Tasks" },
     { to: "/payroll", icon: <BadgeDollarSign className="w-4 h-4" />, label: "Payroll" },
-    { to: "/worksheet", icon: <FileText className="w-4 h-4" />, label: "Worksheet" },
     ...(isAdmin ? [] : [{ to: "/documents", icon: <File className="w-4 h-4" />, label: "Documents" }]),
   ];
 
@@ -89,7 +88,6 @@ export default function RoleBasedSidebar({ open, setOpen }) {
   ] : [];
 
   const hrLinks = isHR ? [
-    { to: "/tasks/manage", icon: <CheckCircle2 className="w-4 h-4" />, label: "Manage Tasks" },
     { to: "/leave/manage", icon: <Settings className="w-4 h-4" />, label: "Manage Leave" },
     { to: "/payroll/manage", icon: <Settings className="w-4 h-4" />, label: "Manage Payroll" },
     { to: "/hr/documents", icon: <File className="w-4 h-4" />, label: "Manage Documents" },

@@ -606,7 +606,7 @@ export default function CompanySettingsPage() {
           </div>
 
           {/* Selected Working Days Display */}
-          <div className="p-4 border rounded-lg bg-green-50 border-green-200">
+          <div className="p-4 border border-green-200 rounded-lg bg-green-50">
             <p className="text-sm font-medium text-green-900">📅 Selected Working Days:</p>
             <p className="mt-2 text-sm text-green-800">
               {workingDays.length > 0 

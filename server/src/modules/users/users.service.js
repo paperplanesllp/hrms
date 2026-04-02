@@ -31,14 +31,11 @@ export async function createUser(data) {
   return user;
 }
 
-export async function listUsers(requestingUserRole = null) {
-  let query = { role: { $ne: "TERMINATED" } };
-  
-  // HR users can only see EMPLOYEE (USER role) staff members
-  if (requestingUserRole === "HR") {
-    query.role = "USER";
-  }
-  
+export async function listUsers(requestingUserRole = null, currentUserId = null) {
+  // Exclude terminated users and ADMIN accounts from shared lists.
+  // HR can see all active staff (USER + HR) so they can assign tasks to themselves and peers.
+  const query = { role: { $nin: ["TERMINATED", "ADMIN"] } };
+
   return User.find(query)
     .select("-passwordHash -refreshTokenHash")
     .sort({ createdAt: -1 });

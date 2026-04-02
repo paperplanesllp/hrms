@@ -17,6 +17,7 @@ export default function AttendancePage() {
   const user = useAuthStore((s) => s.user);
   const isEditor = user?.role === ROLES.ADMIN || user?.role === ROLES.HR;
   const isAdmin = user?.role === ROLES.ADMIN;
+  const isHR = user?.role === ROLES.HR;
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
@@ -111,7 +112,7 @@ export default function AttendancePage() {
       
       // For regular users: fetch only own records
       // For Admin: fetch all HR/USER records
-      const endpoint = isAdmin ? "/attendance" : "/attendance/me";
+      const endpoint = isEditor ? "/attendance" : "/attendance/me";
       const res = await api.get(endpoint, {
         params: { from: fromDate, to: toDate }
       });
@@ -210,25 +211,61 @@ export default function AttendancePage() {
   const handleEdit = (record) => {
     setEditingRecord(record);
     setEditForm({
+      date: record.date || '',
       checkIn: record.checkIn || '',
       checkOut: record.checkOut || ''
     });
     setShowEditModal(true);
   };
 
+  const handleStatusChange = (newStatus) => {
+    if (newStatus === 'PRESENT') {
+      setEditForm(prev => ({
+        ...prev,
+        status: newStatus,
+        checkIn: prev.checkIn || editingRecord?.shiftStart || '09:00',
+        checkOut: prev.checkOut || editingRecord?.shiftEnd || '18:00'
+      }));
+    } else if (newStatus === 'ABSENT') {
+      setEditForm(prev => ({
+        ...prev,
+        status: newStatus,
+        checkIn: '',
+        checkOut: ''
+      }));
+    } else {
+      setEditForm(prev => ({ ...prev, status: newStatus }));
+    }
+  };
+
   const handleSaveEdit = async () => {
     try {
-      if (!editForm.checkIn && !editForm.checkOut) {
+      if (!editForm.date) {
+        toast({ title: "Please select a date", type: "error" });
+        return;
+      }
+      if (editForm.status !== 'ABSENT' && !editForm.checkIn && !editForm.checkOut) {
         toast({ title: "Please enter at least Clock In or Clock Out time", type: "error" });
         return;
       }
 
+<<<<<<< HEAD
       const payload = {
         checkIn: editForm.checkIn || null,
         checkOut: editForm.checkOut || null
       };
 
       await api.put(`/attendance/${editingRecord._id}`, payload);
+=======
+      // Always use upsert by userId+date so HR can create records for any date
+      await api.patch('/attendance/edit', {
+        userId: editingRecord.userId,
+        date: editForm.date,
+        checkIn: editForm.checkIn || undefined,
+        checkOut: editForm.checkOut || undefined,
+        status: editForm.status
+      });
+>>>>>>> 10d4b2c (Commit and push)
       toast({ title: "Attendance updated successfully", type: "success" });
       setShowEditModal(false);
       setEditingRecord(null);
@@ -307,8 +344,8 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       <PageTitle
-        title={isAdmin ? "HR Attendance Monitoring" : "My Attendance"}
-        subtitle={isAdmin ? "Monitor HR staff attendance and login/logout times" : "Track your daily check-in and check-out times"}
+        title={isAdmin ? "HR Attendance Monitoring" : isHR ? "Employee Attendance Monitoring" : "My Attendance"}
+        subtitle={isAdmin ? "Monitor HR staff attendance and login/logout times" : isHR ? "Monitor and edit employee attendance records" : "Track your daily check-in and check-out times"}
       />
 
       {/* TODAY'S ATTENDANCE STATUS - PROMINENT SECTION */}
@@ -376,9 +413,15 @@ export default function AttendancePage() {
         </Card>
       )}
 
+<<<<<<< HEAD
       {/* Statistics Cards (Admin only) */}
       {isAdmin && (
         <div className="grid gap-4 md:grid-cols-6">
+=======
+      {/* Statistics Cards (Admin and HR) */}
+      {isEditor && (
+        <div className="grid gap-4 md:grid-cols-4">
+>>>>>>> 10d4b2c (Commit and push)
           <Card className="p-6 border-l-4 border-l-[#4A7FA7] bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
@@ -459,8 +502,8 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Filter Controls (Admin only) */}
-      {isAdmin && (
+      {/* Filter Controls (Admin and HR) */}
+      {isEditor && (
         <Card className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/30 dark:to-blue-900/20 border-l-4 border-l-[#4A7FA7] shadow-md">
           <div className="mb-4">
             <h3 className="text-sm font-semibold uppercase text-[#4A7FA7] tracking-wider">Search & Filter</h3>
@@ -490,6 +533,7 @@ export default function AttendancePage() {
               <option value="absent">✗ Absent</option>
             </select>
 
+<<<<<<< HEAD
             <input
               type="date"
               value={selectedDate}
@@ -509,6 +553,22 @@ export default function AttendancePage() {
                 HR Staff Only
               </label>
             </div>
+=======
+            {isAdmin && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-white border-2 border-[#B3CFE5] rounded-lg hover:border-[#4A7FA7] transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="hrFilter"
+                  checked={filterHROnly}
+                  onChange={(e) => setFilterHROnly(e.target.checked)}
+                  className="w-4 h-4 border-2 border-[#B3CFE5] rounded cursor-pointer"
+                />
+                <label htmlFor="hrFilter" className="text-sm font-medium text-[var(--text-main)] cursor-pointer">
+                  HR Staff Only
+                </label>
+              </div>
+            )}
+>>>>>>> 10d4b2c (Commit and push)
 
             <Button
               onClick={load}
@@ -536,10 +596,14 @@ export default function AttendancePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">
-                    {isAdmin ? `Attendance Records (${filteredRows.length})` : "My Attendance"}
+                    {isEditor ? `Attendance Records (${filteredRows.length})` : "My Attendance"}
                   </h3>
                   <p className="text-xs text-[var(--text-light)]">
+<<<<<<< HEAD
                     {isAdmin ? `Showing ${filteredRows.length} of ${rows.length} records for ${selectedDate}` : "Track your attendance history"}
+=======
+                    {isEditor ? `Showing ${filteredRows.length} of ${rows.length} records` : "Track your attendance history"}
+>>>>>>> 10d4b2c (Commit and push)
                   </p>
                 </div>
               </div>
@@ -549,7 +613,7 @@ export default function AttendancePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#0A1931]" style={{ backgroundColor: '#0A1931' }}>
-                    {isAdmin && (
+                    {isEditor && (
                       <>
                         <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Staff Name</th>
                         <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Role</th>
@@ -577,7 +641,7 @@ export default function AttendancePage() {
                             : idx % 2 === 0 ? 'bg-white hover:bg-[#E6F4EA]' : 'bg-[#F9FCFD] hover:bg-[#E6F4EA]'
                         }`}
                       >
-                        {isAdmin && (
+                        {isEditor && (
                           <>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
@@ -703,6 +767,19 @@ export default function AttendancePage() {
 
             {/* Modal Content */}
             <div className="p-8 space-y-6 max-h-[calc(90vh-140px)] overflow-y-auto">
+              {/* Date Picker */}
+              <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-indigo-50/40 to-slate-50">
+                <h3 className="mb-4 text-lg font-bold text-slate-900">Select Date</h3>
+                <input
+                  type="date"
+                  value={editForm.date}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                />
+                <p className="mt-2 text-xs text-slate-500">Original date: {editingRecord.date}</p>
+              </div>
+
               {/* Shift Information */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-blue-50/40 to-slate-50">
                 <h3 className="mb-4 text-lg font-bold text-slate-900">Shift Information</h3>
@@ -768,10 +845,24 @@ export default function AttendancePage() {
                 <h3 className="mb-4 text-lg font-bold text-slate-900">Attendance Status</h3>
                 
                 <div>
+<<<<<<< HEAD
                   <label className="block mb-2 text-sm font-semibold text-slate-700">Status Calculation</label>
                   <div className="w-full px-4 py-3 border border-purple-200 rounded-xl bg-purple-50 text-purple-900 text-sm">
                     Status is auto-calculated after save using updated check-in/check-out and shift timing.
                   </div>
+=======
+                  <label className="block mb-2 text-sm font-semibold text-slate-700">Status</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                  >
+                    <option value="PRESENT">✓ Present</option>
+                    <option value="LATE">⏰ Late Arrival</option>
+                    <option value="SHORT_HOURS">Early Departure</option>
+                    <option value="ABSENT">✗ Absent</option>
+                  </select>
+>>>>>>> 10d4b2c (Commit and push)
                   <p className="mt-2 text-xs text-slate-500">Current: {editingRecord.status}</p>
                 </div>
               </div>
@@ -785,8 +876,8 @@ export default function AttendancePage() {
                     <div className="flex justify-between">
                       <span className="text-slate-600">Date:</span>
                       <span className="font-semibold text-slate-900">
-                        {editingRecord.date ? (() => {
-                          const [year, month, day] = editingRecord.date.split('-');
+                        {editForm.date ? (() => {
+                          const [year, month, day] = editForm.date.split('-');
                           return `${day}/${month}/${year}`;
                         })() : 'N/A'}
                       </span>

@@ -335,7 +335,7 @@ export default function AssignedTasksSection() {
                           {task.assignedTo && (
                             <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                               <User className="w-4 h-4" />
-                              <span>Assigned to: <strong>{task.assignedTo?.name || 'Unknown'}</strong></span>
+                              <span>Assigned to: <strong>{Array.isArray(task.assignedTo) ? task.assignedTo.map(a => a?.name || 'Unknown').join(', ') : (task.assignedTo?.name || 'Unknown')}</strong></span>
                             </div>
                           )}
                           <div className={`text-sm font-semibold ${getStatusColor(task.status)}`}>

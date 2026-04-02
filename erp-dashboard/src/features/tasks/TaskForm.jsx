@@ -294,10 +294,10 @@ export default function TaskForm({
         </div>
       </div>
 
-      {/* Tags */}
+      {/* Remarks */}
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Tags
+          Remarks
         </label>
         <div className="flex gap-2 mb-2">
           <Input

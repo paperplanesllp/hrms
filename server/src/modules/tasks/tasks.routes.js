@@ -40,4 +40,11 @@ router.delete('/:id', tasksController.deleteTask);
 // Update task status - self or admin/hr
 router.patch('/:id/status', tasksController.updateTaskStatus);
 
+// Timer action routes (assignee only)
+router.post('/:id/start', tasksController.startTask);
+router.post('/:id/pause', tasksController.pauseTask);
+router.post('/:id/resume', tasksController.resumeTask);
+router.post('/:id/complete', tasksController.completeTask);
+router.get('/:id/analysis', tasksController.getTaskAnalysis);
+
 export default router;

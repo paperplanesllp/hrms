@@ -1,4 +1,5 @@
 import { tasksService } from './tasks.service.js';
+import { Task } from './Task.model.js';
 import { sendSuccess, sendError } from '../../utils/responseHelpers.js';
 import {
   notifyTaskCreated,
@@ -164,7 +165,7 @@ export const tasksController = {
       const role = (req.user.role || '').toUpperCase();
       const isAdminOrHR = role === 'ADMIN' || role === 'HR';
       const isCreator = existingTask.assignedBy?._id?.toString() === requesterId;
-      const isAssignee = existingTask.assignedTo?._id?.toString() === requesterId;
+      const isAssignee = existingTask.assignedTo?.some(a => a?._id?.toString() === requesterId || a?.toString() === requesterId);
 
       if (!isAdminOrHR && !isCreator && !isAssignee) {
         console.warn('❌ [Controller] updateTask forbidden for user', requesterId, 'on task', id);
@@ -216,7 +217,7 @@ export const tasksController = {
       const role = (req.user.role || '').toUpperCase();
       const isAdminOrHR = role === 'ADMIN' || role === 'HR';
       const isCreator = task.assignedBy?._id?.toString() === requesterId;
-      const isAssignee = task.assignedTo?._id?.toString() === requesterId;
+      const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === requesterId || a?.toString() === requesterId);
 
       if (!isAdminOrHR && !isCreator && !isAssignee) {
         console.warn('❌ [Controller] deleteTask forbidden for user', requesterId, 'on task', id);
@@ -286,6 +287,269 @@ export const tasksController = {
       const userId = req.user.id;
       const diagnostics = await tasksService.getTasksDiagnostics(userId);
       sendSuccess(res, diagnostics, 'Diagnostic info fetched');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // ─── TIMER ACTIONS ───────────────────────────────────────────────────────────
+
+  // Start task timer
+  async startTask(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can start this task', 403);
+      }
+      if (task.status === 'completed') {
+        return sendError(res, 'Cannot start a completed task', 400);
+      }
+      if (task.isRunning) {
+        return sendError(res, 'Task is already running', 400);
+      }
+
+      const now = new Date();
+      task.status = 'in-progress';
+      task.isRunning = true;
+      task.isPaused = false;
+      task.currentSessionStartTime = now;
+      if (!task.startedAt) task.startedAt = now;
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Task started successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Pause task timer with reason
+  async pauseTask(req, res) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      if (!reason?.trim()) {
+        return sendError(res, 'Pause reason is required', 400);
+      }
+
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can pause this task', 403);
+      }
+      if (!task.isRunning) {
+        return sendError(res, 'Task is not currently running', 400);
+      }
+
+      const now = new Date();
+
+      // Accumulate active session time
+      if (task.currentSessionStartTime) {
+        const sessionSeconds = Math.max(
+          0,
+          Math.floor((now - new Date(task.currentSessionStartTime)) / 1000)
+        );
+        task.totalActiveTimeInSeconds += sessionSeconds;
+      }
+
+      task.status = 'on-hold';
+      task.isRunning = false;
+      task.isPaused = true;
+      task.currentSessionStartTime = null;
+      task.pauseEntries.push({
+        reason: reason.trim(),
+        pausedAt: now,
+        resumedAt: null,
+        pausedDurationInSeconds: 0
+      });
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Task paused successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Resume task timer
+  async resumeTask(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can resume this task', 403);
+      }
+      if (!task.isPaused) {
+        return sendError(res, 'Task is not paused', 400);
+      }
+
+      const now = new Date();
+
+      // Close the last open pause entry
+      const lastPause = task.pauseEntries[task.pauseEntries.length - 1];
+      if (lastPause && !lastPause.resumedAt) {
+        const pausedSeconds = Math.max(
+          0,
+          Math.floor((now - new Date(lastPause.pausedAt)) / 1000)
+        );
+        lastPause.resumedAt = now;
+        lastPause.pausedDurationInSeconds = pausedSeconds;
+        task.totalPausedTimeInSeconds += pausedSeconds;
+      }
+
+      task.status = 'in-progress';
+      task.isRunning = true;
+      task.isPaused = false;
+      task.currentSessionStartTime = now;
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Task resumed successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Complete task with timer finalization
+  async completeTask(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can complete this task', 403);
+      }
+      if (task.status === 'completed') {
+        return sendError(res, 'Task is already completed', 400);
+      }
+
+      const now = new Date();
+
+      // Finalize running session
+      if (task.isRunning && task.currentSessionStartTime) {
+        const sessionSeconds = Math.max(
+          0,
+          Math.floor((now - new Date(task.currentSessionStartTime)) / 1000)
+        );
+        task.totalActiveTimeInSeconds += sessionSeconds;
+      }
+
+      // Close any open pause entry
+      if (task.isPaused) {
+        const lastPause = task.pauseEntries[task.pauseEntries.length - 1];
+        if (lastPause && !lastPause.resumedAt) {
+          const pausedSeconds = Math.max(
+            0,
+            Math.floor((now - new Date(lastPause.pausedAt)) / 1000)
+          );
+          lastPause.resumedAt = now;
+          lastPause.pausedDurationInSeconds = pausedSeconds;
+          task.totalPausedTimeInSeconds += pausedSeconds;
+        }
+      }
+
+      task.status = 'completed';
+      task.completedAt = now;
+      task.progress = 100;
+      task.isRunning = false;
+      task.isPaused = false;
+      task.currentSessionStartTime = null;
+      task.completedOnTime = now <= new Date(task.dueDate);
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Task completed successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get detailed time analysis for a task
+  async getTaskAnalysis(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false })
+        .populate('assignedTo', 'name email')
+        .populate('assignedBy', 'name email');
+
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      const now = new Date();
+
+      let activeSeconds = task.totalActiveTimeInSeconds;
+      if (task.isRunning && task.currentSessionStartTime) {
+        activeSeconds += Math.max(
+          0,
+          Math.floor((now - new Date(task.currentSessionStartTime)) / 1000)
+        );
+      }
+
+      let pausedSeconds = task.totalPausedTimeInSeconds;
+      if (task.isPaused && task.pauseEntries.length > 0) {
+        const last = task.pauseEntries[task.pauseEntries.length - 1];
+        if (!last.resumedAt) {
+          pausedSeconds += Math.max(
+            0,
+            Math.floor((now - new Date(last.pausedAt)) / 1000)
+          );
+        }
+      }
+
+      const totalTracked = activeSeconds + pausedSeconds;
+      const productivityRatio = totalTracked > 0
+        ? Math.round((activeSeconds / totalTracked) * 100)
+        : 0;
+
+      const lifecycleEnd = task.completedAt || now;
+      const lifecycleSeconds = Math.floor(
+        (lifecycleEnd - new Date(task.createdAt)) / 1000
+      );
+
+      sendSuccess(res, {
+        taskId: task._id,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        createdAt: task.createdAt,
+        startedAt: task.startedAt,
+        completedAt: task.completedAt,
+        totalActiveTimeInSeconds: activeSeconds,
+        totalPausedTimeInSeconds: pausedSeconds,
+        lifecycleDurationInSeconds: lifecycleSeconds,
+        pauseCount: task.pauseEntries.length,
+        pauseEntries: task.pauseEntries,
+        productivityRatio,
+        isRunning: task.isRunning,
+        isPaused: task.isPaused
+      }, 'Task analysis fetched');
     } catch (error) {
       sendError(res, error.message, 400);
     }

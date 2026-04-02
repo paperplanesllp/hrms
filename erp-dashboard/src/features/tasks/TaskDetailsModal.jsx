@@ -221,10 +221,10 @@ export default function TaskDetailsModal({
             </div>
           </div>
 
-          {/* Tags */}
+          {/* Remarks */}
           {task.tags && task.tags.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Tags</h3>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
               <div className="flex flex-wrap gap-2">
                 {task.tags.map((tag, idx) => (
                   <span

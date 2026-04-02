@@ -161,12 +161,12 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
   const getPriorityIcon = (priority) => {
     const icons = {
-      LOW: '📌',
-      MEDIUM: '⚡',
-      HIGH: '🔥',
-      CRITICAL: '🚨'
+      LOW: '',
+      MEDIUM: '',
+      HIGH: '',
+      CRITICAL: ''
     };
-    return icons[priority] || '📌';
+    return icons[priority] || '';
   };
 
   const getFileIcon = (fileType) => {
@@ -264,7 +264,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   const selectedDept = departments.find(d => d._id === formData.department);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fadeIn">
       <div className="w-full max-w-5xl max-h-[90vh] rounded-xl bg-white shadow-2xl dark:bg-slate-800 overflow-hidden flex flex-col">
         {/* Premium Header with Gradient */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
@@ -273,11 +273,11 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Create New Task</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Organize your team's work with detailed task management</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Organize your team's work with detailed task management</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+              className="p-2 transition-colors rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600"
             >
               <X size={24} className="text-slate-600 dark:text-slate-300" />
             </button>
@@ -288,9 +288,9 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         <div className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
             {/* Row 1: Title & Priority */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Task Title <span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -304,11 +304,11 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                       : 'border-slate-200 dark:border-slate-600'
                   } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
                 />
-                {errors.title && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.title}</p>}
+                {errors.title && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.title}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Priority
                 </label>
                 <select
@@ -327,22 +327,22 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
             {/* Row 2: Description */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+              <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                 Description
               </label>
               <textarea
                 placeholder="Describe your task in detail..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition resize-none"
+                className="w-full px-4 py-3 transition border-2 rounded-lg resize-none border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 rows="4"
               />
             </div>
 
             {/* Row 3: Due Date, Estimated Hours */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Due Date <span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -355,11 +355,11 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                       : 'border-slate-200 dark:border-slate-600'
                   } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
                 />
-                {errors.dueDate && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.dueDate}</p>}
+                {errors.dueDate && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.dueDate}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Estimated Hours
                 </label>
                 <Input
@@ -375,9 +375,9 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
             </div>
 
             {/* Row 4: Assign To, Department, Status */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Assign To <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -390,17 +390,20 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   }`}
                 >
                   <option value="">Select a user...</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      👤 {user.name || user.email}
-                    </option>
-                  ))}
+                  {users.map((u) => {
+                    const isYou = u._id === currentUser?.id || u._id === currentUser?._id;
+                    return (
+                      <option key={u._id} value={u._id}>
+                        👤 {u.name || u.email}{isYou ? ' (you)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
-                {errors.assignedTo && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.assignedTo}</p>}
+                {errors.assignedTo && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.assignedTo}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Department {selectedDept && '✓'}
                 </label>
                 <Input
@@ -412,28 +415,13 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              
             </div>
 
-            {/* Row 5: Tags */}
+            {/* Row 5: Remarks */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                Tags <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+              <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                Remarks <span className="text-xs font-normal text-slate-400">(Optional)</span>
               </label>
               <div className="flex gap-2 mb-3">
                 <Input
@@ -473,53 +461,10 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
               )}
             </div>
 
-            {/* Row 6: Subtasks */}
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                Subtasks <span className="text-slate-400 text-xs font-normal">(Optional)</span>
-              </label>
-              <div className="flex gap-2 mb-3">
-                <Input
-                  type="text"
-                  placeholder="Add a subtask..."
-                  value={subtaskInput}
-                  onChange={(e) => setSubtaskInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSubtask())}
-                  className="flex-1 px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddSubtask}
-                  className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition flex items-center gap-2"
-                >
-                  <Plus size={18} /> Add
-                </button>
-              </div>
-              {subtasks.length > 0 && (
-                <div className="space-y-2">
-                  {subtasks.map((subtask) => (
-                    <div
-                      key={subtask.id}
-                      className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600"
-                    >
-                      <span className="text-sm text-slate-700 dark:text-slate-300">☐ {subtask.title}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubtask(subtask.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Row 7: File Upload */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">
-                Attachments <span className="text-slate-400 text-xs font-normal">(Optional)</span>
+              <label className="block mb-3 text-sm font-bold text-slate-700 dark:text-slate-300">
+                Attachments <span className="text-xs font-normal text-slate-400">(Optional)</span>
               </label>
               
               {/* Drag & Drop Area */}
@@ -544,7 +489,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                 />
                 <label
                   htmlFor="file-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2"
+                  className="flex flex-col items-center gap-2 cursor-pointer"
                 >
                   <Upload size={32} className="text-blue-500" />
                   <div className="text-sm text-slate-700 dark:text-slate-300">
@@ -560,7 +505,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   {uploadedFiles.map((file) => (
                     <div
                       key={file.name}
-                      className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
+                      className="flex items-center justify-between px-3 py-2 border border-green-200 rounded-lg bg-green-50 dark:bg-green-900/20 dark:border-green-800"
                     >
                       <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
                         {getFileIcon(file.type)}
@@ -582,8 +527,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
             {/* Task Preview */}
             {showPreview && (
-              <div className="border-2 border-blue-200 dark:border-blue-700 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-                <h3 className="font-bold text-slate-900 dark:text-white mb-3">Preview</h3>
+              <div className="p-4 border-2 border-blue-200 rounded-lg dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+                <h3 className="mb-3 font-bold text-slate-900 dark:text-white">Preview</h3>
                 <div className="space-y-2 text-sm">
                   <p><span className="font-semibold">Title:</span> {formData.title}</p>
                   <p><span className="font-semibold">Assigned To:</span> {selectedAssignee?.name || 'Not selected'}</p>
@@ -597,11 +542,11 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         </div>
 
         {/* Premium Footer */}
-        <div className="border-t border-slate-200 dark:border-slate-700 px-8 py-4 bg-slate-50 dark:bg-slate-700/50 flex justify-between items-center gap-3">
+        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
-            className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition"
+            className="px-4 py-2 text-sm font-medium transition rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           >
             {showPreview ? 'Hide Preview' : 'Show Preview'}
           </button>
@@ -625,7 +570,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
             >
               {isLoading ? (
                 <>
-                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent"></div>
                   Creating...
                 </>
               ) : (
