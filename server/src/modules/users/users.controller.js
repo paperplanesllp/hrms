@@ -108,8 +108,49 @@ export const getUser = asyncHandler(async (req, res) => {
 });
 
 export const patchUser = asyncHandler(async (req, res) => {
+  const targetUser = await getUserById(req.params.id);
+
+  // HR can only edit employee (USER role) accounts
+  if (req.user.role === ROLES.HR && targetUser.role !== ROLES.USER) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR can only edit employee accounts");
+  }
+
   const patch = updateUserSchema.parse(req.body);
+
+  // HR cannot assign ADMIN or HR roles
+  if (req.user.role === ROLES.HR && patch.role && patch.role !== ROLES.USER) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR cannot assign Admin or HR roles");
+  }
+
+  // Prevent duplicate email if it's being changed
+  if (patch.email && patch.email !== targetUser.email) {
+    const emailTaken = await User.findOne({ email: patch.email, _id: { $ne: req.params.id } });
+    if (emailTaken) {
+      throw new ApiError(StatusCodes.CONFLICT, "Email is already used by another account");
+    }
+  }
+
+  // Strip undefined values to avoid unintentional overwrites
+  Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k]);
+
   const user = await updateUser(req.params.id, patch);
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "USER_UPDATE",
+      module: "Users",
+      description: `Updated employee profile: ${user.name} (${user.email})`,
+      targetUserId: user._id,
+      targetUserName: user.name,
+      metadata: { updatedFields: Object.keys(patch) },
+    });
+  } catch (logError) {
+    console.error("Failed to log activity:", logError.message);
+  }
+
   res.json({ user });
 });
 

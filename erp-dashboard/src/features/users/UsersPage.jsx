@@ -17,6 +17,7 @@ import {
   Search, 
   Plus, 
   Eye,
+  Pencil,
   User,
   Mail,
   Phone,
@@ -100,10 +101,92 @@ export default function UsersPage() {
   const [companyLocation, setCompanyLocation] = useState({ latitude: 0, longitude: 0 });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editDesignations, setEditDesignations] = useState([]);
+  const [editLoadingDesignations, setEditLoadingDesignations] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "", email: "", phone: "", gender: "", dateOfBirth: "",
+    emergencyContact: "", maritalStatus: "", nationality: "", bloodGroup: "",
+    departmentId: "", designationId: "", role: ROLES.USER,
+  });
 
   const openProfileModal = (user) => {
     setSelectedUser(user);
     setShowProfileModal(true);
+  };
+
+  const openEditModal = (user) => {
+    setEditUser(user);
+    setEditForm({
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      gender: user.gender || "",
+      dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : "",
+      emergencyContact: user.emergencyContact || "",
+      maritalStatus: user.maritalStatus || "",
+      nationality: user.nationality || "",
+      bloodGroup: user.bloodGroup || "",
+      departmentId: user.departmentId?.toString() || "",
+      designationId: user.designationId?.toString() || "",
+      role: user.role || ROLES.USER,
+    });
+    if (user.departmentId) {
+      loadEditDesignations(user.departmentId.toString());
+    } else {
+      setEditDesignations([]);
+    }
+    setShowEditModal(true);
+  };
+
+  const loadEditDesignations = async (departmentId) => {
+    if (!departmentId) { setEditDesignations([]); return; }
+    try {
+      setEditLoadingDesignations(true);
+      const res = await api.get(`/department/designation/department/${departmentId}`);
+      setEditDesignations(res.data || []);
+    } catch (err) {
+      console.error("Error loading designations:", err);
+      setEditDesignations([]);
+    } finally {
+      setEditLoadingDesignations(false);
+    }
+  };
+
+  const handleEditUser = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const payload = {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        emergencyContact: editForm.emergencyContact,
+        nationality: editForm.nationality,
+        departmentId: editForm.departmentId || null,
+        designationId: editForm.designationId || null,
+      };
+      if (editForm.gender) payload.gender = editForm.gender;
+      if (editForm.maritalStatus) payload.maritalStatus = editForm.maritalStatus;
+      if (editForm.bloodGroup) payload.bloodGroup = editForm.bloodGroup;
+      if (editForm.dateOfBirth) payload.dateOfBirth = editForm.dateOfBirth;
+      if (currentUser?.role === ROLES.ADMIN && editForm.role) payload.role = editForm.role;
+
+      const res = await api.patch(`/users/${editUser._id}`, payload);
+      setItems((prev) => prev.map((u) => u._id === editUser._id ? res.data.user : u));
+      toast({ title: "Employee updated successfully", type: "success" });
+      setShowEditModal(false);
+    } catch (err) {
+      toast({
+        title: "Failed to update employee",
+        message: err?.response?.data?.message || "Please check your information and try again.",
+        type: "error",
+      });
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const loadCompanyLocation = async () => {
@@ -444,13 +527,26 @@ export default function UsersPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Button
-                          size="sm"
-                          onClick={() => openProfileModal(user)}
-                          className="bg-[#4A7FA7] hover:bg-[#3a5f87] text-white border-0 shadow-sm"
-                        >
-                          View Profile
-                        </Button>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => openProfileModal(user)}
+                            className="bg-[#4A7FA7] hover:bg-[#3a5f87] text-white border-0 shadow-sm flex items-center gap-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View Profile
+                          </Button>
+                          {(currentUser?.role === ROLES.ADMIN || (currentUser?.role === ROLES.HR && user.role === ROLES.USER)) && (
+                            <Button
+                              size="sm"
+                              onClick={() => openEditModal(user)}
+                              className="bg-amber-500 hover:bg-amber-600 text-white border-0 shadow-sm flex items-center gap-1.5"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -977,6 +1073,270 @@ export default function UsersPage() {
                 Close
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Employee Modal */}
+      {showEditModal && editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-3xl max-h-[90vh] rounded-[28px] overflow-hidden shadow-2xl bg-white border border-slate-200/80">
+            {/* Header */}
+            <div className="relative sticky top-0 z-10 p-8 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-amber-900">
+              <div className="absolute top-0 right-0 w-32 h-32 -mt-16 -mr-16 rounded-full bg-amber-500/20 blur-2xl" />
+              <div className="relative z-10 flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-12 h-12 border rounded-xl bg-amber-500/20 border-amber-500/40">
+                    <Pencil className="w-6 h-6 text-amber-300" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">Edit Employee</h2>
+                    <p className="mt-1 text-sm text-amber-100/80">Editing: {editUser.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="p-2 transition-colors rounded-lg hover:bg-white/10 text-white/80 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleEditUser} className="p-8 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Basic Information */}
+              <div className="p-6 space-y-4 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-slate-50 to-amber-50/30">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-amber-600/10 border-amber-600/20">
+                    <User className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">Basic Information</h4>
+                </div>
+                <Input
+                  label="Full Name"
+                  placeholder="John Doe"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  required
+                  className="bg-white shadow-sm rounded-xl border-slate-300 focus:ring-amber-500"
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2.5">Gender</label>
+                    <select
+                      value={editForm.gender}
+                      onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2.5 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-amber-600" />
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.dateOfBirth}
+                      onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="p-6 space-y-4 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-blue-50/40 to-slate-50">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-blue-600/10 border-blue-600/20">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">Contact Information</h4>
+                </div>
+                <Input
+                  label="Email Address"
+                  type="email"
+                  placeholder="john@company.com"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  required
+                  className="bg-white shadow-sm rounded-xl border-slate-300 focus:ring-blue-500"
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Phone Number"
+                    placeholder="+1 (555) 000-0000"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="bg-white shadow-sm rounded-xl border-slate-300 focus:ring-blue-500"
+                  />
+                  <Input
+                    label="Emergency Contact"
+                    placeholder="+1 (555) 000-0001"
+                    value={editForm.emergencyContact}
+                    onChange={(e) => setEditForm({ ...editForm, emergencyContact: e.target.value })}
+                    className="bg-white shadow-sm rounded-xl border-slate-300 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Personal Details */}
+              <div className="p-6 space-y-4 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-purple-50/40 to-slate-50">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-purple-600/10 border-purple-600/20">
+                    <Heart className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">Personal Details</h4>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2.5">Marital Status</label>
+                  <select
+                    value={editForm.maritalStatus}
+                    onChange={(e) => setEditForm({ ...editForm, maritalStatus: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Nationality"
+                    placeholder="e.g. Indian"
+                    value={editForm.nationality}
+                    onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })}
+                    className="bg-white shadow-sm rounded-xl border-slate-300 focus:ring-purple-500"
+                  />
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2.5 flex items-center gap-2">
+                      <Droplet className="w-4 h-4 text-red-500" />
+                      Blood Group
+                    </label>
+                    <select
+                      value={editForm.bloodGroup}
+                      onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                    >
+                      <option value="">Blood Group</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organization */}
+              <div className="p-6 space-y-4 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-cyan-50/40 to-slate-50">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-cyan-600/10 border-cyan-600/20">
+                    <Building2 className="w-5 h-5 text-cyan-600" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">Organization</h4>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2.5">Department</label>
+                  <select
+                    value={editForm.departmentId}
+                    onChange={(e) => {
+                      const deptId = e.target.value;
+                      setEditForm({ ...editForm, departmentId: deptId, designationId: "" });
+                      loadEditDesignations(deptId);
+                    }}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept._id} value={dept._id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2.5">Designation</label>
+                  <select
+                    value={editForm.designationId}
+                    onChange={(e) => setEditForm({ ...editForm, designationId: e.target.value })}
+                    disabled={!editForm.departmentId || editLoadingDesignations}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    <option value="">
+                      {editLoadingDesignations
+                        ? "Loading..."
+                        : !editForm.departmentId
+                        ? "Select a department first"
+                        : "Select Designation"}
+                    </option>
+                    {editDesignations.map((desig) => (
+                      <option key={desig._id} value={desig._id}>{desig.name} ({desig.level})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* System Role — Admin only */}
+              {currentUser?.role === ROLES.ADMIN && (
+                <div className="p-6 space-y-4 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-orange-50/40 to-slate-50">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="flex items-center justify-center w-10 h-10 border rounded-lg bg-orange-600/10 border-orange-600/20">
+                      <Users2 className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <h4 className="text-base font-bold text-slate-900">System Role</h4>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2.5">Role</label>
+                    <select
+                      value={editForm.role}
+                      onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
+                    >
+                      <option value={ROLES.ADMIN}>👑 Admin</option>
+                      <option value={ROLES.HR}>💼 HR Manager</option>
+                      <option value={ROLES.USER}>👤 Employee</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="sticky bottom-0 flex gap-3 pt-6 bg-white border-t border-slate-200">
+                <Button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-6 py-3 font-semibold transition-all duration-200 border rounded-xl bg-slate-100/80 hover:bg-slate-200 text-slate-700 border-slate-200"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex items-center justify-center flex-1 gap-2 px-6 py-3 font-semibold text-white transition-all duration-200 shadow-lg rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 hover:shadow-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {editLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 rounded-full border-white/30 border-t-white animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
