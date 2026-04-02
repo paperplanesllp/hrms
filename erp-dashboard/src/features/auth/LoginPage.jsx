@@ -172,6 +172,7 @@ export default function LoginPage() {
                   <div>
                     <Input
                       label="Password"
+                      type={showPassword ? "text" : "password"} // ✅ UPDATED
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
