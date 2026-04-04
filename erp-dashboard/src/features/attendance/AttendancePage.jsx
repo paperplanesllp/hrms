@@ -169,7 +169,11 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-in failed:", e?.response?.data?.message || e.message);
-      toast({ title: e?.response?.data?.message || "Check-in failed", type: "error" });
+      toast({
+        title: "Check-in failed",
+        message: e?.response?.data?.message || e.message,
+        type: "error"
+      });
     }
   };
 
@@ -193,7 +197,11 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-out failed:", e?.response?.data?.message || e.message);
-      toast({ title: e?.response?.data?.message || "Check-out failed", type: "error" });
+      toast({
+        title: "Check-out failed",
+        message: e?.response?.data?.message || e.message,
+        type: "error"
+      });
     }
   };
 

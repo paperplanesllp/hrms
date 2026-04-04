@@ -116,7 +116,11 @@ export default function QuickAttendanceMarking() {
       setHasCheckedInToday(true);
       setCheckInTime(res.data.attendance?.checkIn || clientCheckInTime);
     } catch (e) {
-      toast({ title: "Check-in failed: " + (e?.response?.data?.message || e.message), type: "error" });
+      toast({
+        title: "Check-in failed",
+        message: e?.response?.data?.message || e.message,
+        type: "error"
+      });
     } finally {
       setAttendanceLoading(false);
     }
@@ -137,7 +141,11 @@ export default function QuickAttendanceMarking() {
       
       setHasCheckedOutToday(true);
     } catch (e) {
-      toast({ title: "Check-out failed: " + (e?.response?.data?.message || e.message), type: "error" });
+      toast({
+        title: "Check-out failed",
+        message: e?.response?.data?.message || e.message,
+        type: "error"
+      });
     } finally {
       setAttendanceLoading(false);
     }

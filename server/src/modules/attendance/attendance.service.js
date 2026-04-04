@@ -4,6 +4,8 @@ import { User } from "../users/User.model.js";
 import { env } from "../../config/env.js";
 import { isWithinGeofence } from "../../utils/geofencing.js";
 import { ROLES } from "../../middleware/roles.js";
+import { ApiError } from "../../utils/apiError.js";
+import { StatusCodes } from "http-status-codes";
 
 function compareTime(a, b) {
   const [ah, am] = a.split(":").map(Number);
@@ -75,7 +77,8 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
 
         // If office location is not configured, block check-in for non-admin users
         if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
-          throw new Error(
+          throw new ApiError(
+            StatusCodes.BAD_REQUEST,
             "Office location has not been configured yet. Please ask your admin to set the company location in settings."
           );
         }
@@ -96,7 +99,8 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
 
         // Block check-in if outside geofence
         if (!geofenceCheck.isWithinGeofence) {
-          throw new Error(
+          throw new ApiError(
+            StatusCodes.BAD_REQUEST,
             `You are ${geofenceCheck.distance}m away from office (${geofenceCheck.radius}m allowed). Cannot check in.`
           );
         }
