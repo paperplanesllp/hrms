@@ -136,6 +136,9 @@ export function AttendanceTrendChart({
   const totalLate =
     totals.late ?? data.reduce((sum, d) => sum + (d.late || 0), 0);
 
+  const totalHalfDay =
+    totals.halfDay ?? data.reduce((sum, d) => sum + (d.halfDay || 0), 0);
+
   const totalAbsent =
     totals.absent ?? data.reduce((sum, d) => sum + (d.absent || 0), 0);
 
@@ -173,6 +176,14 @@ export function AttendanceTrendChart({
 
           <Area
             type="monotone"
+            dataKey="halfDay"
+            stroke={CHART_THEME.purple}
+            fillOpacity={0.2}
+            fill={CHART_THEME.purple}
+          />
+
+          <Area
+            type="monotone"
             dataKey="absent"
             stroke={CHART_THEME.danger}
             fillOpacity={0.2}
@@ -181,9 +192,10 @@ export function AttendanceTrendChart({
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-4 gap-4 mt-6">
         <StatBlock label="Present" value={totalPresent} />
-        <StatBlock label="Late" value={totalLate} />
+        <StatBlock label="Short Hours" value={totalLate} />
+        <StatBlock label="Half Day" value={totalHalfDay} />
         <StatBlock label="Absent" value={totalAbsent} />
       </div>
     </PremiumChartCard>

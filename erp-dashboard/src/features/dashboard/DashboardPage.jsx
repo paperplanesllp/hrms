@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({
     presentToday: 0,
     lateToday: 0,
+    halfDayToday: 0,
     leavePending: 0,
     payrollPending: 0,
   });
@@ -370,7 +371,7 @@ export default function DashboardPage() {
 
           {/* Stats Grid - Only visible to Admin and HR */}
           {canViewStats && (
-            <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-5">
               <StatCard
                 title="Present Today"
                 value={stats.presentToday}
@@ -384,6 +385,13 @@ export default function DashboardPage() {
                 hint="Late check-ins today"
                 color="corporate-blue"
                 icon={Clock}
+              />
+              <StatCard
+                title="Half Day Today"
+                value={stats.halfDayToday || 0}
+                hint="Worked one half only"
+                color="deep-navy"
+                icon={Timer}
               />
               <StatCard
                 title="Pending Leaves"

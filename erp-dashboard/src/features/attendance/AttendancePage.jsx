@@ -209,8 +209,7 @@ export default function AttendancePage() {
     setEditingRecord(record);
     setEditForm({
       checkIn: record.checkIn || '',
-      checkOut: record.checkOut || '',
-      status: record.status || 'PRESENT'
+      checkOut: record.checkOut || ''
     });
     setShowEditModal(true);
   };
@@ -222,7 +221,10 @@ export default function AttendancePage() {
         return;
       }
 
-      await api.put(`/attendance/${editingRecord._id}`, editForm);
+      await api.put(`/attendance/${editingRecord._id}`, {
+        checkIn: editForm.checkIn || '',
+        checkOut: editForm.checkOut || ''
+      });
       toast({ title: "Attendance updated successfully", type: "success" });
       setShowEditModal(false);
       setEditingRecord(null);
@@ -250,8 +252,8 @@ export default function AttendancePage() {
     let matchesType = true;
     if (filterType !== "all") {
       if (filterType === "present" && record.status !== "PRESENT") matchesType = false;
-      if (filterType === "late" && record.status !== "LATE") matchesType = false;
       if (filterType === "short" && record.status !== "SHORT_HOURS") matchesType = false;
+      if (filterType === "halfday" && record.status !== "HALF_DAY") matchesType = false;
       if (filterType === "absent" && record.status !== "ABSENT") matchesType = false;
     }
 
@@ -266,6 +268,7 @@ export default function AttendancePage() {
     total: filteredRows.length,
     present: filteredRows.filter(r => r.status === "PRESENT").length,
     shortHours: filteredRows.filter(r => r.status === "SHORT_HOURS").length,
+    halfDay: filteredRows.filter(r => r.status === "HALF_DAY").length,
     absent: filteredRows.filter(r => r.status === "ABSENT").length
   };
 
@@ -281,6 +284,8 @@ export default function AttendancePage() {
         return { bg: "bg-[#E6F4EA]", border: "border-[#137333]", text: "text-[var(--text-success)]", icon: CheckCircle2 };
       case "SHORT_HOURS":
         return { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", icon: AlertCircle };
+      case "HALF_DAY":
+        return { bg: "bg-indigo-50", border: "border-indigo-400", text: "text-indigo-700", icon: Clock };
       case "LATE":
         return { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-700", icon: Clock };
       case "ABSENT":
@@ -364,7 +369,7 @@ export default function AttendancePage() {
 
       {/* Statistics Cards (Admin only) */}
       {isAdmin && (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card className="p-6 border-l-4 border-l-[#4A7FA7] bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
@@ -400,6 +405,19 @@ export default function AttendancePage() {
               </div>
               <div className="flex items-center justify-center w-12 h-12 bg-orange-200 dark:bg-orange-900/50 rounded-xl">
                 <AlertCircle className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-l-4 border-l-indigo-600 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">◐ Half Day</p>
+                <p className="mt-2 text-3xl font-bold text-indigo-600 dark:text-indigo-400">{stats.halfDay}</p>
+                <p className="mt-2 text-xs text-indigo-600 dark:text-indigo-400">{stats.total > 0 ? Math.round((stats.halfDay/stats.total)*100) : 0}% rate</p>
+              </div>
+              <div className="flex items-center justify-center w-12 h-12 bg-indigo-200 dark:bg-indigo-900/50 rounded-xl">
+                <Clock className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
           </Card>
@@ -444,7 +462,7 @@ export default function AttendancePage() {
               <option value="all">All Statuses</option>
               <option value="present">✓ Present Only</option>
               <option value="short"> Short Hours</option>
-              <option value="late">Late Arrivals</option>
+              <option value="halfday">◐ Half Day</option>
               <option value="absent">✗ Absent</option>
             </select>
 
@@ -563,7 +581,7 @@ export default function AttendancePage() {
                                 <LogIn className="w-4 h-4 text-green-600" />
                                 {convertTo12HourFormat(record.checkIn)}
                               </p>
-                              {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600">Late</p>}
+                              {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600">Late In</p>}
                             </div>
                           ) : (
                             <p className="text-[var(--text-light)]">—</p>
@@ -714,23 +732,13 @@ export default function AttendancePage() {
                 </div>
               </div>
 
-              {/* Status */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-purple-50/40 to-slate-50">
                 <h3 className="mb-4 text-lg font-bold text-slate-900">Attendance Status</h3>
-                
-                <div>
-                  <label className="block mb-2 text-sm font-semibold text-slate-700">Status</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none bg-white text-slate-900 font-medium transition-colors shadow-sm"
-                  >
-                    <option value="PRESENT">✓ Present</option>
-                    <option value="LATE">⏰ Late Arrival</option>
-                    <option value="SHORT_HOURS">Early Departure</option>
-                    <option value="ABSENT">✗ Absent</option>
-                  </select>
-                  <p className="mt-2 text-xs text-slate-500">Current: {editingRecord.status}</p>
+                <div className="p-4 bg-white border rounded-lg border-purple-200">
+                  <p className="text-sm font-semibold text-slate-900">Current: {editingRecord.status || 'N/A'}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Status is auto-calculated after save from check-in/check-out timings.
+                  </p>
                 </div>
               </div>
 
@@ -757,13 +765,8 @@ export default function AttendancePage() {
                     )}
                     <div className="flex justify-between">
                       <span className="text-slate-600">Status:</span>
-                      <span className={`font-semibold px-2 py-1 rounded text-xs ${
-                        editForm.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
-                        editForm.status === 'LATE' ? 'bg-yellow-100 text-yellow-700' :
-                        editForm.status === 'SHORT_HOURS' ? 'bg-orange-100 text-orange-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {editForm.status}
+                      <span className="font-semibold px-2 py-1 rounded text-xs bg-slate-100 text-slate-700">
+                        Auto after save
                       </span>
                     </div>
                   </div>

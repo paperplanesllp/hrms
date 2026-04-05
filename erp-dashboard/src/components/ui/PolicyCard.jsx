@@ -31,16 +31,16 @@ export default function PolicyCard() {
           {
             category: "Grace Period",
             standard: "Short Hours / Late",
-            description: "⚠ Light Orange: Logged after 09:30 AM",
+            description: "⚠ Light Orange: Logged after shift start OR left before shift end",
             status: "warning",
             icon: "⏰"
           },
           {
-            category: "Early Departure",
-            standard: "Incomplete Shift",
-            description: "⚠ Light Orange: Logged before 06:30 PM",
+            category: "Half Day",
+            standard: "First Half / Second Half",
+            description: "◐ Indigo: Worked only one half (e.g., out by ~1 PM or in from ~2 PM)",
             status: "warning",
-            icon: "🚪"
+            icon: "◐"
           }
         ]);
       } finally {

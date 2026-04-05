@@ -21,7 +21,7 @@ export default function AdminAttendanceManagementPage() {
   const [filterType, setFilterType] = useState("week"); // day, week, month
   const [editingRecord, setEditingRecord] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", status: "" });
+  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "" });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Load all employees and departments on mount
@@ -140,8 +140,7 @@ export default function AdminAttendanceManagementPage() {
     setEditingRecord(record);
     setEditForm({
       checkIn: record.checkIn || "",
-      checkOut: record.checkOut || "",
-      status: record.status || "PRESENT"
+      checkOut: record.checkOut || ""
     });
     setShowEditModal(true);
   };
@@ -168,10 +167,9 @@ export default function AdminAttendanceManagementPage() {
         return;
       }
 
-      const res = await api.put(`/attendance/${editingRecord._id}`, {
-        checkIn: editForm.checkIn || null,
-        checkOut: editForm.checkOut || null,
-        status: editForm.status
+      await api.put(`/attendance/${editingRecord._id}`, {
+        checkIn: editForm.checkIn || "",
+        checkOut: editForm.checkOut || ""
       });
 
       toast({ 
@@ -179,13 +177,13 @@ export default function AdminAttendanceManagementPage() {
         type: "success" 
       });
 
-      // Update local state
-      setAttendanceRecords(prev =>
-        prev.map(r => r._id === editingRecord._id ? res.data : r)
-      );
-
       setShowEditModal(false);
       setEditingRecord(null);
+
+      // Always reload canonical attendance rows so computed fields/date formatting stay correct.
+      if (selectedEmployee?._id) {
+        await loadAttendanceRecords(selectedEmployee, filterType);
+      }
     } catch (e) {
       toast({ 
         title: "Failed to update: " + (e?.response?.data?.message || e.message), 
@@ -204,6 +202,8 @@ export default function AdminAttendanceManagementPage() {
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
       case "SHORT_HOURS":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
+      case "HALF_DAY":
+        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300";
       case "LATE":
         return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
       default:
@@ -220,9 +220,22 @@ export default function AdminAttendanceManagementPage() {
       case "SHORT_HOURS":
       case "LATE":
         return <Clock className="w-4 h-4 text-yellow-600" />;
+      case "HALF_DAY":
+        return <Clock className="w-4 h-4 text-indigo-600" />;
       default:
         return <AlertCircle className="w-4 h-4 text-gray-600" />;
     }
+  };
+
+  const formatDisplayDate = (dateValue, longFormat = false) => {
+    if (!dateValue) return "-";
+    const parsed = new Date(`${dateValue}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return "-";
+
+    return parsed.toLocaleDateString("en-US", longFormat
+      ? { weekday: "long", year: "numeric", month: "long", day: "numeric" }
+      : { weekday: "short", month: "short", day: "numeric" }
+    );
   };
 
   const getDisplayedEmployees = () => {
@@ -401,11 +414,7 @@ export default function AdminAttendanceManagementPage() {
                           className="border-b border-[#B3CFE5] dark:border-slate-700 hover:bg-[#F6FAFD] dark:hover:bg-slate-800 transition-colors"
                         >
                           <td className="px-4 py-3 text-sm font-medium text-[#0A1931] dark:text-white">
-                            {new Date(record.date).toLocaleDateString('en-US', { 
-                              weekday: 'short', 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}
+                            {formatDisplayDate(record.date)}
                           </td>
                           <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
                             {record.checkIn ? convertTo12HourFormat(record.checkIn) : "-"}
@@ -475,12 +484,7 @@ export default function AdminAttendanceManagementPage() {
                 <input
                   type="text"
                   disabled
-                  value={new Date(editingRecord.date).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric',
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  value={formatDisplayDate(editingRecord?.date, true)}
                   className="w-full px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white font-medium"
                 />
               </div>
@@ -515,21 +519,11 @@ export default function AdminAttendanceManagementPage() {
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Leave empty if no check-out</p>
               </div>
 
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Status
-                </label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="PRESENT">Present</option>
-                  <option value="ABSENT">Absent</option>
-                  <option value="SHORT_HOURS">Short Hours</option>
-                  <option value="LATE">Late</option>
-                </select>
+              <div className="p-3 border rounded-lg bg-blue-50 border-blue-200">
+                <p className="text-sm font-medium text-blue-900">Status will be auto-calculated</p>
+                <p className="text-xs text-blue-700 mt-1">
+                  The system automatically updates Present, Short Hours, Half Day, or Absent based on timings.
+                </p>
               </div>
 
               {/* Action Buttons */}

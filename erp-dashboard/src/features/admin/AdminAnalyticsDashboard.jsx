@@ -149,6 +149,7 @@ export default function AdminAnalyticsDashboard() {
               totals={{
                 present: analytics?.summary?.totalPresent,
                 late: analytics?.summary?.totalLate,
+                halfDay: analytics?.summary?.totalHalfDay,
                 absent: analytics?.summary?.totalAbsent
               }}
             />

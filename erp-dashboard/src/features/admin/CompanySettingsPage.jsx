@@ -8,7 +8,7 @@ import GoogleMapSelector from "../../components/ui/GoogleMapSelector.jsx";
 import { toast } from "../../store/toastStore.js";
 import api from "../../lib/api.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
-import { MapPin, Loader, Save, Navigation, Map, Zap, Globe, Calendar } from "lucide-react";
+import { MapPin, Loader, Save, Navigation, Map, Zap, Globe, Calendar, Clock3 } from "lucide-react";
 
 export default function CompanySettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -22,21 +22,29 @@ export default function CompanySettingsPage() {
   const [workingDays, setWorkingDays] = useState([1, 2, 3, 4, 5]); // Default Monday-Friday
   const [savingWorkingDays, setSavingWorkingDays] = useState(false);
 
+  // Company Timing Configuration
+  const [shiftStart, setShiftStart] = useState("09:30");
+  const [shiftEnd, setShiftEnd] = useState("18:30");
+  const [savingTiming, setSavingTiming] = useState(false);
+
   const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   // Load current company location and working days
   const loadCompanySettings = async () => {
     setLoading(true);
     try {
-      const [locationRes, workingDaysRes] = await Promise.all([
+      const [locationRes, workingDaysRes, timingRes] = await Promise.all([
         api.get("/admin/company-location"),
-        api.get("/admin/working-days")
+        api.get("/admin/working-days"),
+        api.get("/admin/company-timing")
       ]);
       
       setLatitude(locationRes.data.latitude || "");
       setLongitude(locationRes.data.longitude || "");
       setIsSet(locationRes.data.isSet);
       setWorkingDays(workingDaysRes.data.workingDays || [1, 2, 3, 4, 5]);
+      setShiftStart(timingRes.data.shiftStart || "09:30");
+      setShiftEnd(timingRes.data.shiftEnd || "18:30");
       
       console.log("✅ Company settings loaded");
     } catch (e) {
@@ -187,6 +195,40 @@ export default function CompanySettingsPage() {
       });
     } finally {
       setSavingWorkingDays(false);
+    }
+  };
+
+  // Save company timing
+  const handleSaveCompanyTiming = async () => {
+    if (!shiftStart || !shiftEnd) {
+      toast({
+        title: "Missing Fields",
+        description: "Please set both shift start and shift end time",
+        type: "error",
+      });
+      return;
+    }
+
+    setSavingTiming(true);
+    try {
+      const res = await api.post("/admin/company-timing", {
+        shiftStart,
+        shiftEnd,
+      });
+
+      toast({
+        title: "Company Timing Updated",
+        description: `Default shift is now ${res.data?.data?.shiftStart || shiftStart} - ${res.data?.data?.shiftEnd || shiftEnd}`,
+        type: "success",
+      });
+    } catch (e) {
+      toast({
+        title: "Failed to Save Timing",
+        description: e?.response?.data?.message || "Could not update company timing",
+        type: "error",
+      });
+    } finally {
+      setSavingTiming(false);
     }
   };
 
@@ -459,6 +501,69 @@ export default function CompanySettingsPage() {
 
 
       </div>
+
+      {/* Company Timing Configuration Card */}
+      <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+              <Clock3 className="w-6 h-6 text-indigo-600" />
+              Company Timing
+            </h2>
+            <p className="mt-1 text-gray-600">
+              Configure default office shift timing. This applies when no date-specific shift is set in calendar.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700">Shift Start</label>
+              <Input
+                type="time"
+                value={shiftStart}
+                onChange={(e) => setShiftStart(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700">Shift End</label>
+              <Input
+                type="time"
+                value={shiftEnd}
+                onChange={(e) => setShiftEnd(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 border rounded-lg bg-indigo-50 border-indigo-200">
+            <p className="text-sm font-medium text-indigo-900">⏰ Current Default Shift:</p>
+            <p className="mt-1 text-sm text-indigo-800">{shiftStart} - {shiftEnd}</p>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={handleSaveCompanyTiming}
+              disabled={savingTiming}
+              className="flex items-center justify-center flex-1 gap-2 bg-indigo-600 hover:bg-indigo-700"
+            >
+              {savingTiming ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Saving Timing...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Company Timing
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Working Days Configuration Card */}
       <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white">
