@@ -35,6 +35,7 @@ export default function PayrollManagePage() {
   const [payrolls, setPayrolls] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [stats, setStats] = useState({});
+  const [payrollLoadError, setPayrollLoadError] = useState("");
   
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
@@ -50,6 +51,7 @@ export default function PayrollManagePage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      let payrollFetchFailed = false;
       
       // Get payroll records
       const payrollParams = new URLSearchParams();
@@ -62,6 +64,9 @@ export default function PayrollManagePage() {
       const [payrollRes, employeesRes, statsRes] = await Promise.all([
         api.get(payrollUrl).catch(err => {
           console.error("Payroll fetch error:", err);
+          payrollFetchFailed = true;
+          const msg = err.response?.data?.message || "Failed to load payroll records.";
+          setPayrollLoadError(msg);
           if (err.response?.status === 401) {
             toast({ title: "Session expired. Please log in again.", type: "error" });
             setTimeout(() => window.location.href = "/login", 2000);
@@ -77,6 +82,10 @@ export default function PayrollManagePage() {
           return { data: {} };
         })
       ]);
+
+      if (!payrollFetchFailed) {
+        setPayrollLoadError("");
+      }
       
       // Filter employees based on role hierarchy
       let employeeList = employeesRes.data || [];
@@ -89,7 +98,13 @@ export default function PayrollManagePage() {
         employeeList = employeeList.filter(e => e.role !== ROLES.ADMIN && e.role !== ROLES.HR);
       }
       
-      setPayrolls(payrollRes.data || []);
+      const payrollRows = Array.isArray(payrollRes.data)
+        ? payrollRes.data
+        : Array.isArray(payrollRes.data?.data)
+        ? payrollRes.data.data
+        : [];
+
+      setPayrolls(payrollRows);
       setEmployees(employeeList);
       setStats(statsRes.data || {});
     } catch (err) {
@@ -397,9 +412,13 @@ export default function PayrollManagePage() {
           <div className="py-12 text-center">
             <DollarSign className="w-12 h-12 text-[#B3CFE5] mx-auto mb-3" />
             <p className="text-[#70757A] text-lg">No payroll records found</p>
-            <p className="text-[#70757A] text-sm mt-2">
-              {searchTerm ? "Try adjusting your search filters" : "Create your first payroll record"}
-            </p>
+            {payrollLoadError ? (
+              <p className="text-red-600 text-sm mt-2">{payrollLoadError}</p>
+            ) : (
+              <p className="text-[#70757A] text-sm mt-2">
+                {searchTerm ? "Try adjusting your search filters" : "Create your first payroll record"}
+              </p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
