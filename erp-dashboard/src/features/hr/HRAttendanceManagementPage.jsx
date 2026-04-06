@@ -16,7 +16,7 @@ export default function HRAttendanceManagementPage() {
   const [loading, setLoading] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("week"); // day, week, month
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "" });
@@ -48,27 +48,13 @@ export default function HRAttendanceManagementPage() {
     }
   };
 
-  const loadAttendanceRecords = async (employee, type) => {
+  const loadAttendanceRecords = async (employee, date) => {
     if (!employee?._id) return;
 
     try {
       setRecordsLoading(true);
-      const today = new Date();
-      let fromDate, toDate;
-
-      if (type === "day") {
-        fromDate = today.toISOString().split("T")[0];
-        toDate = fromDate;
-      } else if (type === "week") {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        fromDate = startOfWeek.toISOString().split("T")[0];
-        toDate = today.toISOString().split("T")[0];
-      } else if (type === "month") {
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        fromDate = startOfMonth.toISOString().split("T")[0];
-        toDate = today.toISOString().split("T")[0];
-      }
+      const fromDate = date;
+      const toDate = date;
 
       const res = await api.get("/attendance", {
         params: {
@@ -90,12 +76,12 @@ export default function HRAttendanceManagementPage() {
     }
   };
 
-  // Load attendance when employee is selected or filter changes
+  // Load attendance when employee/date changes
   useEffect(() => {
     if (selectedEmployee) {
-      loadAttendanceRecords(selectedEmployee, filterType);
+      loadAttendanceRecords(selectedEmployee, selectedDate);
     }
-  }, [selectedEmployee, filterType]);
+  }, [selectedEmployee, selectedDate]);
 
   const handleEditRecord = (record) => {
     setEditingRecord(record);
@@ -143,7 +129,7 @@ export default function HRAttendanceManagementPage() {
 
       // Always reload canonical attendance rows so computed fields/date formatting stay correct.
       if (selectedEmployee?._id) {
-        await loadAttendanceRecords(selectedEmployee, filterType);
+        await loadAttendanceRecords(selectedEmployee, selectedDate);
       }
     } catch (e) {
       toast({ 
@@ -292,21 +278,14 @@ export default function HRAttendanceManagementPage() {
                   )}
                 </div>
 
-                {/* Filter Buttons */}
-                <div className="flex gap-2">
-                  {["day", "week", "month"].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setFilterType(type)}
-                      className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                        filterType === type
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 dark:bg-slate-700 text-[#0A1931] dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600"
-                      }`}
-                    >
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-semibold text-[#4A7FA7] dark:text-slate-400">Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
               </div>
             </Card>
@@ -316,7 +295,7 @@ export default function HRAttendanceManagementPage() {
               <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
                 <h3 className="text-lg font-bold text-[#0A1931] dark:text-white flex items-center gap-2">
                   <Calendar className="w-5 h-5" />
-                  Attendance Records ({filterType.charAt(0).toUpperCase() + filterType.slice(1)})
+                  Attendance Records (Daily - {selectedDate})
                 </h3>
               </div>
 
@@ -376,7 +355,7 @@ export default function HRAttendanceManagementPage() {
               ) : (
                 <div className="p-8 text-center">
                   <AlertCircle className="w-12 h-12 text-[#4A7FA7] dark:text-slate-400 mx-auto mb-2" />
-                  <p className="text-[#4A7FA7] dark:text-slate-400">No attendance records for this period</p>
+                  <p className="text-[#4A7FA7] dark:text-slate-400">No attendance records for selected date</p>
                 </div>
               )}
             </Card>
