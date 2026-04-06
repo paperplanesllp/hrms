@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { createUserSchema, updateUserSchema, updateMyProfileSchema } from "./users.schemas.js";
-import { createUser, listUsers, getUserById, updateUser } from "./users.service.js";
+import { createUser, listUsers, getUserById, updateUser, changePassword } from "./users.service.js";
 import { User } from "./User.model.js";
 import { AuditLog } from "../audit/AuditLog.model.js";
 import { ROLES } from "../../middleware/roles.js";
@@ -69,6 +69,18 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
 export const getAllUsers = asyncHandler(async (req, res) => {
   const users = await listUsers(req.user.role);
   res.json(users);
+});
+
+export const changeUserPassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "currentPassword and newPassword are required");
+  }
+  if (newPassword.length < 6) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "New password must be at least 6 characters");
+  }
+  await changePassword(req.user.id, currentPassword, newPassword);
+  res.json({ message: "Password changed successfully" });
 });
 
 export const getMe = asyncHandler(async (req, res) => {

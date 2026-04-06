@@ -19,6 +19,9 @@ export const getLeaveBalanceInfo = asyncHandler(async (req, res) => {
 });
 
 export const getAbsentEmployeesList = asyncHandler(async (req, res) => {
-  const absentEmployees = await getAbsentEmployees();
+  // Allow callers to filter by role (e.g. HR passes ?roles=USER to exclude HR peers)
+  const { roles } = req.query;
+  const rolesFilter = roles ? roles.split(",").map(r => r.trim()).filter(Boolean) : null;
+  const absentEmployees = await getAbsentEmployees(rolesFilter);
   res.json(absentEmployees);
 });

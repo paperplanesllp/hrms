@@ -4,6 +4,7 @@ import { markMyAttendance, getMyAttendance, getAllAttendance, editAttendanceHRor
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { Attendance } from "./Attendance.model.js";
+import { createActivityLog } from "../activity/activity.service.js";
 
 function getTodayDate() {
   return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -44,6 +45,20 @@ export const postMarkMine = asyncHandler(async (req, res) => {
     data.checkInLatitude,
     data.checkInLongitude
   );
+
+  // Log activity
+  createActivityLog({
+    actorId: req.user.id,
+    actorName: req.user.name || "Unknown",
+    actorRole: req.user.role,
+    actionType: "ATTENDANCE_CHECKIN",
+    module: "ATTENDANCE",
+    description: `${req.user.name || "User"} checked in at ${checkIn}`,
+    metadata: { date, checkIn },
+    ipAddress: req.ip,
+    visibility: "PUBLIC",
+  }).catch(() => {});
+
   res.json({ attendance: doc });
 });
 
@@ -75,6 +90,20 @@ export const postCheckOut = asyncHandler(async (req, res) => {
   
   const checkOut = data.checkOut || getCurrentTime();
   const doc = await markMyAttendance(req.user.id, date, data.checkIn, checkOut);
+
+  // Log activity
+  createActivityLog({
+    actorId: req.user.id,
+    actorName: req.user.name || "Unknown",
+    actorRole: req.user.role,
+    actionType: "ATTENDANCE_CHECKOUT",
+    module: "ATTENDANCE",
+    description: `${req.user.name || "User"} checked out at ${checkOut}`,
+    metadata: { date, checkOut },
+    ipAddress: req.ip,
+    visibility: "PUBLIC",
+  }).catch(() => {});
+
   res.json({ attendance: doc });
 });
 

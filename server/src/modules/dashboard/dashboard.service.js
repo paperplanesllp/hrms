@@ -140,14 +140,20 @@ export async function getDashboardStats() {
   };
 }
 
-// Get list of all absent employees (not checked in and no approved leave)
-export async function getAbsentEmployees() {
+// Get list of absent employees (not checked in and no approved leave)
+// rolesFilter: optional array of roles to limit results (e.g. ["USER"] for HR dashboard)
+export async function getAbsentEmployees(rolesFilter) {
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const todayDate = new Date(today);
 
-  // Get all employees (exclude ADMIN)
+  // Use provided rolesFilter or default to HR + USER
+  const rolesToQuery = (rolesFilter && rolesFilter.length > 0)
+    ? rolesFilter
+    : ["HR", "USER"];
+
+  // Get employees matching the role filter (exclude ADMIN always)
   const allEmployees = await User.find({ 
-    role: { $in: ["HR", "USER"] }
+    role: { $in: rolesToQuery }
   }).lean();
 
   // Get employees who have attendance records today

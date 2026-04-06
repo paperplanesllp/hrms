@@ -7,6 +7,7 @@ import {
   notifyTaskStatusChanged,
   notifyTaskDeleted
 } from '../../utils/socket.js';
+import { createActivityLog } from '../activity/activity.service.js';
 
 export const tasksController = {
   // Get my tasks
@@ -124,6 +125,19 @@ export const tasksController = {
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:created event');
       notifyTaskCreated(task, req.user.id);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_CREATE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} created task "${task.title}"`,
+        metadata: { taskId: task._id, title: task.title, priority: task.priority },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
       
       sendSuccess(res, task, 'Task created successfully', 201);
     } catch (error) {
@@ -143,6 +157,19 @@ export const tasksController = {
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:status-changed event');
       notifyTaskStatusChanged(task, req.user.id);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_STATUS_CHANGE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} changed task "${task.title}" status to ${status}`,
+        metadata: { taskId: task._id, title: task.title, status },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
       
       sendSuccess(res, task, `Task updated to ${status}`);
     } catch (error) {
@@ -195,6 +222,19 @@ export const tasksController = {
       console.log('📡 [Socket] Emitting task:updated event');
       notifyTaskUpdated(task, req.user.id);
 
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_UPDATE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} updated task "${task.title}"`,
+        metadata: { taskId: task._id, title: task.title },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
       sendSuccess(res, task, 'Task updated successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in updateTask:', error);
@@ -229,6 +269,19 @@ export const tasksController = {
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:deleted event');
       notifyTaskDeleted(id, task?.title || 'Unknown Task', requesterId);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_DELETE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} deleted task "${task.title || 'Unknown'}"`,
+        metadata: { taskId: id, title: task.title },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
 
       sendSuccess(res, {}, 'Task deleted successfully', 200);
     } catch (error) {

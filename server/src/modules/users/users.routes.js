@@ -2,7 +2,7 @@ import express from "express";
 import { requireAuth } from "../../middleware/auth.js";
 import { requireRole, ROLES } from "../../middleware/roles.js";
 import { uploadProfileImage } from "../../middleware/upload.js";
-import { createUserByAdmin, getAllUsers, getMe, getUser, patchUser, updateMe, updateUserLocation, updateCurrentLocation, getActiveLocations, get2FAStatus, toggle2FA, getActivityLog } from "./users.controller.js";
+import { createUserByAdmin, getAllUsers, getMe, getUser, patchUser, updateMe, updateUserLocation, updateCurrentLocation, getActiveLocations, get2FAStatus, toggle2FA, getActivityLog, changeUserPassword } from "./users.controller.js";
 
 const router = express.Router();
 
@@ -21,6 +21,7 @@ router.get("/", requireAuth, getAllUsers);
 router.get("/2fa-status", requireAuth, get2FAStatus);
 router.post("/2fa-toggle", requireAuth, toggle2FA);
 router.get("/activity-log", requireAuth, getActivityLog);
+router.post("/change-password", requireAuth, changeUserPassword);
 
 // Admin & HR can view/edit users
 router.get("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getUser);
