@@ -1,0 +1,13 @@
+# Ignore env files globally
+.env
+.env.*
+!.env.example
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+
+# Uploads (recommended)
+server/uploads/
