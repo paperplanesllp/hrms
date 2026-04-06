@@ -22,6 +22,7 @@ export default function AttendancePage() {
   const [rows, setRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [filterHROnly, setFilterHROnly] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -92,12 +93,21 @@ export default function AttendancePage() {
   const load = async () => {
     setLoading(true);
     try {
-      // Calculate date range: last 30 days
       const today = new Date();
-      const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-      
-      const toDate = today.toISOString().split("T")[0];
-      const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
+      const todayDate = today.toISOString().split("T")[0];
+
+      let fromDate = todayDate;
+      let toDate = todayDate;
+
+      // Admin monitoring page should show only selected day's records.
+      if (isAdmin) {
+        fromDate = selectedDate;
+        toDate = selectedDate;
+      } else {
+        const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        fromDate = thirtyDaysAgo.toISOString().split("T")[0];
+        toDate = todayDate;
+      }
       
       // For regular users: fetch only own records
       // For Admin: fetch all HR/USER records
@@ -108,7 +118,7 @@ export default function AttendancePage() {
       setRows(res.data || []);
       
       // Check if user has already checked in/out today
-      const todayRecord = res.data?.find(r => r.date === toDate);
+      const todayRecord = res.data?.find(r => r.date === todayDate);
       const hasCheckedIn = !!todayRecord?.checkIn;
       const hasCheckedOut = !!todayRecord?.checkOut;
       
@@ -132,7 +142,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [isAdmin, selectedDate]);
 
   const checkIn = async () => {
     try {
@@ -169,11 +179,7 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-in failed:", e?.response?.data?.message || e.message);
-      toast({
-        title: "Check-in failed",
-        message: e?.response?.data?.message || e.message,
-        type: "error"
-      });
+      toast({ title: e?.response?.data?.message || "Check-in failed", type: "error" });
     }
   };
 
@@ -197,11 +203,7 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-out failed:", e?.response?.data?.message || e.message);
-      toast({
-        title: "Check-out failed",
-        message: e?.response?.data?.message || e.message,
-        type: "error"
-      });
+      toast({ title: e?.response?.data?.message || "Check-out failed", type: "error" });
     }
   };
 
@@ -221,10 +223,12 @@ export default function AttendancePage() {
         return;
       }
 
-      await api.put(`/attendance/${editingRecord._id}`, {
-        checkIn: editForm.checkIn || '',
-        checkOut: editForm.checkOut || ''
-      });
+      const payload = {
+        checkIn: editForm.checkIn || null,
+        checkOut: editForm.checkOut || null
+      };
+
+      await api.put(`/attendance/${editingRecord._id}`, payload);
       toast({ title: "Attendance updated successfully", type: "success" });
       setShowEditModal(false);
       setEditingRecord(null);
@@ -252,9 +256,10 @@ export default function AttendancePage() {
     let matchesType = true;
     if (filterType !== "all") {
       if (filterType === "present" && record.status !== "PRESENT") matchesType = false;
+      if (filterType === "holiday" && record.status !== "HOLIDAY") matchesType = false;
+      if (filterType === "late" && record.status !== "LATE") matchesType = false;
       if (filterType === "short" && record.status !== "SHORT_HOURS") matchesType = false;
       if (filterType === "halfday" && record.status !== "HALF_DAY") matchesType = false;
-      if (filterType === "holiday" && record.status !== "HOLIDAY") matchesType = false;
       if (filterType === "absent" && record.status !== "ABSENT") matchesType = false;
     }
 
@@ -284,12 +289,12 @@ export default function AttendancePage() {
     switch(status) {
       case "PRESENT":
         return { bg: "bg-[#E6F4EA]", border: "border-[#137333]", text: "text-[var(--text-success)]", icon: CheckCircle2 };
+      case "HOLIDAY":
+        return { bg: "bg-blue-50", border: "border-blue-400", text: "text-blue-700", icon: Calendar };
       case "SHORT_HOURS":
         return { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", icon: AlertCircle };
       case "HALF_DAY":
-        return { bg: "bg-indigo-50", border: "border-indigo-400", text: "text-indigo-700", icon: Clock };
-      case "HOLIDAY":
-        return { bg: "bg-sky-50", border: "border-sky-400", text: "text-sky-700", icon: Calendar };
+        return { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-700", icon: Clock };
       case "LATE":
         return { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-700", icon: Clock };
       case "ABSENT":
@@ -379,7 +384,7 @@ export default function AttendancePage() {
               <div>
                 <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">Total Records</p>
                 <p className="text-3xl font-bold text-[#4A7FA7] mt-2">{stats.total}</p>
-                <p className="text-xs text-[#4A7FA7] mt-2">This month</p>
+                <p className="text-xs text-[#4A7FA7] mt-2">Selected day</p>
               </div>
               <div className="flex items-center justify-center w-12 h-12 bg-blue-200 dark:bg-blue-900/50 rounded-xl">
                 <Clock className="w-6 h-6 text-[#4A7FA7]" />
@@ -413,15 +418,15 @@ export default function AttendancePage() {
             </div>
           </Card>
 
-          <Card className="p-6 border-l-4 border-l-indigo-600 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+          <Card className="p-6 border-l-4 border-l-amber-600 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">◐ Half Day</p>
-                <p className="mt-2 text-3xl font-bold text-indigo-600 dark:text-indigo-400">{stats.halfDay}</p>
-                <p className="mt-2 text-xs text-indigo-600 dark:text-indigo-400">{stats.total > 0 ? Math.round((stats.halfDay/stats.total)*100) : 0}% rate</p>
+                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">🌓 Half Day</p>
+                <p className="mt-2 text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.halfDay}</p>
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{stats.total > 0 ? Math.round((stats.halfDay/stats.total)*100) : 0}% rate</p>
               </div>
-              <div className="flex items-center justify-center w-12 h-12 bg-indigo-200 dark:bg-indigo-900/50 rounded-xl">
-                <Clock className="w-6 h-6 text-indigo-600" />
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-amber-200 dark:bg-amber-900/50">
+                <Clock className="w-6 h-6 text-amber-600" />
               </div>
             </div>
           </Card>
@@ -429,7 +434,7 @@ export default function AttendancePage() {
           <Card className="p-6 border-l-4 border-l-sky-600 bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/30 dark:to-cyan-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">Holiday</p>
+                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">🏖 Holiday</p>
                 <p className="mt-2 text-3xl font-bold text-sky-600 dark:text-sky-400">{stats.holiday}</p>
                 <p className="mt-2 text-xs text-sky-600 dark:text-sky-400">{stats.total > 0 ? Math.round((stats.holiday/stats.total)*100) : 0}% rate</p>
               </div>
@@ -460,7 +465,7 @@ export default function AttendancePage() {
           <div className="mb-4">
             <h3 className="text-sm font-semibold uppercase text-[#4A7FA7] tracking-wider">Search & Filter</h3>
           </div>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <div className="relative">
               <Search className="absolute left-3 top-3 w-5 h-5 text-[#4A7FA7]" />
               <Input
@@ -478,11 +483,19 @@ export default function AttendancePage() {
             >
               <option value="all">All Statuses</option>
               <option value="present">✓ Present Only</option>
-              <option value="short"> Short Hours</option>
-              <option value="halfday">◐ Half Day</option>
               <option value="holiday">🏖 Holiday</option>
+              <option value="short"> Short Hours</option>
+              <option value="halfday">🌓 Half Day</option>
+              <option value="late">Late Arrivals</option>
               <option value="absent">✗ Absent</option>
             </select>
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-4 py-2 border-2 border-[#B3CFE5] rounded-lg bg-white text-[var(--text-main)] font-medium focus:border-[#4A7FA7] focus:shadow-md transition-all"
+            />
 
             <div className="flex items-center gap-3 px-4 py-2 bg-white border-2 border-[#B3CFE5] rounded-lg hover:border-[#4A7FA7] transition-colors cursor-pointer">
               <input
@@ -526,7 +539,7 @@ export default function AttendancePage() {
                     {isAdmin ? `Attendance Records (${filteredRows.length})` : "My Attendance"}
                   </h3>
                   <p className="text-xs text-[var(--text-light)]">
-                    {isAdmin ? `Showing ${filteredRows.length} of ${rows.length} records` : "Track your attendance history"}
+                    {isAdmin ? `Showing ${filteredRows.length} of ${rows.length} records for ${selectedDate}` : "Track your attendance history"}
                   </p>
                 </div>
               </div>
@@ -599,7 +612,7 @@ export default function AttendancePage() {
                                 <LogIn className="w-4 h-4 text-green-600" />
                                 {convertTo12HourFormat(record.checkIn)}
                               </p>
-                              {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600">Late In</p>}
+                              {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600">Late</p>}
                             </div>
                           ) : (
                             <p className="text-[var(--text-light)]">—</p>
@@ -750,13 +763,16 @@ export default function AttendancePage() {
                 </div>
               </div>
 
+              {/* Status */}
               <div className="p-6 border rounded-2xl border-slate-200/60 bg-gradient-to-br from-purple-50/40 to-slate-50">
                 <h3 className="mb-4 text-lg font-bold text-slate-900">Attendance Status</h3>
-                <div className="p-4 bg-white border rounded-lg border-purple-200">
-                  <p className="text-sm font-semibold text-slate-900">Current: {editingRecord.status || 'N/A'}</p>
-                  <p className="mt-1 text-xs text-slate-600">
-                    Status is auto-calculated after save from check-in/check-out timings.
-                  </p>
+                
+                <div>
+                  <label className="block mb-2 text-sm font-semibold text-slate-700">Status Calculation</label>
+                  <div className="w-full px-4 py-3 border border-purple-200 rounded-xl bg-purple-50 text-purple-900 text-sm">
+                    Status is auto-calculated after save using updated check-in/check-out and shift timing.
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Current: {editingRecord.status}</p>
                 </div>
               </div>
 
