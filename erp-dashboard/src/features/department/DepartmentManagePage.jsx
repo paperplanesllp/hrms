@@ -49,7 +49,28 @@ export default function DepartmentManagePage() {
     try {
       setLoading(true);
       const response = await api.get(canManage ? "/department/all" : "/department");
-      setDepartments(response.data || []);
+      const deptRows = Array.isArray(response.data) ? response.data : [];
+      setDepartments(deptRows);
+
+      if (deptRows.length === 0) {
+        setDesignations({});
+        return;
+      }
+
+      // Preload designation lists so each department shows accurate role counts/previews.
+      const designationEntries = await Promise.all(
+        deptRows.map(async (dept) => {
+          try {
+            const designationRes = await api.get(`/department/designation/department/${dept._id}`);
+            return [dept._id, Array.isArray(designationRes.data) ? designationRes.data : []];
+          } catch (designationErr) {
+            console.error(`Load designations error for ${dept.name}:`, designationErr);
+            return [dept._id, []];
+          }
+        })
+      );
+
+      setDesignations(Object.fromEntries(designationEntries));
     } catch (err) {
       console.error("Load departments error:", err);
       const message = err.response?.status === 401
@@ -307,6 +328,11 @@ export default function DepartmentManagePage() {
                         <h4 className="font-semibold text-[#0A1931]">{dept.name}</h4>
                         <p className="text-sm text-[#70757A]">{dept.description || "No description"}</p>
                         {dept.headName && <p className="text-xs text-[#4A7FA7]">Head: {dept.headName}</p>}
+                        {expandedDept === dept._id && (designations[dept._id]?.length || 0) > 0 && (
+                          <p className="text-xs text-[#4A7FA7] mt-1">
+                            Roles: {designations[dept._id].map((desig) => desig.name).join(", ")}
+                          </p>
+                        )}
                       </div>
                     </div>
 
