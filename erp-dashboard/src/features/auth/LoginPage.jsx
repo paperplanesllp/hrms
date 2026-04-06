@@ -15,6 +15,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -172,7 +173,7 @@ export default function LoginPage() {
                   <div>
                     <Input
                       label="Password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
@@ -180,7 +181,15 @@ export default function LoginPage() {
                       required
                     />
 
-                    <div className="flex items-center justify-end mt-3">
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="text-sm font-medium transition text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
+                      >
+                        {showPassword ? "Hide password" : "Show password"}
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setShowForgot(true)}
