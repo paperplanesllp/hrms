@@ -61,3 +61,14 @@ export async function updateUser(id, patch) {
   if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
   return user;
 }
+
+export async function changePassword(userId, currentPassword, newPassword) {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+
+  const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isMatch) throw new ApiError(StatusCodes.BAD_REQUEST, "Current password is incorrect");
+
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  await user.save();
+}
