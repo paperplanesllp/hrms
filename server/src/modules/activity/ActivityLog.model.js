@@ -48,6 +48,10 @@ const activityLogSchema = new mongoose.Schema(
         "EMPLOYEE_CREATE",
         "EMPLOYEE_UPDATE",
         "EMPLOYEE_DELETE",
+        "TASK_CREATE",
+        "TASK_UPDATE",
+        "TASK_STATUS_CHANGE",
+        "TASK_DELETE",
         "HR_ACTION",
         "ADMIN_ACTION",
         "OTHER",
@@ -59,7 +63,7 @@ const activityLogSchema = new mongoose.Schema(
     // Module/Category
     module: {
       type: String,
-      enum: ["AUTH", "PROFILE", "LEAVE", "ATTENDANCE", "EMPLOYEE", "DOCUMENT", "ADMIN", "OTHER"],
+      enum: ["AUTH", "PROFILE", "LEAVE", "ATTENDANCE", "EMPLOYEE", "DOCUMENT", "TASK", "ADMIN", "OTHER"],
       required: true,
       index: true,
     },

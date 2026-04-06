@@ -149,10 +149,6 @@ export default function MyProfilePage() {
       newErrors.newPassword = "New password is required";
     } else if (passwordForm.newPassword.length < 6) {
       newErrors.newPassword = "Password must be at least 6 characters";
-    } else if (!/[A-Z]/.test(passwordForm.newPassword)) {
-      newErrors.newPassword = "Password must contain at least one uppercase letter";
-    } else if (!/[0-9]/.test(passwordForm.newPassword)) {
-      newErrors.newPassword = "Password must contain at least one number";
     }
 
     if (!passwordForm.confirmPassword) {

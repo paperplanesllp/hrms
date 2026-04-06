@@ -119,10 +119,12 @@ export async function getHRTimeline(options = {}) {
 
   const query = {
     $or: [
+      { module: "AUTH" },
       { module: "PROFILE" },
       { module: "LEAVE" },
       { module: "ATTENDANCE" },
       { module: "DOCUMENT" },
+      { module: "TASK" },
       { actionType: "EMPLOYEE_UPDATE" },
     ],
   };
@@ -162,14 +164,14 @@ export async function getAdminTimeline(options = {}) {
   const query = {
     $or: [
       // All staff activities (from HR timeline)
+      { module: "AUTH" },
       { module: "PROFILE" },
       { module: "LEAVE" },
       { module: "ATTENDANCE" },
       { module: "DOCUMENT" },
+      { module: "TASK" },
       { actionType: "EMPLOYEE_UPDATE" },
       // All HR and Admin activities
-      { actorRole: "HR", actionType: "LOGIN" },
-      { actorRole: "HR", actionType: "LOGOUT" },
       { actorRole: "HR", module: "EMPLOYEE" },
       { actorRole: "ADMIN" },
     ],

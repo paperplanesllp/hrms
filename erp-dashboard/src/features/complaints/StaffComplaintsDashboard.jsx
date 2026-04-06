@@ -197,15 +197,15 @@ export default function StaffComplaintsDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  // Redirect admins and HR to their respective pages
+  // Redirect only admins to the admin complaints management page
   useEffect(() => {
-    if (user?.role === ROLES.ADMIN || user?.role === ROLES.HR) {
+    if (user?.role === ROLES.ADMIN) {
       navigate("/admin/complaints", { replace: true });
     }
   }, [user, navigate]);
 
-  // Early return for admin/HR
-  if (user?.role === ROLES.ADMIN || user?.role === ROLES.HR) {
+  // Early return for admin only
+  if (user?.role === ROLES.ADMIN) {
     return null;
   }
 
@@ -300,8 +300,8 @@ export default function StaffComplaintsDashboard() {
         <div className="pt-8 pb-12">
           <PageTitle
             icon={AlertCircle}
-            title="Confidential Feedback & Complaints"
-            subtitle="Submit confidential feedback or complaints. Admin team responds within 7 working days. All submissions are confidential."
+            title="Raise a Ticket"
+            subtitle="Submit a confidential ticket or complaint. Admin team responds within 7 working days. All submissions are confidential."
           />
           
           {/* New Complaint CTA */}
@@ -312,7 +312,7 @@ export default function StaffComplaintsDashboard() {
               className="group"
               size="lg"
             >
-              {showForm ? "Cancel" : "New Confidential Submission"}
+              {showForm ? "Cancel" : "Raise Ticket"}
             </Button>
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function StaffComplaintsDashboard() {
             <Card className={`backdrop-blur-xl ${isDark ? "bg-white/5 border-white/20 shadow-2xl shadow-black/20" : "bg-white/80 border-slate-200 shadow-2xl shadow-slate-200/50"}`}>
               <form onSubmit={handleSubmit} className="p-8">
                 <h2 className="mb-8 text-2xl font-bold text-transparent bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text">
-                  New Confidential Submission
+                  Raise Ticket
                 </h2>
 
                 <div className="grid grid-cols-1 gap-6 mb-8 lg:grid-cols-2">

@@ -1,17 +1,31 @@
 import React, { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 
+// Returns color class based on current time (24h format)
+function getClockColor(hour24, minute) {
+  const t = hour24 * 60 + minute; // total minutes since midnight
+  if (t >= 570 && t < 780) return "text-green-600 dark:text-green-400";       // 9:30 AM – 1:00 PM
+  if (t >= 780 && t < 840) return "text-slate-900 dark:text-white";            // 1:00 PM – 2:00 PM
+  if (t >= 840 && t < 960) return "text-yellow-500 dark:text-yellow-400";      // 2:00 PM – 4:00 PM
+  if (t >= 960 && t < 980) return "text-slate-900 dark:text-white";            // 4:00 PM – 4:20 PM
+  if (t >= 980 && t < 1110) return "text-red-600 dark:text-red-400";           // 4:20 PM – 6:30 PM
+  return "text-slate-900 dark:text-white";                                      // outside work hours
+}
+
 export default function DigitalClock() {
   const [time, setTime] = useState("");
   const [dateInfo, setDateInfo] = useState("");
+  const [colorClass, setColorClass] = useState("text-slate-900 dark:text-white");
 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       
       // Use local system time (no conversion)
-      let hours = now.getHours();
-      const minutes = String(now.getMinutes()).padStart(2, "0");
+      const hour24 = now.getHours();
+      const min = now.getMinutes();
+      let hours = hour24;
+      const minutes = String(min).padStart(2, "0");
       const seconds = String(now.getSeconds()).padStart(2, "0");
       const ampm = hours >= 12 ? "pm" : "am";
       hours = hours % 12;
@@ -19,6 +33,7 @@ export default function DigitalClock() {
       const displayHours = String(hours).padStart(2, "0");
       
       setTime(`${displayHours}:${minutes}:${seconds} ${ampm}`);
+      setColorClass(getClockColor(hour24, min));
       
       // Format full date: Tuesday, 24 March 2026
       const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
@@ -43,7 +58,7 @@ export default function DigitalClock() {
       {/* Time & Date Display */}
       <div className="flex flex-col items-start gap-0.5">
         {/* Time with AM/PM */}
-        <span className="font-mono text-sm font-bold leading-tight tracking-wide text-slate-900 dark:text-white">
+        <span className={`font-mono text-sm font-bold leading-tight tracking-wide ${colorClass}`}>
           {time || "12:00 pm"}
         </span>
         

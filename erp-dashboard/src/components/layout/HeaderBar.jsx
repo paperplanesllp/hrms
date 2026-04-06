@@ -22,15 +22,11 @@ export default function HeaderBar({ onMenu }) {
     toast({ title: "Logged out", type: "success" });
     window.location.href = "/login";
   };
-
   return (
-    <header className="sticky top-0 z-30 transition-all duration-300 bg-white border-b ease-smooth border-slate-200 dark:border-slate-700 dark:bg-slate-800 shadow-elevation-1 backdrop-blur-md">
-      
+    <header className="sticky top-0 z-30 transition-all duration-300 bg-white border-b ease-smooth border-slate-200 dark:border-slate-700 dark:bg-slate-800 shadow-elevation-1 backdrop-blur-md">    
       <div className="flex items-center justify-between h-16 px-4 md:px-8 lg:px-10">
-
         {/* LEFT SIDE */}
-        <div className="flex items-center gap-4">
-          
+        <div className="flex items-center gap-4">         
           {/* Mobile Menu Button */}
           <button
             onClick={onMenu}

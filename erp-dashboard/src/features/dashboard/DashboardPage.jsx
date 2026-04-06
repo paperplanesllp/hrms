@@ -194,12 +194,13 @@ export default function DashboardPage() {
         let absentPromise = Promise.resolve({ data: [] });
         
         if (isAdmin || isHR) {
-          const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=10" : "/activity/hr-timeline?limit=10";
+          const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=20" : "/activity/hr-timeline?limit=20";
           activityPromise = api.get(activityEndpoint).catch(() => 
             api.get("/audit/recent?limit=5")
           );
-          // Fetch absent employees for admin/HR
-          absentPromise = api.get("/dashboard/absent-employees").catch(() => 
+          // HR only sees absent USER-role employees (not other HR colleagues)
+          const absentRolesParam = isHR && !isAdmin ? "?roles=USER" : "";
+          absentPromise = api.get(`/dashboard/absent-employees${absentRolesParam}`).catch(() => 
             Promise.resolve({ data: [] })
           );
         }
@@ -418,7 +419,7 @@ export default function DashboardPage() {
           )}
 
           {/* Main Content Grid - Two/Three Column Layout */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {/* Left Column - Quick Stats and Info */}
             <div className="space-y-6 lg:col-span-1">
               {/* Leave Balance Card - Only show for HR and Employees, not Admin */}
@@ -603,7 +604,7 @@ export default function DashboardPage() {
 
             {/* Right Column - Timeline - Only for HR and Admin */}
             {(isHR || isAdmin) && (
-            <Card elevated className="lg:col-span-1 bg-gradient-to-br from-[#F6FAFD] to-white dark:from-slate-800 dark:to-slate-800">
+            <Card elevated className="lg:col-span-1 bg-gradient-to-br from-[#F6FAFD] to-white dark:from-slate-800 dark:to-slate-800 flex flex-col h-full">
               <div className="p-6 border-b border-[#B3CFE5] dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -633,9 +634,9 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="space-y-4">
-                  {/* Timeline Items - Limited to 3 */}
+              <div className="flex-1 overflow-hidden p-6 flex flex-col">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {/* Timeline Items - up to 8 */}
                   {(recentUpdates.length > 0 ? recentUpdates : [
                     {
                       time: "No updates yet",
@@ -645,7 +646,7 @@ export default function DashboardPage() {
                       changes: "Timeline is empty",
                       color: "slate"
                     }
-                  ]).slice(0, 3).map((item, idx) => {
+                  ]).slice(0, 20).map((item, idx) => {
                     // Handle both activity logs and audit logs
                     const isActivityLog = item.actionType !== undefined;
                     
@@ -685,7 +686,13 @@ export default function DashboardPage() {
                         "EMPLOYEE_CREATE": "👥",
                         "EMPLOYEE_UPDATE": "📝",
                         "EMPLOYEE_DELETE": "🗑️",
-                        "ADMIN_ACTION": "⚙️"
+                        "TASK_CREATE": "📋",
+                        "TASK_UPDATE": "✏️",
+                        "TASK_STATUS_CHANGE": "🔄",
+                        "TASK_DELETE": "🗑️",
+                        "HR_ACTION": "🧑‍💼",
+                        "ADMIN_ACTION": "⚙️",
+                        "OTHER": "•"
                       };
 
                       const formatDate = (date) => {
@@ -808,8 +815,8 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* View All Updates - Only show if more than 3 items */}
-                {recentUpdates.length > 3 && (
+                {/* View All Updates */}
+                {recentUpdates.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-[#B3CFE5] dark:border-slate-700">
                     <button 
                       onClick={() => navigate(isAdmin ? "/admin/activity-timeline" : isHR ? "/hr/activity-timeline" : "#")}
@@ -824,52 +831,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Absent Employees Section - Admin/HR Only */}
-          {(isAdmin || isHR) && (
-            <Card elevated className="bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-900/30 mt-6">
-              <div className="p-6 border-b border-rose-200 dark:border-rose-800/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-rose-600 to-orange-600 dark:from-rose-500 dark:to-orange-500">
-                      <AlertTriangle className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-[#0A1931] dark:text-white">Absent Today</h3>
-                      <p className="text-xs text-[#4A7FA7] dark:text-slate-400">Employees without check-in ({absentEmployees.length})</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                {absentEmployees.length > 0 ? (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {absentEmployees.map((employee) => (
-                      <div key={employee._id} className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-rose-200 dark:border-rose-800/30 hover:shadow-md transition-all">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-[#0A1931] dark:text-white text-sm">{employee.name}</h4>
-                            <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">{employee.email}</p>
-                          </div>
-                          <span className="px-2 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                            {employee.role}
-                          </span>
-                        </div>
-                        {employee.phone && (
-                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-2">📞 {employee.phone}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-12 text-center">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm font-semibold text-[#0A1931] dark:text-white">All Employees Present</p>
-                    <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Everyone has checked in today or on approved leave</p>
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </>
       )}
     </div>

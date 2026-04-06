@@ -72,7 +72,7 @@ export default function RoleBasedSidebar({ open, setOpen }) {
   const companyLinks = [
     { to: "/news", icon: <Megaphone className="w-4 h-4" />, label: "News" },
     { to: "/policy", icon: <Shield className="w-4 h-4" />, label: "Policies" },
-    { to: "/complaints", icon: <AlertCircle className="w-4 h-4" />, label: "Complaints" },
+    { to: "/complaints", icon: <AlertCircle className="w-4 h-4" />, label: "Raise Ticket" },
   ];
 
   const adminLinks = isAdmin ? [
