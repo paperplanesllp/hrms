@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Button from "../../components/ui/Button.jsx";
@@ -6,10 +6,13 @@ import Input from "../../components/ui/Input.jsx";
 import Spinner from "../../components/ui/Spinner.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
+import { useAuthStore } from "../../store/authStore.js";
+import { ROLES } from "../../app/constants.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import { Search, Edit2, AlertCircle, CheckCircle, Clock, Calendar, User, ChevronDown, X } from "lucide-react";
 
 export default function HRAttendanceManagementPage() {
+  const currentUser = useAuthStore((s) => s.user);
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
@@ -22,20 +25,24 @@ export default function HRAttendanceManagementPage() {
   const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "" });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Load all employees on mount
-  useEffect(() => {
-    loadEmployees();
-  }, []);
+  const currentUserId = String(currentUser?._id || currentUser?.id || "");
 
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.get("/users?role=USER&limit=1000");
-      setEmployees(Array.isArray(res.data) ? res.data : res.data?.data || []);
+      const allUsers = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      const employeeOnly = allUsers.filter(
+        (emp) => emp?.role === ROLES.USER && String(emp?._id || "") !== currentUserId
+      );
+
+      setEmployees(employeeOnly);
       
       // Auto-select first employee
-      if (res.data && res.data.length > 0) {
-        setSelectedEmployee(res.data[0]);
+      if (employeeOnly.length > 0) {
+        setSelectedEmployee(employeeOnly[0]);
+      } else {
+        setSelectedEmployee(null);
       }
     } catch (e) {
       toast({ 
@@ -46,7 +53,12 @@ export default function HRAttendanceManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
+
+  // Load all employees on mount
+  useEffect(() => {
+    loadEmployees();
+  }, [loadEmployees]);
 
   const loadAttendanceRecords = async (employee, date) => {
     if (!employee?._id) return;
@@ -84,6 +96,17 @@ export default function HRAttendanceManagementPage() {
   }, [selectedEmployee, selectedDate]);
 
   const handleEditRecord = (record) => {
+    const targetUserId = String(record?.userId || "");
+    const canEditRecord = record?.userRole === ROLES.USER && targetUserId !== currentUserId;
+
+    if (!canEditRecord) {
+      toast({
+        title: "You can only edit employee attendance records",
+        type: "error"
+      });
+      return;
+    }
+
     setEditingRecord(record);
     setEditForm({
       checkIn: record.checkIn || "",
@@ -339,13 +362,17 @@ export default function HRAttendanceManagementPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              onClick={() => handleEditRecord(record)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-semibold transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Edit
-                            </button>
+                            {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId ? (
+                              <button
+                                onClick={() => handleEditRecord(record)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-semibold transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit
+                              </button>
+                            ) : (
+                              <span className="text-xs font-semibold text-[#4A7FA7] dark:text-slate-400">Restricted</span>
+                            )}
                           </td>
                         </tr>
                       ))}

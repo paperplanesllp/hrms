@@ -15,7 +15,7 @@ import { Clock, AlertCircle, CheckCircle2, Search, LogIn, LogOut, TrendingUp, Ca
 
 export default function AttendancePage() {
   const user = useAuthStore((s) => s.user);
-  const isEditor = user?.role === ROLES.ADMIN || user?.role === ROLES.HR;
+  const isEditor = user?.role === ROLES.ADMIN;
   const isAdmin = user?.role === ROLES.ADMIN;
 
   const [loading, setLoading] = useState(true);

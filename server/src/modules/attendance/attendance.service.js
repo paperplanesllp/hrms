@@ -334,6 +334,7 @@ export async function getAllAttendance(from, to, userRole, userId = null) {
     // Transform records to include user details and enforce the latest attendance policy.
     return records
       .filter(record => record.userId) // Filter out records without user (deleted users)
+      .filter(record => userRole !== ROLES.HR || record.userId.role === ROLES.USER)
       .map(record => {
         const isHoliday = holidayMap.has(record.date);
         const status = isHoliday

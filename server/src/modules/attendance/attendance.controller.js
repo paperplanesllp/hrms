@@ -5,6 +5,8 @@ import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { Attendance } from "./Attendance.model.js";
 import { createActivityLog } from "../activity/activity.service.js";
+import { ROLES } from "../../middleware/roles.js";
+import { User } from "../users/User.model.js";
 
 function getTodayDate() {
   return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -15,6 +17,34 @@ function getCurrentTime() {
   const h = String(now.getHours()).padStart(2, "0");
   const m = String(now.getMinutes()).padStart(2, "0");
   return `${h}:${m}`; // HH:MM
+}
+
+async function assertCanEditAttendanceTarget(actor, targetUserId) {
+  if (actor.role === ROLES.ADMIN) return;
+
+  if (actor.role !== ROLES.HR) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "Forbidden");
+  }
+
+  const actorId = String(actor.id);
+  const targetId = String(targetUserId || "");
+
+  if (!targetId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Target user is required");
+  }
+
+  if (actorId === targetId) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR cannot edit their own attendance");
+  }
+
+  const targetUser = await User.findById(targetId).select("role");
+  if (!targetUser) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Target user not found");
+  }
+
+  if (targetUser.role !== ROLES.USER) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR can only edit employee attendance");
+  }
 }
 
 export const postMarkMine = asyncHandler(async (req, res) => {
@@ -133,12 +163,21 @@ export const patchAttendance = asyncHandler(async (req, res) => {
 
   const recordId = req.params.id;
   if (recordId) {
+    const targetRecord = await Attendance.findById(recordId).select("userId");
+    if (!targetRecord) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "Attendance record not found");
+    }
+
+    await assertCanEditAttendanceTarget(req.user, targetRecord.userId);
+
     // Update by record ID
     const doc = await editAttendanceById(recordId, patch);
     res.json({ attendance: doc });
   } else {
     // Original functionality
     const data = editAttendanceSchema.parse(req.body);
+    await assertCanEditAttendanceTarget(req.user, data.userId);
+
     const doc = await editAttendanceHRorAdmin(data.userId, data.date, {
       checkIn: data.checkIn,
       checkOut: data.checkOut
