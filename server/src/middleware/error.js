@@ -76,15 +76,28 @@ export function errorHandler(err, req, res, next) {
   /* -----------------------------
      SERVER LOGGING (FOR DEVELOPERS)
   ------------------------------*/
-  console.error("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.error("🚨 SERVER ERROR");
-  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.error("Status Code:", statusCode);
-  console.error("Message:", err.message);
-  console.error("Route:", req.method, req.originalUrl);
-  console.error("IP:", req.ip);
-  console.error("Stack Trace:\n", err.stack);
-  console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  const isClientError = statusCode >= 400 && statusCode < 500;
+
+  if (isClientError) {
+    console.warn("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.warn("⚠️ CLIENT/AUTH ERROR");
+    console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.warn("Status Code:", statusCode);
+    console.warn("Message:", err.message);
+    console.warn("Route:", req.method, req.originalUrl);
+    console.warn("IP:", req.ip);
+    console.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  } else {
+    console.error("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.error("🚨 SERVER ERROR");
+    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.error("Status Code:", statusCode);
+    console.error("Message:", err.message);
+    console.error("Route:", req.method, req.originalUrl);
+    console.error("IP:", req.ip);
+    console.error("Stack Trace:\n", err.stack);
+    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+  }
 
   /* -----------------------------
      USER FRIENDLY RESPONSE
