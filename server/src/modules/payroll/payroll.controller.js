@@ -13,6 +13,7 @@ import {
   updatePaymentStatus,
   getPayrollStats
 } from "./payroll.service.js";
+import { ROLES } from "../../middleware/roles.js";
 
 // Get current user's payroll
 export const getMinePayroll = asyncHandler(async (req, res) => {

@@ -24,11 +24,11 @@ router.get("/", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getAllPayroll);
 // HR + Admin: Get payroll statistics
 router.get("/stats/dashboard", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getPayrollStatsHandler);
 
-// HR + Admin: Get single payroll record
-router.get("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getPayrollRecord);
-
 // HR + Admin: Get payroll for specific employee
 router.get("/employee/record", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getEmployeePayroll);
+
+// HR + Admin: Get single payroll record
+router.get("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getPayrollRecord);
 
 // HR + Admin: Create/Update payroll
 router.put("/", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), putPayroll);
