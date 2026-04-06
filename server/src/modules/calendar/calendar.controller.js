@@ -49,8 +49,9 @@ export const putCalendar = asyncHandler(async (req, res) => {
  * POST /calendar/events
  */
 export const createEventHandler = asyncHandler(async (req, res) => {
-  const { title, description, date, startTime, endTime, color } = req.body;
+  const { title, description, date, startTime, endTime, color, purpose } = req.body;
   const userId = req.user.id;
+  const userRole = req.user.role;
 
   if (!title || !date) {
     return res.status(400).json({
@@ -62,12 +63,14 @@ export const createEventHandler = asyncHandler(async (req, res) => {
 
   const event = await createEvent({
     userId,
+    userRole,
     title,
     description: description || "",
     date,
     startTime: startTime || "09:00",
     endTime: endTime || "10:00",
     color: color || "blue",
+    purpose: purpose || "PERSONAL",
     status: "ACTIVE"
   });
 
@@ -112,11 +115,12 @@ export const getEventsHandler = asyncHandler(async (req, res) => {
 export const updateEventHandler = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
+  const userRole = req.user.role;
   const updateData = req.body;
 
   console.log(`📅 Updating event ${id} for user ${userId}`);
 
-  const updatedEvent = await updateEvent(id, userId, updateData);
+  const updatedEvent = await updateEvent(id, userId, userRole, updateData);
 
   console.log(`✅ Event updated successfully`);
 
@@ -133,10 +137,11 @@ export const updateEventHandler = asyncHandler(async (req, res) => {
 export const deleteEventHandler = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
+  const userRole = req.user.role;
 
   console.log(`📅 Deleting event ${id} for user ${userId}`);
 
-  const deletedEvent = await deleteEvent(id, userId);
+  const deletedEvent = await deleteEvent(id, userId, userRole);
 
   console.log(`✅ Event deleted successfully`);
 

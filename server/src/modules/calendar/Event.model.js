@@ -1,5 +1,17 @@
 import mongoose from "mongoose";
 
+export const EVENT_PURPOSE = Object.freeze({
+  PUBLIC_HOLIDAY: "PUBLIC_HOLIDAY",
+  REMINDER: "REMINDER",
+  MEETING: "MEETING",
+  PERSONAL: "PERSONAL"
+});
+
+export const EVENT_VISIBILITY = Object.freeze({
+  PUBLIC: "PUBLIC",
+  PRIVATE: "PRIVATE"
+});
+
 const eventSchema = new mongoose.Schema(
   {
     userId: {
@@ -36,6 +48,16 @@ const eventSchema = new mongoose.Schema(
     color: {
       type: String,
       default: "blue" // blue, green, red, purple, yellow, etc
+    },
+    purpose: {
+      type: String,
+      enum: Object.values(EVENT_PURPOSE),
+      default: EVENT_PURPOSE.PERSONAL
+    },
+    visibility: {
+      type: String,
+      enum: Object.values(EVENT_VISIBILITY),
+      default: EVENT_VISIBILITY.PRIVATE
     }
   },
   { timestamps: true }
@@ -44,5 +66,6 @@ const eventSchema = new mongoose.Schema(
 // Index for efficient querying by user and date
 eventSchema.index({ userId: 1, date: 1 });
 eventSchema.index({ userId: 1, startTime: 1 });
+eventSchema.index({ purpose: 1, visibility: 1, date: 1 });
 
 export const Event = mongoose.model("Event", eventSchema);

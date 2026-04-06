@@ -1,5 +1,6 @@
 import { Attendance } from "./Attendance.model.js";
 import { Calendar } from "../calendar/Calendar.model.js";
+import { Event, EVENT_PURPOSE, EVENT_VISIBILITY } from "../calendar/Event.model.js";
 import { User } from "../users/User.model.js";
 import { env } from "../../config/env.js";
 import { isWithinGeofence } from "../../utils/geofencing.js";
@@ -145,10 +146,46 @@ async function getShiftForDate(date) {
   }
 }
 
+async function getPublicHolidayMap(fromDate, toDate) {
+  if (!fromDate || !toDate) {
+    return new Map();
+  }
+
+  const holidays = await Event.find({
+    purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
+    visibility: EVENT_VISIBILITY.PUBLIC,
+    status: { $ne: "CANCELLED" },
+    date: { $gte: fromDate, $lte: toDate }
+  }).select("date title");
+
+  const holidayMap = new Map();
+  holidays.forEach((holiday) => {
+    if (!holidayMap.has(holiday.date)) {
+      holidayMap.set(holiday.date, holiday.title || "Public Holiday");
+    }
+  });
+
+  return holidayMap;
+}
+
+async function getPublicHolidayNameForDate(date) {
+  if (!date) return null;
+
+  const holiday = await Event.findOne({
+    purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
+    visibility: EVENT_VISIBILITY.PUBLIC,
+    status: { $ne: "CANCELLED" },
+    date
+  }).select("title");
+
+  return holiday?.title || null;
+}
+
 export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude) {
   try {
     const existing = await Attendance.findOne({ userId, date });
     const { shiftStart, shiftEnd } = await getShiftForDate(date);
+    const holidayName = await getPublicHolidayNameForDate(date);
 
     const newCheckIn = checkIn ?? existing?.checkIn ?? "";
     const newCheckOut = checkOut ?? existing?.checkOut ?? "";
@@ -214,13 +251,15 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
     // Calculate total worked hours
     const totalHours = calculateTotalHours(newCheckIn, newCheckOut);
 
-    const status = calculateAttendanceStatus({
-      date,
-      checkIn: newCheckIn,
-      checkOut: newCheckOut,
-      shiftStart,
-      shiftEnd
-    });
+    const status = holidayName
+      ? "HOLIDAY"
+      : calculateAttendanceStatus({
+          date,
+          checkIn: newCheckIn,
+          checkOut: newCheckOut,
+          shiftStart,
+          shiftEnd
+        });
 
     const doc = await Attendance.findOneAndUpdate(
       { userId, date },
@@ -243,16 +282,24 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
 
 export async function getMyAttendance(userId, from, to) {
   const records = await Attendance.find({ userId, date: { $gte: from, $lte: to } }).sort({ date: 1 });
+  const effectiveFrom = from || records[0]?.date;
+  const effectiveTo = to || records[records.length - 1]?.date;
+  const holidayMap = await getPublicHolidayMap(effectiveFrom, effectiveTo);
 
   return records.map(record => ({
     ...record.toObject(),
-    status: calculateAttendanceStatus({
-      date: record.date,
-      checkIn: record.checkIn,
-      checkOut: record.checkOut,
-      shiftStart: record.shiftStart || env.DEFAULT_SHIFT_START,
-      shiftEnd: record.shiftEnd || env.DEFAULT_SHIFT_END
-    })
+    status: holidayMap.has(record.date)
+      ? "HOLIDAY"
+      : calculateAttendanceStatus({
+          date: record.date,
+          checkIn: record.checkIn,
+          checkOut: record.checkOut,
+          shiftStart: record.shiftStart || env.DEFAULT_SHIFT_START,
+          shiftEnd: record.shiftEnd || env.DEFAULT_SHIFT_END
+        }),
+    ...(holidayMap.has(record.date)
+      ? { isHoliday: true, eventName: holidayMap.get(record.date) }
+      : {})
   }));
 }
 
@@ -282,17 +329,22 @@ export async function getAllAttendance(from, to, userRole, userId = null) {
       .populate("userId", "name email role")
       .sort({ date: -1 });
 
+    const holidayMap = await getPublicHolidayMap(fromDate, toDate);
+
     // Transform records to include user details and enforce the latest attendance policy.
     return records
       .filter(record => record.userId) // Filter out records without user (deleted users)
       .map(record => {
-        const status = calculateAttendanceStatus({
-          date: record.date,
-          checkIn: record.checkIn,
-          checkOut: record.checkOut,
-          shiftStart: record.shiftStart || env.DEFAULT_SHIFT_START,
-          shiftEnd: record.shiftEnd || env.DEFAULT_SHIFT_END
-        });
+        const isHoliday = holidayMap.has(record.date);
+        const status = isHoliday
+          ? "HOLIDAY"
+          : calculateAttendanceStatus({
+              date: record.date,
+              checkIn: record.checkIn,
+              checkOut: record.checkOut,
+              shiftStart: record.shiftStart || env.DEFAULT_SHIFT_START,
+              shiftEnd: record.shiftEnd || env.DEFAULT_SHIFT_END
+            });
         
         return {
           _id: record._id,
@@ -308,7 +360,8 @@ export async function getAllAttendance(from, to, userRole, userId = null) {
           userId: record.userId._id,
           userName: record.userId.name || "Unknown User",
           email: record.userId.email || "N/A",
-          userRole: record.userId.role || "USER"
+          userRole: record.userId.role || "USER",
+          ...(isHoliday ? { isHoliday: true, eventName: holidayMap.get(record.date) } : {})
         };
       });
   } catch (error) {
@@ -335,6 +388,7 @@ function normalizeTimeInput(value) {
 async function buildUpdatedAttendanceFields(baseRecord, patch) {
   const effectiveDate = baseRecord.date;
   const baseShift = await getShiftForDate(effectiveDate);
+  const holidayName = await getPublicHolidayNameForDate(effectiveDate);
 
   const nextCheckIn = hasOwn(patch, "checkIn") ? normalizeTimeInput(patch.checkIn) : (baseRecord.checkIn || "");
   const nextCheckOut = hasOwn(patch, "checkOut") ? normalizeTimeInput(patch.checkOut) : (baseRecord.checkOut || "");
@@ -350,13 +404,15 @@ async function buildUpdatedAttendanceFields(baseRecord, patch) {
   };
 
   updatedFields.totalHours = calculateTotalHours(nextCheckIn, nextCheckOut);
-  updatedFields.status = calculateAttendanceStatus({
-    date: effectiveDate,
-    checkIn: nextCheckIn,
-    checkOut: nextCheckOut,
-    shiftStart: nextShiftStart,
-    shiftEnd: nextShiftEnd
-  });
+  updatedFields.status = holidayName
+    ? "HOLIDAY"
+    : calculateAttendanceStatus({
+        date: effectiveDate,
+        checkIn: nextCheckIn,
+        checkOut: nextCheckOut,
+        shiftStart: nextShiftStart,
+        shiftEnd: nextShiftEnd
+      });
 
   return updatedFields;
 }
@@ -439,6 +495,44 @@ function isAfterShiftEnd(shiftEnd) {
 export async function autoMarkAbsentees() {
   try {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const todayHolidayName = await getPublicHolidayNameForDate(today);
+
+    // Get all staff users (non-admin)
+    const staffUsers = await User.find({
+      role: { $ne: ROLES.ADMIN },
+      isActive: true
+    }).select("_id name email");
+
+    // If today is a public holiday, all staff are marked as HOLIDAY.
+    if (todayHolidayName) {
+      const { shiftStart, shiftEnd } = await getShiftForDate(today);
+
+      for (const staff of staffUsers) {
+        await Attendance.findOneAndUpdate(
+          { userId: staff._id, date: today },
+          {
+            $set: {
+              shiftStart,
+              shiftEnd,
+              shiftName: todayHolidayName,
+              status: "HOLIDAY",
+              totalHours: 0
+            }
+          },
+          { upsert: true, new: true }
+        );
+      }
+
+      return {
+        date: today,
+        total: staffUsers.length,
+        marked: staffUsers.length,
+        present: 0,
+        errors: 0,
+        holiday: todayHolidayName,
+        message: `${today} marked as HOLIDAY for all staff (${todayHolidayName})`
+      };
+    }
     
     // Skip if not a working day
     if (!isWorkingDay(today)) {
@@ -448,12 +542,6 @@ export async function autoMarkAbsentees() {
 
     // Get shift times for today
     const { shiftStart, shiftEnd } = await getShiftForDate(today);
-
-    // Get all staff users (non-admin)
-    const staffUsers = await User.find({ 
-      role: { $ne: ROLES.ADMIN },
-      isActive: true 
-    }).select("_id name email");
 
     console.log(`📋 Auto-marking attendance for ${staffUsers.length} staff members (Date: ${today})`);
 
@@ -600,6 +688,7 @@ export async function getAttendanceSummaryForToday() {
       present: 0,
       halfDay: 0,
       absent: 0,
+      holiday: 0,
       shortHours: 0,
       notMarked: 0
     };
@@ -609,11 +698,12 @@ export async function getAttendanceSummaryForToday() {
       if (item._id === "PRESENT") result.present = item.count;
       if (item._id === "HALF_DAY") result.halfDay = item.count;
       if (item._id === "ABSENT") result.absent = item.count;
+      if (item._id === "HOLIDAY") result.holiday = item.count;
       if (item._id === "SHORT_HOURS") result.shortHours = item.count;
     });
 
     // Calculate not marked (no attendance record)
-    const markedStaff = result.present + result.halfDay + result.absent + result.shortHours;
+    const markedStaff = result.present + result.halfDay + result.absent + result.holiday + result.shortHours;
     result.notMarked = Math.max(0, totalStaff - markedStaff);
 
     console.log(`📊 Attendance Summary for ${today}:`, result);
@@ -663,6 +753,7 @@ export async function recalculateAllAttendance(fromDate = null, toDate = null) {
     
     // Get all attendance records in range
     const records = await Attendance.find(query);
+    const holidayMap = await getPublicHolidayMap(query.date.$gte, query.date.$lte);
     console.log(`📋 Found ${records.length} records to recalculate`);
     
     let recalculatedCount = 0;
@@ -680,13 +771,15 @@ export async function recalculateAllAttendance(fromDate = null, toDate = null) {
         // Recalculate totalHours with fixed logic
         const newTotalHours = calculateTotalHours(record.checkIn, record.checkOut);
         
-        const newStatus = calculateAttendanceStatus({
-          date: record.date,
-          checkIn: record.checkIn,
-          checkOut: record.checkOut,
-          shiftStart,
-          shiftEnd
-        });
+        const newStatus = holidayMap.has(record.date)
+          ? "HOLIDAY"
+          : calculateAttendanceStatus({
+              date: record.date,
+              checkIn: record.checkIn,
+              checkOut: record.checkOut,
+              shiftStart,
+              shiftEnd
+            });
         
         // Check if anything changed
         if (oldStatus !== newStatus || oldHours !== newTotalHours) {

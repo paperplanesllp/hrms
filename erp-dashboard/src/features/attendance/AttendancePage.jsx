@@ -254,6 +254,7 @@ export default function AttendancePage() {
       if (filterType === "present" && record.status !== "PRESENT") matchesType = false;
       if (filterType === "short" && record.status !== "SHORT_HOURS") matchesType = false;
       if (filterType === "halfday" && record.status !== "HALF_DAY") matchesType = false;
+      if (filterType === "holiday" && record.status !== "HOLIDAY") matchesType = false;
       if (filterType === "absent" && record.status !== "ABSENT") matchesType = false;
     }
 
@@ -269,6 +270,7 @@ export default function AttendancePage() {
     present: filteredRows.filter(r => r.status === "PRESENT").length,
     shortHours: filteredRows.filter(r => r.status === "SHORT_HOURS").length,
     halfDay: filteredRows.filter(r => r.status === "HALF_DAY").length,
+    holiday: filteredRows.filter(r => r.status === "HOLIDAY").length,
     absent: filteredRows.filter(r => r.status === "ABSENT").length
   };
 
@@ -286,6 +288,8 @@ export default function AttendancePage() {
         return { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", icon: AlertCircle };
       case "HALF_DAY":
         return { bg: "bg-indigo-50", border: "border-indigo-400", text: "text-indigo-700", icon: Clock };
+      case "HOLIDAY":
+        return { bg: "bg-sky-50", border: "border-sky-400", text: "text-sky-700", icon: Calendar };
       case "LATE":
         return { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-700", icon: Clock };
       case "ABSENT":
@@ -369,7 +373,7 @@ export default function AttendancePage() {
 
       {/* Statistics Cards (Admin only) */}
       {isAdmin && (
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-6">
           <Card className="p-6 border-l-4 border-l-[#4A7FA7] bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
@@ -422,6 +426,19 @@ export default function AttendancePage() {
             </div>
           </Card>
 
+          <Card className="p-6 border-l-4 border-l-sky-600 bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/30 dark:to-cyan-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-light)] uppercase tracking-wide">Holiday</p>
+                <p className="mt-2 text-3xl font-bold text-sky-600 dark:text-sky-400">{stats.holiday}</p>
+                <p className="mt-2 text-xs text-sky-600 dark:text-sky-400">{stats.total > 0 ? Math.round((stats.holiday/stats.total)*100) : 0}% rate</p>
+              </div>
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-sky-200 dark:bg-sky-900/50">
+                <Calendar className="w-6 h-6 text-sky-600" />
+              </div>
+            </div>
+          </Card>
+
           <Card className="p-6 border-l-4 border-l-red-600 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between">
               <div>
@@ -463,6 +480,7 @@ export default function AttendancePage() {
               <option value="present">✓ Present Only</option>
               <option value="short"> Short Hours</option>
               <option value="halfday">◐ Half Day</option>
+              <option value="holiday">🏖 Holiday</option>
               <option value="absent">✗ Absent</option>
             </select>
 

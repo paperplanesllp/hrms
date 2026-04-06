@@ -1,8 +1,10 @@
 import { Attendance } from "../attendance/Attendance.model.js";
 import { Leave } from "../leave/Leave.model.js";
-import { Event } from "./Event.model.js";
+import { Event, EVENT_PURPOSE, EVENT_VISIBILITY } from "./Event.model.js";
 import { User } from "../users/User.model.js";
 import { ROLES } from "../../middleware/roles.js";
+import { ApiError } from "../../utils/apiError.js";
+import { StatusCodes } from "http-status-codes";
 
 /**
  * Indian Public Holidays 2025
@@ -121,6 +123,14 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       toDate: { $gte: monthStart }
     });
 
+    // Get public holidays created from calendar event table.
+    const publicHolidayEvents = await Event.find({
+      purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
+      visibility: EVENT_VISIBILITY.PUBLIC,
+      status: { $ne: "CANCELLED" },
+      date: { $gte: monthStart, $lte: monthEnd }
+    }).select("date title");
+
     // Build a map of dates -> {status, eventName}
     const statusMap = {};
 
@@ -140,6 +150,15 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       if (holiday.date >= monthStart && holiday.date <= monthEnd) {
         statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name, isHoliday: true };
       }
+    });
+
+    // Mark public holidays from event table (overrides default list when same day exists)
+    publicHolidayEvents.forEach((event) => {
+      statusMap[event.date] = {
+        status: "ABSENT",
+        eventName: event.title,
+        isHoliday: true
+      };
     });
 
     // Mark all leave dates as ABSENT
@@ -172,6 +191,8 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
         statusMap[record.date] = { status: "ABSENT", checkIn: null };
       } else if (record.status === "SHORT_HOURS") {
         statusMap[record.date] = { status: "SHORT_HOURS", checkIn: record.checkIn };
+      } else if (record.status === "HALF_DAY") {
+        statusMap[record.date] = { status: "HALF_DAY", checkIn: record.checkIn };
       } else if (record.status === "PRESENT") {
         statusMap[record.date] = { status: "PRESENT", checkIn: record.checkIn };
       }
@@ -212,13 +233,54 @@ export async function upsertCalendar(data) {
   );
 }
 
+async function syncPublicHolidayAttendance(date, holidayName) {
+  const staffUsers = await User.find({
+    role: { $ne: ROLES.ADMIN },
+    isActive: true
+  }).select("_id");
+
+  if (!staffUsers.length) return;
+
+  const updates = staffUsers.map((staff) => ({
+    updateOne: {
+      filter: { userId: staff._id, date },
+      update: {
+        $set: {
+          status: "HOLIDAY",
+          totalHours: 0,
+          shiftName: holidayName || "Public Holiday"
+        }
+      },
+      upsert: true
+    }
+  }));
+
+  await Attendance.bulkWrite(updates, { ordered: false });
+}
+
 /**
  * Create a user event (personal calendar event)
  */
 export async function createEvent(eventData) {
   try {
+    if (eventData.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY) {
+      if (![ROLES.ADMIN, ROLES.HR].includes(eventData.userRole)) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only HR and Admin can create public holidays");
+      }
+      eventData.visibility = EVENT_VISIBILITY.PUBLIC;
+    } else {
+      eventData.visibility = EVENT_VISIBILITY.PRIVATE;
+    }
+
+    delete eventData.userRole;
+
     const event = new Event(eventData);
     await event.save();
+
+    if (event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY && event.status !== "CANCELLED") {
+      await syncPublicHolidayAttendance(event.date, event.title);
+    }
+
     return event;
   } catch (error) {
     console.error("❌ Error creating event:", error);
@@ -232,7 +294,13 @@ export async function createEvent(eventData) {
 export async function getUserEvents(userId, startDate, endDate) {
   try {
     const events = await Event.find({
-      userId,
+      $or: [
+        { userId },
+        {
+          purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
+          visibility: EVENT_VISIBILITY.PUBLIC
+        }
+      ],
       date: { $gte: startDate, $lte: endDate },
       status: { $ne: "CANCELLED" }
     }).sort({ date: 1, startTime: 1 });
@@ -247,11 +315,25 @@ export async function getUserEvents(userId, startDate, endDate) {
 /**
  * Update event (for drag-drop time updates)
  */
-export async function updateEvent(eventId, userId, updateData) {
+export async function updateEvent(eventId, userId, userRole, updateData) {
   try {
-    const event = await Event.findOne({ _id: eventId, userId });
+    const event = await Event.findById(eventId);
     if (!event) {
-      throw new Error("Event not found");
+      throw new ApiError(StatusCodes.NOT_FOUND, "Event not found");
+    }
+
+    const isOwner = String(event.userId) === String(userId);
+    const canManagePublicHoliday =
+      event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY &&
+      [ROLES.ADMIN, ROLES.HR].includes(userRole);
+
+    if (!isOwner && !canManagePublicHoliday) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "You are not allowed to update this event");
+    }
+
+    const nextPurpose = updateData.purpose || event.purpose;
+    if (nextPurpose === EVENT_PURPOSE.PUBLIC_HOLIDAY && ![ROLES.ADMIN, ROLES.HR].includes(userRole)) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "Only HR and Admin can set public holiday purpose");
     }
 
     if (updateData.startTime) event.startTime = updateData.startTime;
@@ -261,8 +343,18 @@ export async function updateEvent(eventId, userId, updateData) {
     if (updateData.description !== undefined) event.description = updateData.description;
     if (updateData.status) event.status = updateData.status;
     if (updateData.color) event.color = updateData.color;
+    if (updateData.purpose) event.purpose = updateData.purpose;
+
+    event.visibility = event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY
+      ? EVENT_VISIBILITY.PUBLIC
+      : EVENT_VISIBILITY.PRIVATE;
 
     await event.save();
+
+    if (event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY && event.status !== "CANCELLED") {
+      await syncPublicHolidayAttendance(event.date, event.title);
+    }
+
     return event;
   } catch (error) {
     console.error("❌ Error updating event:", error);
@@ -273,11 +365,20 @@ export async function updateEvent(eventId, userId, updateData) {
 /**
  * Delete event (mark as CANCELLED)
  */
-export async function deleteEvent(eventId, userId) {
+export async function deleteEvent(eventId, userId, userRole) {
   try {
-    const event = await Event.findOne({ _id: eventId, userId });
+    const event = await Event.findById(eventId);
     if (!event) {
-      throw new Error("Event not found");
+      throw new ApiError(StatusCodes.NOT_FOUND, "Event not found");
+    }
+
+    const isOwner = String(event.userId) === String(userId);
+    const canManagePublicHoliday =
+      event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY &&
+      [ROLES.ADMIN, ROLES.HR].includes(userRole);
+
+    if (!isOwner && !canManagePublicHoliday) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "You are not allowed to delete this event");
     }
 
     event.status = "CANCELLED";
@@ -305,6 +406,8 @@ export async function getAttendanceHeatmap(userId, startDate, endDate) {
       
       if (record.status === "PRESENT") {
         intensity = 4;
+      } else if (record.status === "HALF_DAY") {
+        intensity = 3;
       } else if (record.status === "SHORT_HOURS") {
         intensity = 2;
       } else if (record.status === "ABSENT") {

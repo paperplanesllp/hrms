@@ -10,7 +10,7 @@ const attendanceSchema = new mongoose.Schema(
     shiftEnd: { type: String, default: "18:30" },
     shiftName: { type: String, default: "Regular Shift" },
     totalHours: { type: Number, default: 0 }, // Calculated worked hours
-    status: { type: String, default: "PRESENT" }, // PRESENT, SHORT_HOURS, HALF_DAY, ABSENT
+    status: { type: String, default: "PRESENT" }, // PRESENT, SHORT_HOURS, HALF_DAY, ABSENT, HOLIDAY
     
     // Geofencing data
     checkInLatitude: { type: Number, default: 0 },

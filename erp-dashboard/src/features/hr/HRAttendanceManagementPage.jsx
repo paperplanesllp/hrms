@@ -161,6 +161,8 @@ export default function HRAttendanceManagementPage() {
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
       case "ABSENT":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+      case "HOLIDAY":
+        return "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300";
       case "SHORT_HOURS":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
       case "HALF_DAY":
@@ -178,6 +180,8 @@ export default function HRAttendanceManagementPage() {
         return <CheckCircle className="w-4 h-4 text-green-600" />;
       case "ABSENT":
         return <AlertCircle className="w-4 h-4 text-red-600" />;
+      case "HOLIDAY":
+        return <Calendar className="w-4 h-4 text-sky-600" />;
       case "SHORT_HOURS":
       case "LATE":
         return <Clock className="w-4 h-4 text-yellow-600" />;
