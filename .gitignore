@@ -1,13 +1,15 @@
-# Ignore env files globally
-.env
-.env.*
-!.env.example
-
-# Node modules
 node_modules/
+server/node_modules/
+erp-dashboard/node_modules/
 
-# Logs
+.env
+server/.env
+erp-dashboard/.env
+
+dist/
+build/
+coverage/
+
 *.log
-
-# Uploads (recommended)
-server/uploads/
+.DS_Store
+Thumbs.db
