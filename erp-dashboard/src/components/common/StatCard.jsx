@@ -29,7 +29,7 @@ export default function StatCard({
 
   return (
     <Card
-      className={`relative p-6 ${colorClass} hover:shadow-lg transition-all duration-300 group cursor-pointer`}
+      className={`relative p-6 h-full min-h-[14rem] ${colorClass} hover:shadow-lg transition-all duration-300 group cursor-pointer flex flex-col`}
       title={nativeTitle}
     >
       <div className="flex items-start justify-between mb-4">
@@ -48,7 +48,7 @@ export default function StatCard({
         )}
       </div>
       {hint && (
-        <div className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+        <div className="mt-auto text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {hint}
         </div>
       )}

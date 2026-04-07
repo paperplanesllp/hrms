@@ -265,7 +265,9 @@ export default function DashboardPage() {
 
           const toMinutes = (value) => {
             if (!value || typeof value !== "string" || !value.includes(":")) return null;
-            const [h, m] = value.split(":").map(Number);
+            const parts = value.split(":");
+            const h = Number(parts[0]);
+            const m = Number(parts[1]);
             if (Number.isNaN(h) || Number.isNaN(m)) return null;
             return h * 60 + m;
           };
@@ -274,7 +276,7 @@ export default function DashboardPage() {
             todayRows
               .filter((row) => {
                 const checkInMinutes = toMinutes(row?.checkIn);
-                const shiftStartMinutes = toMinutes(row?.shiftStart);
+                const shiftStartMinutes = toMinutes(row?.shiftStart || "09:30");
                 return checkInMinutes !== null && shiftStartMinutes !== null && checkInMinutes > shiftStartMinutes;
               })
               .map((row) => row.userName || row.name || row.email)
@@ -348,7 +350,26 @@ export default function DashboardPage() {
   }, []);
 
   const shortHoursDisplayValue =
-    (stats.shortHoursToday ?? stats.lateToday ?? 0) || statEmployeeNames.shortHoursToday.length;
+    statEmployeeNames.shortHoursToday.length > 0
+      ? statEmployeeNames.shortHoursToday.length
+      : (stats.shortHoursToday ?? stats.lateToday ?? 0);
+
+  const timelinePreviewLimit = 5;
+  const timelineItems =
+    recentUpdates.length > 0
+      ? recentUpdates
+      : [
+          {
+            time: "No updates yet",
+            userName: "System",
+            action: "Created",
+            entityName: "Sample Entry",
+            changes: "Timeline is empty",
+            color: "slate",
+          },
+        ];
+  const timelinePreviewItems = timelineItems.slice(0, timelinePreviewLimit);
+  const hasMoreTimelineItems = recentUpdates.length > timelinePreviewLimit;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -446,6 +467,11 @@ export default function DashboardPage() {
             </Card>
           )}
 
+          {/* Quick Attendance Marking - Only for HR */}
+          {isHR && (
+            <QuickAttendanceMarking />
+          )}
+
           {/* Stats Grid - Only visible to Admin and HR */}
           {canViewStats && (
             <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-5">
@@ -499,19 +525,14 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Quick Attendance Marking - Only for HR */}
-          {isHR && (
-            <QuickAttendanceMarking />
-          )}
-
           {/* Main Content Grid - Two/Three Column Layout */}
           <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {/* Left Column - Quick Stats and Info */}
-            <div className="space-y-6 lg:col-span-1">
+            <div className="grid gap-6 auto-rows-fr lg:col-span-1">
               {/* Leave Balance Card - Only show for HR and Employees, not Admin */}
               {!isAdmin && (
-              <Card elevated className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-900/30">
-                <div className="p-6">
+              <Card elevated className="h-full bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-900/30">
+                <div className="p-6 h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-[#0A1931] dark:text-white">Leave Balance</h3>
                     <Calendar className="w-5 h-5 text-emerald-600" />
@@ -585,14 +606,14 @@ export default function DashboardPage() {
               )}
 
               {/* Payroll Card */}
-              <Card elevated className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-900/30">
-                <div className="p-6">
+              <Card elevated className="h-full min-h-[20rem] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-900/30">
+                <div className="p-6 h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-[#0A1931] dark:text-white">Payroll Info</h3>
                     <DollarSign className="w-5 h-5 text-blue-600" />
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-3 flex-1">
                     <div>
                       <span className="text-xs text-[#4A7FA7] dark:text-slate-400">Status</span>
                       <div className="flex items-center mt-1 space-x-2">
@@ -616,35 +637,37 @@ export default function DashboardPage() {
             </div>
 
             {/* Middle Column - Tasks and Company Updates */}
-            <div className="space-y-6 lg:col-span-1">
+            <div className="grid gap-6 auto-rows-fr lg:col-span-1">
               {/* Pending Tasks Card */}
-              <Card elevated className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-900/30">
-                <div className="p-6">
+              <Card elevated className="h-full min-h-[20rem] bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-900/30">
+                <div className="p-6 h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-[#0A1931] dark:text-white">My Tasks</h3>
                     <BarChart3 className="w-5 h-5 text-violet-600" />
                   </div>
                   
-                  <div className="space-y-3">
-                    {pendingTasks.slice(0, 3).map((task) => (
-                      <div key={task.id} className="p-3 bg-white border rounded-lg dark:bg-slate-800 border-violet-200 dark:border-violet-800/50">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-[#0A1931] dark:text-white">{task.title}</p>
-                            <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                  <div className="flex-1 flex flex-col gap-3">
+                    <div className="space-y-3">
+                      {pendingTasks.slice(0, 3).map((task) => (
+                        <div key={task.id} className="p-3 bg-white border rounded-lg dark:bg-slate-800 border-violet-200 dark:border-violet-800/50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-[#0A1931] dark:text-white">{task.title}</p>
+                              <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                              task.priority === 'high' 
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                            }`}>
+                              {task.priority}
+                            </span>
                           </div>
-                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                            task.priority === 'high' 
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                          }`}>
-                            {task.priority}
-                          </span>
                         </div>
-                      </div>
-                    ))}
-                    
-                    <button className="w-full px-3 py-2 mt-2 text-sm font-semibold transition-colors rounded-lg text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/30">
+                      ))}
+                    </div>
+
+                    <button className="w-full px-3 py-2 mt-auto text-sm font-semibold transition-colors rounded-lg text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/30">
                       View All Tasks → 
                     </button>
                   </div>
@@ -652,7 +675,7 @@ export default function DashboardPage() {
               </Card>
 
               {/* Company Updates Card */}
-              <Card elevated>
+              <Card elevated className="h-full min-h-[20rem] flex flex-col">
                 <div className="p-6 border-b border-[#B3CFE5] dark:border-slate-700">
                   <div className="flex items-center justify-between">
                     <div>
@@ -662,7 +685,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-6 flex-1">
                   <div className="space-y-3">
                     {recentNews?.length ? (
                       recentNews.slice(0, 3).map((x) => (
@@ -690,7 +713,7 @@ export default function DashboardPage() {
 
             {/* Right Column - Timeline - Only for HR and Admin */}
             {(isHR || isAdmin) && (
-            <Card elevated className="lg:col-span-1 bg-gradient-to-br from-[#F6FAFD] to-white dark:from-slate-800 dark:to-slate-800 flex flex-col h-full">
+            <Card elevated className="lg:col-span-1 bg-gradient-to-br from-[#F6FAFD] to-white dark:from-slate-800 dark:to-slate-800 flex flex-col h-full min-h-[42rem]">
               <div className="p-6 border-b border-[#B3CFE5] dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -707,32 +730,14 @@ export default function DashboardPage() {
                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
                       <span className="text-xs font-semibold text-purple-600 dark:text-purple-300">Live</span>
                     </div>
-                    {(isHR || isAdmin) && (
-                      <button
-                        onClick={() => navigate(isAdmin ? "/admin/activity-timeline" : "/hr/activity-timeline")}
-                        className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
-                      >
-                        <Eye size={16} />
-                        <span>View All</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex-1 overflow-hidden p-6 flex flex-col">
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                  {/* Timeline Items - up to 8 */}
-                  {(recentUpdates.length > 0 ? recentUpdates : [
-                    {
-                      time: "No updates yet",
-                      userName: "System",
-                      action: "Created",
-                      entityName: "Sample Entry",
-                      changes: "Timeline is empty",
-                      color: "slate"
-                    }
-                  ]).slice(0, 20).map((item, idx) => {
+                  {/* Timeline preview */}
+                  {timelinePreviewItems.map((item, idx) => {
                     // Handle both activity logs and audit logs
                     const isActivityLog = item.actionType !== undefined;
                     
@@ -805,7 +810,7 @@ export default function DashboardPage() {
                               <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 border-2 border-[#4A7FA7] dark:border-slate-500 flex items-center justify-center text-xs font-bold">
                                 {iconMap[action] || "•"}
                               </div>
-                              {idx < recentUpdates.length - 1 && <div className="w-0.5 h-6 bg-[#B3CFE5] dark:bg-slate-600"></div>}
+                                {idx < timelinePreviewItems.length - 1 && <div className="w-0.5 h-6 bg-[#B3CFE5] dark:bg-slate-600"></div>}
                             </div>
 
                             {/* Content */}
@@ -880,7 +885,7 @@ export default function DashboardPage() {
                             <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 border-2 border-[#4A7FA7] dark:border-slate-500 flex items-center justify-center text-xs font-bold">
                               {iconMap[item.action] || "•"}
                             </div>
-                            {idx < recentUpdates.length - 1 && <div className="w-0.5 h-6 bg-[#B3CFE5] dark:bg-slate-600"></div>}
+                            {idx < timelinePreviewItems.length - 1 && <div className="w-0.5 h-6 bg-[#B3CFE5] dark:bg-slate-600"></div>}
                           </div>
 
                           {/* Content */}
@@ -902,13 +907,13 @@ export default function DashboardPage() {
                 </div>
 
                 {/* View All Updates */}
-                {recentUpdates.length > 0 && (
+                {(isHR || isAdmin) && (
                   <div className="mt-4 pt-4 border-t border-[#B3CFE5] dark:border-slate-700">
                     <button 
                       onClick={() => navigate(isAdmin ? "/admin/activity-timeline" : isHR ? "/hr/activity-timeline" : "#")}
                       className="w-full px-4 py-2 text-center text-sm font-semibold text-[#4A7FA7] dark:text-slate-300 hover:text-[#0A1931] dark:hover:text-white transition-colors rounded-lg hover:bg-[#B3CFE5]/10"
                     >
-                      View Complete Activity Log →
+                      {hasMoreTimelineItems ? "View More Timelines →" : "View Full Timeline →"}
                     </button>
                   </div>
                 )}
