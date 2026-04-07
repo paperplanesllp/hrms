@@ -108,7 +108,11 @@ export default function CalendarPage() {
         api.get("/calendar/heatmap", { params: { startDate: monthStart, endDate: monthEnd } })
       ]);
 
-      setEvents(evRes.data.events || []);
+      // Filter out past events - only show events from today onwards
+      const today = new Date().toISOString().split("T")[0]; // Get today's date in YYYY-MM-DD format
+      const upcomingEvents = (evRes.data.events || []).filter(event => event.date >= today);
+
+      setEvents(upcomingEvents);
       setHeatmapData(heatRes.data.heatmap || []);
     } catch (err) {
       console.error("Error loading events/heatmap:", err);
