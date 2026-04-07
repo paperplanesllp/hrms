@@ -35,6 +35,13 @@ export default function DashboardPage() {
   const [recentUpdates, setRecentUpdates] = useState([]);
   const [absentEmployees, setAbsentEmployees] = useState([]);
   const [absentLoading, setAbsentLoading] = useState(false);
+  const [statEmployeeNames, setStatEmployeeNames] = useState({
+    presentToday: [],
+    shortHoursToday: [],
+    halfDayToday: [],
+    absentToday: [],
+    leavePending: [],
+  });
   
   // Additional data for realistic dashboard
   const [leaveBalance, setLeaveBalance] = useState({ total: 0, used: 0, pending: 0, remaining: 0, byType: [] });
@@ -192,6 +199,8 @@ export default function DashboardPage() {
         // For HR/Admin, fetch appropriate role-based timeline
         let activityPromise = Promise.resolve({ data: {} });
         let absentPromise = Promise.resolve({ data: [] });
+        let todayAttendancePromise = Promise.resolve({ data: [] });
+        let pendingLeavesPromise = Promise.resolve({ data: [] });
         
         if (isAdmin || isHR) {
           const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=20" : "/activity/hr-timeline?limit=20";
@@ -203,14 +212,24 @@ export default function DashboardPage() {
           absentPromise = api.get(`/dashboard/absent-employees${absentRolesParam}`).catch(() => 
             Promise.resolve({ data: [] })
           );
+
+          const today = new Date().toISOString().split("T")[0];
+          todayAttendancePromise = api.get("/attendance", { params: { from: today, to: today } }).catch(() =>
+            Promise.resolve({ data: [] })
+          );
+          pendingLeavesPromise = api.get("/leave").catch(() =>
+            Promise.resolve({ data: [] })
+          );
         }
 
-        const [s, n, u, lb, ae] = await Promise.all([
+        const [s, n, u, lb, ae, todayAttendanceRes, pendingLeavesRes] = await Promise.all([
           api.get("/dashboard/stats"),
           api.get("/news?limit=5"),
           activityPromise,
           api.get("/dashboard/leave-balance"),
           absentPromise,
+          todayAttendancePromise,
+          pendingLeavesPromise,
         ]);
         setStats(s.data || stats);
         setRecentNews(n.data || []);
@@ -227,6 +246,40 @@ export default function DashboardPage() {
         // Update absent employees
         if (ae.data && Array.isArray(ae.data)) {
           setAbsentEmployees(ae.data);
+        }
+
+        if (isAdmin || isHR) {
+          const todayRows = Array.isArray(todayAttendanceRes?.data) ? todayAttendanceRes.data : [];
+          const pendingLeaves = Array.isArray(pendingLeavesRes?.data) ? pendingLeavesRes.data : [];
+          const absentRows = Array.isArray(ae?.data) ? ae.data : [];
+
+          const uniqueSorted = (items) =>
+            Array.from(new Set(items.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+          const namesByStatus = (statuses) =>
+            uniqueSorted(
+              todayRows
+                .filter((row) => statuses.includes(row.status))
+                .map((row) => row.userName || row.name || row.email)
+            );
+
+          const pendingLeaveNames = uniqueSorted(
+            pendingLeaves
+              .filter((leave) => leave.status === "PENDING")
+              .map((leave) => leave.userId?.name || leave.userName || leave.userId?.email)
+          );
+
+          const absentNames = uniqueSorted(
+            absentRows.map((emp) => emp.name || emp.email)
+          );
+
+          setStatEmployeeNames({
+            presentToday: namesByStatus(["PRESENT", "SHORT_HOURS", "HALF_DAY"]),
+            shortHoursToday: namesByStatus(["SHORT_HOURS"]),
+            halfDayToday: namesByStatus(["HALF_DAY"]),
+            absentToday: absentNames,
+            leavePending: pendingLeaveNames,
+          });
         }
       } catch {
         // if backend doesn't have these endpoints yet, UI still loads nicely
@@ -379,6 +432,8 @@ export default function DashboardPage() {
                 hint="Active employees checked in"
                 color="steel-blue"
                 icon={CheckCircle}
+                hoverTitle="Checked-In Employees"
+                hoverList={statEmployeeNames.presentToday}
               />
               <StatCard
                 title="Short Hours Today"
@@ -386,6 +441,8 @@ export default function DashboardPage() {
                 hint="Late check-ins today"
                 color="corporate-blue"
                 icon={Clock}
+                hoverTitle="Short Hours Employees"
+                hoverList={statEmployeeNames.shortHoursToday}
               />
               <StatCard
                 title="Half Day Today"
@@ -393,6 +450,8 @@ export default function DashboardPage() {
                 hint="Worked one half only"
                 color="deep-navy"
                 icon={Timer}
+                hoverTitle="Half Day Employees"
+                hoverList={statEmployeeNames.halfDayToday}
               />
               <StatCard
                 title="Pending Leaves"
@@ -400,6 +459,8 @@ export default function DashboardPage() {
                 hint="Awaiting approval"
                 color="deep-navy"
                 icon={AlertCircle}
+                hoverTitle="Employees With Pending Leave"
+                hoverList={statEmployeeNames.leavePending}
               />
               {(isAdmin || isHR) && (
               <StatCard
@@ -408,6 +469,8 @@ export default function DashboardPage() {
                 hint="Employees without check-in"
                 color="steel-blue"
                 icon={XCircle}
+                hoverTitle="Absent Employees"
+                hoverList={statEmployeeNames.absentToday}
               />
               )}
             </div>
