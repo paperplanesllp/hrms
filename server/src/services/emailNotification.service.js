@@ -1,11 +1,20 @@
 import nodemailer from "nodemailer";
 
+const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+const smtpSecure = process.env.SMTP_SECURE === "true" || smtpPort === 465;
+const fromAddress = process.env.EMAIL_USER || process.env.SMTP_USER || process.env.COMPANY_EMAIL;
+
 // Initialize email transporter using environment variables
 const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || "gmail",
+  host: smtpHost,
+  port: smtpPort,
+  secure: smtpSecure,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+    user: smtpUser,
+    pass: smtpPass
   }
 });
 
@@ -210,6 +219,11 @@ function getDaysOverdue(dueDate) {
  */
 export async function sendTaskEmail(recipientEmail, notificationType, taskData) {
   try {
+    if (!smtpUser || !smtpPass || !fromAddress) {
+      console.error("❌ Email configuration missing: set SMTP_USER/SMTP_PASS and COMPANY_EMAIL or EMAIL_USER.");
+      return false;
+    }
+
     // Get email template for this notification type
     const template = emailTemplates[notificationType];
     if (!template) {
@@ -222,7 +236,7 @@ export async function sendTaskEmail(recipientEmail, notificationType, taskData) 
 
     // Send email
     const result = await transporter.sendMail({
-      from: `"${process.env.EMAIL_FROM_NAME || 'HRMS System'}" <${process.env.EMAIL_USER}>`,
+      from: `"${process.env.EMAIL_FROM_NAME || 'HRMS System'}" <${fromAddress}>`,
       to: recipientEmail,
       subject: emailContent.subject,
       html: emailContent.html

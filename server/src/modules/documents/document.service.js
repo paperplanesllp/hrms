@@ -31,13 +31,13 @@ export const getDocumentTypeById = async (id) => {
 };
 
 export const updateDocumentType = async (id, data) => {
-  return await DocumentType.findByIdAndUpdate(id, data, { new: true })
+  return await DocumentType.findByIdAndUpdate(id, data, { returnDocument: "after" })
     .populate("createdBy", "name email")
     .populate("departmentIds", "name");
 };
 
 export const deleteDocumentType = async (id) => {
-  return await DocumentType.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  return await DocumentType.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" });
 };
 
 // ==================== EMPLOYEE DOCUMENT OPERATIONS ====================
@@ -165,7 +165,7 @@ export const approveDocument = async (documentId, reviewedBy, comments = "") => 
       reviewComments: comments,
       reviewedAt: new Date()
     },
-    { new: true }
+    { returnDocument: "after" }
   );
 };
 
@@ -178,7 +178,7 @@ export const rejectDocument = async (documentId, reviewedBy, comments = "") => {
       reviewComments: comments,
       reviewedAt: new Date()
     },
-    { new: true }
+    { returnDocument: "after" }
   );
 };
 

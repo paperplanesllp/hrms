@@ -229,7 +229,7 @@ export async function upsertCalendar(data) {
   return Attendance.findOneAndUpdate(
     { date: data.date },
     { $set: data },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 }
 

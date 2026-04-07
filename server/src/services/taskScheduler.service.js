@@ -115,7 +115,7 @@ async function checkForOverdueTasks() {
         await Task.findByIdAndUpdate(
           task._id,
           { isOverdueNotified: true },
-          { new: true }
+             { returnDocument: "after" }
         );
 
         console.log(`✅ Overdue notification sent for task: ${task.title}`);

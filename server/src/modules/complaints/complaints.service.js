@@ -100,7 +100,7 @@ export async function updateComplaintStatus(complaintId, newStatus) {
   const complaint = await Complaint.findByIdAndUpdate(
     complaintId,
     { $set: { status: newStatus } },
-    { new: true } // Safer Mongoose standard
+    { returnDocument: "after" }
   );
 
   if (!complaint) {

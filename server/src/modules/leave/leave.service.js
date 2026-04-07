@@ -79,7 +79,7 @@ export async function listUserLeaves() {
 }
 
 export async function updateLeave(id, patch) {
-  const doc = await Leave.findByIdAndUpdate(id, { $set: patch }, { new: true });
+  const doc = await Leave.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after" });
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "Leave not found");
   return doc;
 }

@@ -20,12 +20,12 @@ export const createDepartment = async (data) => {
 };
 
 export const updateDepartment = async (id, data) => {
-  return await Department.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+  return await Department.findByIdAndUpdate(id, data, { returnDocument: "after", runValidators: true });
 };
 
 export const deleteDepartment = async (id) => {
   // Soft delete - mark as inactive
-  return await Department.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  return await Department.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" });
 };
 
 // ============ Designation Services ============
@@ -54,12 +54,12 @@ export const createDesignation = async (data) => {
 };
 
 export const updateDesignation = async (id, data) => {
-  return await Designation.findByIdAndUpdate(id, data, { new: true, runValidators: true }).populate("departmentId", "name");
+  return await Designation.findByIdAndUpdate(id, data, { returnDocument: "after", runValidators: true }).populate("departmentId", "name");
 };
 
 export const deleteDesignation = async (id) => {
   // Soft delete - mark as inactive
-  return await Designation.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  return await Designation.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" });
 };
 
 export const deleteDesignationsByDepartment = async (departmentId) => {

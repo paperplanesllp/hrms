@@ -91,7 +91,7 @@ export async function upsertPayroll(data, userId) {
   return Payroll.findOneAndUpdate(
     { userId: employeeId, month, year },
     { $set: payrollData },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   )
     .populate("userId", "name email role employeeId department designation")
     .populate("createdBy", "name email")
@@ -114,7 +114,7 @@ export async function updatePaymentStatus(payrollId, statusData, userId) {
   return Payroll.findByIdAndUpdate(
     payrollId,
     { $set: payrollData },
-    { new: true }
+    { returnDocument: "after" }
   )
     .populate("userId", "name email role employeeId department designation")
     .populate("createdBy", "name email")

@@ -66,7 +66,7 @@ export async function updateNews(id, patch) {
     }
   }
   
-  const doc = await News.findByIdAndUpdate(id, { $set: patch }, { new: true }).populate("createdBy", "name role email");
+  const doc = await News.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after" }).populate("createdBy", "name role email");
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
   return doc;
 }

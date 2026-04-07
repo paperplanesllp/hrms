@@ -14,12 +14,12 @@ export const getLeaveTypeById = async (id) => {
 };
 
 export const updateLeaveType = async (id, data) => {
-  return LeaveType.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+  return LeaveType.findByIdAndUpdate(id, data, { returnDocument: "after", runValidators: true });
 };
 
 export const deleteLeaveType = async (id) => {
   // Soft delete - set isActive to false
-  return LeaveType.findByIdAndUpdate(id, { isActive: false }, { new: true });
+  return LeaveType.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" });
 };
 
 export const getLeaveTypeByName = async (name) => {

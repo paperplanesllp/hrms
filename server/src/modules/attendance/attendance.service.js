@@ -434,7 +434,7 @@ export async function editAttendanceHRorAdmin(userId, date, patch) {
   const doc = await Attendance.findOneAndUpdate(
     { userId, date },
     { $set: updatedFields },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   return doc;
 }
@@ -450,7 +450,7 @@ export async function editAttendanceById(recordId, patch) {
   const doc = await Attendance.findByIdAndUpdate(
     recordId,
     { $set: updatedFields },
-    { new: true }
+    { returnDocument: "after" }
   );
   return doc;
 }
@@ -520,7 +520,7 @@ export async function autoMarkAbsentees() {
               totalHours: 0
             }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: "after" }
         );
       }
 
@@ -719,7 +719,7 @@ export async function adminEditShift(userId, date, shiftStart, shiftEnd) {
   const doc = await Attendance.findOneAndUpdate(
     { userId, date },
     { $set: { shiftStart, shiftEnd } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
   return doc;
 }

@@ -161,7 +161,7 @@ export async function markNotificationAsRead(notificationId) {
   return Notification.findByIdAndUpdate(
     notificationId,
     { isRead: true },
-    { new: true }
+      { returnDocument: "after" }
   );
 }
 
