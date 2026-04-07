@@ -213,6 +213,52 @@ const taskSchema = new mongoose.Schema(
       pausedAt: { type: Date, required: true },
       resumedAt: { type: Date, default: null },
       pausedDurationInSeconds: { type: Number, default: 0 }
+    }],
+
+    // === WORKFLOW MANAGEMENT ===
+    // Hold reason (when status = ON_HOLD)
+    holdReason: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Hold reason cannot exceed 1000 characters'],
+      default: null
+    },
+
+    // Reassignment history tracking
+    reassignedHistory: [{
+      previousAssignee: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      previousAssigneeName: {
+        type: String,
+        required: true
+      },
+      newAssignee: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      newAssigneeName: {
+        type: String,
+        required: true
+      },
+      reassignedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      reason: {
+        type: String,
+        trim: true,
+        maxlength: [1000, 'Reason cannot exceed 1000 characters'],
+        default: ''
+      },
+      reassignedAt: {
+        type: Date,
+        default: Date.now
+      }
     }]
   },
   {

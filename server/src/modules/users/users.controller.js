@@ -67,7 +67,8 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
 });
 
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await listUsers(req.user.role);
+  const { department } = req.query;
+  const users = await listUsers(req.user.role, req.user.id, department);
   res.json(users);
 });
 

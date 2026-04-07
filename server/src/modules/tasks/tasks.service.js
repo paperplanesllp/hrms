@@ -746,5 +746,286 @@ export const tasksService = {
         ? 'No tasks are assigned to this user. Check: 1) Is the user assigning tasks to themselves? 2) Are other users assigning tasks to them? 3) Try creating a test task.'
         : `Found ${myTasksCount} tasks assigned to this user.`
     };
+  },
+
+  // ─── WORKFLOW MANAGEMENT ───────────────────────────────────────────────────────────
+
+  // Hold task (move to ON_HOLD status with reason)
+  async holdTask(taskId, userId, holdReason) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email');
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Check if user is assigned to or manager of the task
+    const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
+    
+    if (!isAssignee) {
+      throw new Error('Only assigned users can hold this task');
+    }
+
+    // Validate status transition
+    if (!['pending', 'in-progress'].includes(task.status)) {
+      throw new Error(`Cannot hold task with status: ${task.status}`);
+    }
+
+    if (!holdReason || typeof holdReason !== 'string' || !holdReason.trim()) {
+      throw new Error('Hold reason is required');
+    }
+
+    task.status = 'on-hold';
+    task.holdReason = holdReason.trim();
+    task.isRunning = false;
+    
+    // Close any open pause entry
+    if (task.isPaused && task.pauseEntries.length > 0) {
+      const lastPause = task.pauseEntries[task.pauseEntries.length - 1];
+      if (!lastPause.resumedAt) {
+        const now = new Date();
+        const pausedSeconds = Math.max(0, Math.floor((now - new Date(lastPause.pausedAt)) / 1000));
+        lastPause.resumedAt = now;
+        lastPause.pausedDurationInSeconds = pausedSeconds;
+        task.totalPausedTimeInSeconds += pausedSeconds;
+      }
+    }
+    
+    task.isPaused = false;
+    task.currentSessionStartTime = null;
+
+    await task.save();
+    await task.populate([
+      { path: 'assignedTo', select: 'name email' },
+      { path: 'assignedBy', select: 'name email' }
+    ]);
+    return task;
+  },
+
+  // Resume task from ON_HOLD status
+  async resumeTaskFromHold(taskId, userId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email');
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Check if user is assigned to the task
+    const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
+    
+    if (!isAssignee) {
+      throw new Error('Only assigned users can resume this task');
+    }
+
+    if (task.status !== 'on-hold') {
+      throw new Error(`Cannot resume task with status: ${task.status}`);
+    }
+
+    task.status = 'in-progress';
+    task.holdReason = null;
+    task.isRunning = true;
+    task.currentSessionStartTime = new Date();
+
+    await task.save();
+    await task.populate([
+      { path: 'assignedTo', select: 'name email' },
+      { path: 'assignedBy', select: 'name email' }
+    ]);
+    return task;
+  },
+
+  // Reassign task to another user
+  async reassignTask(taskId, newAssigneeId, reasonText, performedById) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email');
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate new assignee exists
+    const newAssignee = await User.findById(new mongoose.Types.ObjectId(newAssigneeId));
+    if (!newAssignee) {
+      throw new Error('New assignee not found');
+    }
+
+    if (newAssignee.isDeleted) {
+      throw new Error('Cannot assign to a deleted user');
+    }
+
+    const performer = await User.findById(new mongoose.Types.ObjectId(performedById));
+    if (!performer) {
+      throw new Error('Performer not found');
+    }
+
+    // Store old assignee info for history
+    const previousAssignees = task.assignedTo;
+    const previousAssigneeNames = previousAssignees.map(a => a.name || 'Unknown').join(', ');
+
+    // Add to reassignment history
+    for (const oldAssignee of previousAssignees) {
+      task.reassignedHistory.push({
+        previousAssignee: oldAssignee._id,
+        previousAssigneeName: oldAssignee.name || 'Unknown',
+        newAssignee: new mongoose.Types.ObjectId(newAssigneeId),
+        newAssigneeName: newAssignee.name || 'Unknown',
+        reassignedBy: new mongoose.Types.ObjectId(performedById),
+        reason: reasonText || 'Task reassigned',
+        reassignedAt: new Date()
+      });
+    }
+
+    // Update assignee (replace old with new)
+    task.assignedTo = [new mongoose.Types.ObjectId(newAssigneeId)];
+    task.reassignedFrom = previousAssignees[0];
+    task.reassignedAt = new Date();
+
+    await task.save();
+    await task.populate([
+      { path: 'assignedTo', select: 'name email' },
+      { path: 'assignedBy', select: 'name email' },
+      { path: 'reassignedHistory.previousAssignee', select: 'name email' },
+      { path: 'reassignedHistory.newAssignee', select: 'name email' },
+      { path: 'reassignedHistory.reassignedBy', select: 'name email' }
+    ]);
+    return task;
+  },
+
+  // Get task timeline (activity history)
+  async getTaskTimeline(taskId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('comments.userId', 'name email avatar')
+      .populate('reassignedHistory.previousAssignee', 'name email')
+      .populate('reassignedHistory.newAssignee', 'name email')
+      .populate('reassignedHistory.reassignedBy', 'name email');
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Build timeline from various sources
+    const timeline = [];
+
+    // Task creation
+    timeline.push({
+      type: 'CREATED',
+      timestamp: task.createdAt,
+      description: `Task created by ${task.assignedBy?.name || 'Unknown'}`,
+      actor: task.assignedBy,
+      details: {
+        title: task.title,
+        priority: task.priority
+      }
+    });
+
+    // Status changes (from comments and history)
+    if (task.startedAt) {
+      timeline.push({
+        type: 'STARTED',
+        timestamp: task.startedAt,
+        description: 'Task started',
+        details: { status: 'in-progress' }
+      });
+    }
+
+    if (task.completedAt) {
+      timeline.push({
+        type: 'COMPLETED',
+        timestamp: task.completedAt,
+        description: 'Task completed',
+        details: { status: 'completed' }
+      });
+    }
+
+    // Reassignments
+    for (const reassignment of task.reassignedHistory || []) {
+      timeline.push({
+        type: 'REASSIGNED',
+        timestamp: reassignment.reassignedAt,
+        description: `Reassigned from ${reassignment.previousAssigneeName} to ${reassignment.newAssigneeName}`,
+        actor: reassignment.reassignedBy,
+        details: {
+          from: reassignment.previousAssignee,
+          to: reassignment.newAssignee,
+          reason: reassignment.reason
+        }
+      });
+    }
+
+    // Comments
+    for (const comment of task.comments || []) {
+      timeline.push({
+        type: 'COMMENT',
+        timestamp: comment.createdAt,
+        description: `${comment.userId?.name || 'Unknown'} commented`,
+        actor: comment.userId,
+        details: { text: comment.text }
+      });
+    }
+
+    // Sort by timestamp descending (newest first)
+    timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return {
+      taskId: task._id,
+      title: task.title,
+      status: task.status,
+      timeline: timeline
+    };
+  },
+
+  // Check user workload (count active tasks)
+  async checkWorkload(userId) {
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    
+    const activeTasks = await Task.countDocuments({
+      assignedTo: { $in: [userObjectId] },
+      isDeleted: false,
+      status: { $in: ['pending', 'in-progress', 'on-hold'] }
+    });
+
+    const workloadLimitWarning = activeTasks > 6;
+
+    return {
+      userId,
+      activeTasks,
+      workloadLimitWarning,
+      message: workloadLimitWarning 
+        ? `User has ${activeTasks} active tasks (limit: 6). Assignment may cause overload.`
+        : `User has ${activeTasks} active tasks for a healthy workload.`
+    };
+  },
+
+  // Check and update overdue tasks
+  async checkAndUpdateOverdueTasks() {
+    const now = new Date();
+    
+    const overdueTasks = await Task.updateMany(
+      {
+        isDeleted: false,
+        status: { $ne: 'completed' },
+        dueDate: { $lt: now }
+      },
+      {
+        $set: { status: 'overdue' }
+      }
+    );
+
+    return {
+      updatedCount: overdueTasks.modifiedCount,
+      message: `${overdueTasks.modifiedCount} tasks marked as overdue`
+    };
   }
 };

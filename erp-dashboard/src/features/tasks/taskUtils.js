@@ -190,10 +190,10 @@ export const getDaysUntilDue = (dueDate) => {
 };
 
 /**
- * Get due date display format with actual date, time and relative info
+ * Get due date display format with actual date and time, or just date for date-only entries
  * @param {Date} dueDate
  * @param {string} status
- * @returns {string} Formatted date with time (e.g., "26 Mar 2026, 05:30 am")
+ * @returns {string} Formatted date with time (e.g., "26 Mar 2026, 05:30 am") or just date for date-only entries
  */
 export const getDueDateDisplay = (dueDate, status) => {
   if (status === 'completed') return 'Completed';
@@ -203,6 +203,12 @@ export const getDueDateDisplay = (dueDate, status) => {
   try {
     const date = new Date(dueDate);
     
+    // Check if this was originally set as date-only (midnight UTC = 5:30 AM IST)
+    const utcHours = date.getUTCHours();
+    const utcMinutes = date.getUTCMinutes();
+    const utcSeconds = date.getUTCSeconds();
+    const isDateOnly = utcHours === 0 && utcMinutes === 0 && utcSeconds === 0;
+    
     // Get date components in Asia/Kolkata timezone
     const dateStr = date.toLocaleString('en-IN', {
       year: 'numeric',
@@ -210,6 +216,11 @@ export const getDueDateDisplay = (dueDate, status) => {
       day: 'numeric',
       timeZone: 'Asia/Kolkata'
     });
+    
+    // If it was set as date-only, show only the date
+    if (isDateOnly) {
+      return dateStr;
+    }
     
     // Get time components separately to ensure proper formatting
     const timeStr = date.toLocaleString('en-IN', {

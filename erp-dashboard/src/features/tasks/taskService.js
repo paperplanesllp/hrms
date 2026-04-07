@@ -112,4 +112,36 @@ export const taskService = {
     const res = await api.get(`/tasks/${taskId}/analysis`);
     return normalizeResponse(res);
   },
+
+  // ─── Workflow Methods ────────────────────────────────────────────────────────────
+
+  async holdTask(taskId, reason) {
+    const res = await api.put(`/tasks/${taskId}/hold`, { reason });
+    return normalizeResponse(res);
+  },
+
+  async resumeTaskFromHold(taskId) {
+    const res = await api.put(`/tasks/${taskId}/resume-hold`);
+    return normalizeResponse(res);
+  },
+
+  async reassignTask(taskId, newAssigneeId, reason) {
+    const res = await api.put(`/tasks/${taskId}/reassign`, { newAssigneeId, reason });
+    return normalizeResponse(res);
+  },
+
+  async getTaskTimeline(taskId) {
+    const res = await api.get(`/tasks/${taskId}/timeline`);
+    return normalizeResponse(res);
+  },
+
+  async checkWorkload(userId) {
+    const res = await api.get(`/tasks/check-workload/${userId}`);
+    return normalizeResponse(res);
+  },
+
+  async getDashboardMetrics() {
+    const res = await api.get('/tasks/dashboard/metrics');
+    return normalizeResponse(res);
+  }
 };

@@ -343,10 +343,10 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Due Date <span className="text-red-500">*</span>
+                  Due Date & Time <span className="text-red-500">*</span>
                 </label>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={formData.dueDate}
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                   className={`w-full px-4 py-2.5 border-2 rounded-lg transition ${

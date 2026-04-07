@@ -40,6 +40,26 @@ router.delete('/:id', tasksController.deleteTask);
 // Update task status - self or admin/hr
 router.patch('/:id/status', tasksController.updateTaskStatus);
 
+// ─── WORKFLOW MANAGEMENT ───────────────────────────────────────────────────────────
+// Hold task
+router.put('/:id/hold', tasksController.holdTask);
+
+// Resume task from hold
+router.put('/:id/resume-hold', tasksController.resumeTaskFromHold);
+
+// Reassign task
+router.put('/:id/reassign', tasksController.reassignTask);
+
+// Get task timeline (activity history)
+router.get('/:id/timeline', tasksController.getTaskTimeline);
+
+// Check user workload
+router.get('/check-workload/:userId', tasksController.checkWorkload);
+
+// Get dashboard metrics
+router.get('/dashboard/metrics', tasksController.getDashboardMetrics);
+
+// ─── TIMER ACTION ROUTES ───────────────────────────────────────────────────────────
 // Timer action routes (assignee only)
 router.post('/:id/start', tasksController.startTask);
 router.post('/:id/pause', tasksController.pauseTask);

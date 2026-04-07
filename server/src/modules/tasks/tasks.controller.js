@@ -345,6 +345,149 @@ export const tasksController = {
     }
   },
 
+  // ─── WORKFLOW MANAGEMENT ───────────────────────────────────────────────────────────
+
+  // Hold task
+  async holdTask(req, res) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      if (!reason || !reason.trim()) {
+        return sendError(res, 'Hold reason is required', 400);
+      }
+
+      const task = await tasksService.holdTask(id, req.user.id, reason);
+
+      // 🔔 Emit socket event
+      notifyTaskStatusChanged(task, req.user.id);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_STATUS_CHANGE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} held task "${task.title}" - Reason: ${reason}`,
+        metadata: { taskId: task._id, title: task.title, status: 'on-hold', reason },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
+      sendSuccess(res, task, 'Task placed on hold successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error in holdTask:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Resume task from hold
+  async resumeTaskFromHold(req, res) {
+    try {
+      const { id } = req.params;
+
+      const task = await tasksService.resumeTaskFromHold(id, req.user.id);
+
+      // 🔔 Emit socket event
+      notifyTaskStatusChanged(task, req.user.id);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_STATUS_CHANGE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} resumed task "${task.title}"`,
+        metadata: { taskId: task._id, title: task.title, status: 'in-progress' },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
+      sendSuccess(res, task, 'Task resumed successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error in resumeTaskFromHold:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Reassign task to another user
+  async reassignTask(req, res) {
+    try {
+      const { id } = req.params;
+      const { newAssigneeId, reason } = req.body;
+
+      if (!newAssigneeId) {
+        return sendError(res, 'New assignee ID is required', 400);
+      }
+
+      const task = await tasksService.reassignTask(id, newAssigneeId, reason, req.user.id);
+
+      // 🔔 Emit socket event
+      notifyTaskUpdated(task, req.user.id);
+
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_UPDATE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} reassigned task "${task.title}"`,
+        metadata: { 
+          taskId: task._id, 
+          title: task.title, 
+          newAssigneeId, 
+          reason: reason || 'No reason provided'
+        },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
+      sendSuccess(res, task, 'Task reassigned successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error in reassignTask:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get task timeline
+  async getTaskTimeline(req, res) {
+    try {
+      const { id } = req.params;
+      const timeline = await tasksService.getTaskTimeline(id);
+      sendSuccess(res, timeline, 'Task timeline fetched successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error in getTaskTimeline:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Check workload for a user
+  async checkWorkload(req, res) {
+    try {
+      const { userId } = req.params;
+      const workload = await tasksService.checkWorkload(userId);
+      sendSuccess(res, workload, 'Workload check completed');
+    } catch (error) {
+      console.error('❌ [Controller] Error in checkWorkload:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Dashboard metrics with completion rate
+  async getDashboardMetrics(req, res) {
+    try {
+      const userId = req.user.id;
+      const metrics = await tasksService.getAllTasksAnalytics('month');
+      sendSuccess(res, metrics, 'Dashboard metrics fetched successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error in getDashboardMetrics:', error.message);
+      sendError(res, error.message, 400);
+    }
+  },
+
   // ─── TIMER ACTIONS ───────────────────────────────────────────────────────────
 
   // Start task timer

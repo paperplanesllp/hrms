@@ -104,23 +104,34 @@ async function checkForOverdueTasks() {
       dueDate: { $lt: now },
       isOverdueNotified: { $ne: true } // Only notify once
     })
-    .select("_id title assignedTo assignedBy")
+    .select("_id title assignedTo assignedBy status")
     .lean();
 
     for (const task of overdueTasks) {
       try {
-        await notifyTaskOverdue(task._id.toString());
+        // Update status to 'overdue' if not already
+        if (task.status !== 'overdue') {
+          await Task.findByIdAndUpdate(
+            task._id,
+            { 
+              status: 'overdue',
+              isOverdueNotified: true 
+            },
+            { returnDocument: "after" }
+          );
+        } else {
+          // Just mark as notified
+          await Task.findByIdAndUpdate(
+            task._id,
+            { isOverdueNotified: true },
+            { returnDocument: "after" }
+          );
+        }
         
-        // Mark task as notified
-        await Task.findByIdAndUpdate(
-          task._id,
-          { isOverdueNotified: true },
-             { returnDocument: "after" }
-        );
-
+        await notifyTaskOverdue(task._id.toString());
         console.log(`✅ Overdue notification sent for task: ${task.title}`);
       } catch (error) {
-        console.error(`❌ Error sending overdue notification for task ${task._id}:`, error.message);
+        console.error(`❌ Error processing overdue task ${task._id}:`, error.message);
       }
     }
   } catch (error) {
