@@ -122,9 +122,17 @@ export default function TasksAssignedByMePage() {
 
   const handleStatusChange = async (taskId, newStatus) => {
     try {
-      await api.patch(`/tasks/${taskId}/status`, { status: newStatus });
+      const response = await api.patch(`/tasks/${taskId}/status`, { status: newStatus });
+      const updatedTask = response.data?.data || response.data;
+      
+      // Update only the specific task in state instead of reloading all tasks
+      setTasks(prevTasks =>
+        prevTasks.map(task =>
+          task._id === taskId ? { ...task, status: newStatus, ...updatedTask } : task
+        )
+      );
+      
       toast({ title: `Task marked as ${newStatus}`, type: 'success' });
-      loadTasks();
       setShowDetailsModal(false);
     } catch (err) {
       toast({
