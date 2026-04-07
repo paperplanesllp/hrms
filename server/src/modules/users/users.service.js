@@ -31,10 +31,15 @@ export async function createUser(data) {
   return user;
 }
 
-export async function listUsers(requestingUserRole = null, currentUserId = null) {
+export async function listUsers(requestingUserRole = null, currentUserId = null, departmentId = null) {
   // Exclude terminated users and ADMIN accounts from shared lists.
   // HR can see all active staff (USER + HR) so they can assign tasks to themselves and peers.
   const query = { role: { $nin: ["TERMINATED", "ADMIN"] } };
+  
+  // Filter by department if provided (for task reassignment to department members)
+  if (departmentId) {
+    query.departmentId = departmentId;
+  }
 
   return User.find(query)
     .select("-passwordHash -refreshTokenHash")
