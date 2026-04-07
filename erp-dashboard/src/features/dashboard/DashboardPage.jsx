@@ -263,6 +263,23 @@ export default function DashboardPage() {
                 .map((row) => row.userName || row.name || row.email)
             );
 
+          const toMinutes = (value) => {
+            if (!value || typeof value !== "string" || !value.includes(":")) return null;
+            const [h, m] = value.split(":").map(Number);
+            if (Number.isNaN(h) || Number.isNaN(m)) return null;
+            return h * 60 + m;
+          };
+
+          const lateCheckInNames = uniqueSorted(
+            todayRows
+              .filter((row) => {
+                const checkInMinutes = toMinutes(row?.checkIn);
+                const shiftStartMinutes = toMinutes(row?.shiftStart);
+                return checkInMinutes !== null && shiftStartMinutes !== null && checkInMinutes > shiftStartMinutes;
+              })
+              .map((row) => row.userName || row.name || row.email)
+          );
+
           const pendingLeaveNames = uniqueSorted(
             pendingLeaves
               .filter((leave) => leave.status === "PENDING")
@@ -275,7 +292,10 @@ export default function DashboardPage() {
 
           setStatEmployeeNames({
             presentToday: namesByStatus(["PRESENT", "SHORT_HOURS", "HALF_DAY"]),
-            shortHoursToday: namesByStatus(["SHORT_HOURS"]),
+            shortHoursToday: uniqueSorted([
+              ...namesByStatus(["SHORT_HOURS"]),
+              ...lateCheckInNames,
+            ]),
             halfDayToday: namesByStatus(["HALF_DAY"]),
             absentToday: absentNames,
             leavePending: pendingLeaveNames,
@@ -326,6 +346,9 @@ export default function DashboardPage() {
       socket.off("leave_rejected", refreshLeaveBalance);
     };
   }, []);
+
+  const shortHoursDisplayValue =
+    (stats.shortHoursToday ?? stats.lateToday ?? 0) || statEmployeeNames.shortHoursToday.length;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -437,7 +460,7 @@ export default function DashboardPage() {
               />
               <StatCard
                 title="Short Hours Today"
-                value={stats.shortHoursToday || stats.lateToday}
+                value={shortHoursDisplayValue}
                 hint="Late check-ins today"
                 color="corporate-blue"
                 icon={Clock}
