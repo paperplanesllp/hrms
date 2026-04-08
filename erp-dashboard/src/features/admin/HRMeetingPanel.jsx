@@ -160,7 +160,7 @@ function MeetingCard({ meeting, onDelete, onMarkComplete, isPast }) {
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="flex items-center gap-2 text-white/70">
           <Calendar className="w-4 h-4" />
-          {meetingDate.toLocaleDateString()}
+          {meetingDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
         </div>
         <div className="flex items-center gap-2 text-white/70">
           <Clock className="w-4 h-4" />

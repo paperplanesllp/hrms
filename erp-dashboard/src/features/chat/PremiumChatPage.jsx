@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useAuthStore } from "../../store/authStore.js";
+import { usePresenceStore } from "../../store/presenceStore.js";
 import { getSocket } from "../../lib/socket.js";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { encryptMessage, decryptMessage, isEncrypted } from "../../lib/encryption.js";
+import { getDerivedPresenceStatus, getAvatarDotStyle, sortItemsByPresence, formatExactTimestamp } from "../../lib/presenceUtils.js";
 import { MessageCircle, Send, Search, Users, Plus, Smile, Mic, Phone, Video, Lock, Check, CheckCheck, Sun, Moon, MoreVertical, Edit2, Trash2, X, Settings, Copy } from "lucide-react";
 import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
@@ -24,10 +26,10 @@ export default function PremiumChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [userOnlineStatus, setUserOnlineStatus] = useState({});
+  const presenceUsers = usePresenceStore(s => s.users);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
@@ -48,35 +50,44 @@ export default function PremiumChatPage() {
   
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingExpireRef = useRef(null);
+  const activeChatRef = useRef(null);
+
+  // Keep ref in sync with state so socket handlers see current value
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
 
   useEffect(() => {
     loadChats();
     
     if (socket) {
+      const handleTyping = ({ userName, userId }) => {
+        setTyping({ userName, userId });
+        clearTimeout(typingExpireRef.current);
+        typingExpireRef.current = setTimeout(() => setTyping(null), 3000);
+      };
+      const handleStopTyping = () => {
+        clearTimeout(typingExpireRef.current);
+        setTyping(null);
+      };
       socket.on("new_message", handleNewMessage);
-      socket.on("user_typing", () => setTyping(true));
-      socket.on("user_stop_typing", () => setTyping(false));
-      socket.on("user_online", (userData) => {
-        setUserOnlineStatus(prev => ({ ...prev, [userData.userId]: "online" }));
-      });
-      socket.on("user_offline", (userData) => {
-        setUserOnlineStatus(prev => ({ ...prev, [userData.userId]: "offline" }));
-      });
+      socket.on("user_typing", handleTyping);
+      socket.on("user_stop_typing", handleStopTyping);
       socket.on("group_updated", handleGroupUpdate);
       socket.on("group_member_added", handleGroupUpdate);
       socket.on("group_member_removed", handleGroupUpdate);
       socket.on("group_renamed", handleGroupUpdate);
       
       return () => {
-        socket.off("new_message");
-        socket.off("user_typing");
-        socket.off("user_stop_typing");
-        socket.off("user_online");
-        socket.off("user_offline");
-        socket.off("group_updated");
-        socket.off("group_member_added");
-        socket.off("group_member_removed");
-        socket.off("group_renamed");
+        socket.off("new_message", handleNewMessage);
+        socket.off("user_typing", handleTyping);
+        socket.off("user_stop_typing", handleStopTyping);
+        socket.off("group_updated", handleGroupUpdate);
+        socket.off("group_member_added", handleGroupUpdate);
+        socket.off("group_member_removed", handleGroupUpdate);
+        socket.off("group_renamed", handleGroupUpdate);
+        clearTimeout(typingExpireRef.current);
       };
     }
   }, [socket]);
@@ -87,7 +98,35 @@ export default function PremiumChatPage() {
 
   const emojis = ["😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👏", "🙏", "❤️", "🔥", "✨", "🎉", "💯", "👌", "✅"];
 
-  const isUserOnline = (userId) => userOnlineStatus[userId] === "online";
+  const getUserPresence = (userId) => getDerivedPresenceStatus(presenceUsers[userId]);
+  const isUserOnline = (userId) => presenceUsers[userId]?.isOnline === true;
+
+  // Sort chats by other participant's presence (online first)
+  const sortedChats = useMemo(() =>
+    sortItemsByPresence(chats, (chat) => {
+      if (chat.isGroupChat) return null;
+      const otherId = chat.participants?.find(p => p._id !== user.id)?._id;
+      return presenceUsers[otherId];
+    }),
+    [chats, presenceUsers, user?.id]
+  );
+
+  const getPresenceDotClass = (userId) => {
+    const { status } = getUserPresence(userId);
+    const d = getAvatarDotStyle(status);
+    return `${d.bg} ring-2 ${d.ring}${d.pulse ? ' animate-pulse' : ''}`;
+  };
+  const getPresenceLabel = (userId) => {
+    const presence = getUserPresence(userId);
+    const data = presenceUsers[userId];
+    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
+    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
+    if (presence.status === 'offline') {
+      const label = presence.lastSeen && presence.lastSeen !== 'never' ? `Last seen ${presence.lastSeen}` : 'Offline';
+      return { label, tooltip };
+    }
+    return { label: presence.label, tooltip };
+  };
 
   const loadChats = async () => {
     try {
@@ -114,7 +153,8 @@ export default function PremiumChatPage() {
   };
 
   const handleNewMessage = (message) => {
-    if (message.chatId && activeChat && message.chatId.toString() === activeChat._id.toString()) {
+    const currentChat = activeChatRef.current;
+    if (message.chatId && currentChat && message.chatId.toString() === currentChat._id.toString()) {
       const decryptedMessage = {
         ...message,
         content: isEncrypted(message.content) ? decryptMessage(message.content, message.chatId) : message.content
@@ -140,16 +180,12 @@ export default function PremiumChatPage() {
     if (!newMessage.trim() || !activeChat) return;
     
     try {
-      const encryptedContent = encryptMessage(newMessage, activeChat._id);
       const res = await api.post(`/chat/${activeChat._id}/messages`, {
-        content: encryptedContent,
-        isEncrypted: true
+        content: newMessage,
+        isEncrypted: false
       });
       
-      setMessages(prev => [...prev, {
-        ...res.data,
-        content: decryptMessage(res.data.content, activeChat._id)
-      }]);
+      setMessages(prev => [...prev, res.data]);
       
       setNewMessage("");
       socket?.emit("stop_typing", { chatId: activeChat._id, isGroupChat: activeChat.isGroupChat });
@@ -161,12 +197,18 @@ export default function PremiumChatPage() {
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     if (!activeChat) return;
+
+    if (!e.target.value.trim()) {
+      clearTimeout(typingTimeoutRef.current);
+      socket?.emit("stop_typing", { chatId: activeChat._id, isGroupChat: activeChat.isGroupChat });
+      return;
+    }
     
     socket?.emit("typing", { chatId: activeChat._id, userName: user.name, isGroupChat: activeChat.isGroupChat });
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       socket?.emit("stop_typing", { chatId: activeChat._id, isGroupChat: activeChat.isGroupChat });
-    }, 1000);
+    }, 2000);
   };
 
   const searchUsers = async (query) => {
@@ -217,16 +259,12 @@ export default function PremiumChatPage() {
         const blob = new Blob(chunks, { type: "audio/webm" });
         const formData = new FormData();
         formData.append("voice", blob, "voice.webm");
-        const encryptedContent = encryptMessage("Voice message", activeChat._id);
-        formData.append("content", encryptedContent);
-        formData.append("isEncrypted", true);
+        formData.append("content", "Voice message");
+        formData.append("isEncrypted", false);
         
         try {
           const res = await api.post(`/chat/${activeChat._id}/messages`, formData);
-          setMessages(prev => [...prev, {
-            ...res.data,
-            content: decryptMessage(res.data.content, activeChat._id)
-          }]);
+          setMessages(prev => [...prev, res.data]);
         } catch (err) {
           toast({ title: "Failed to send voice message", type: "error" });
         }
@@ -266,7 +304,8 @@ export default function PremiumChatPage() {
 
   const startEdit = () => {
     setEditingMessage(contextMenu.message);
-    setEditContent(contextMenu.message.content);
+    const content = contextMenu.message.content;
+    setEditContent(isEncrypted(content) ? decryptMessage(content, activeChat._id) : content);
     closeContextMenu();
   };
 
@@ -328,7 +367,7 @@ export default function PremiumChatPage() {
 
   const startEditMessage = (msg) => {
     setEditingMessage(msg);
-    setEditContent(msg.content);
+    setEditContent(isEncrypted(msg.content) ? decryptMessage(msg.content, activeChat._id) : msg.content);
     setMessageMenuOpen(null);
   };
 
@@ -474,9 +513,8 @@ export default function PremiumChatPage() {
               </div>
             </div>
           ) : (
-            chats.map(chat => {
+            sortedChats.map(chat => {
               const otherUser = chat.participants?.find(p => p._id !== user.id);
-              const isOnline = isUserOnline(otherUser?._id);
               
               return (
                 <div
@@ -505,9 +543,7 @@ export default function PremiumChatPage() {
                         )
                       )}
                       {!chat.isGroupChat && (
-                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 shadow-lg border-slate-50 dark:border-brand-card ${
-                          isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                        }`}></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-[2px] border-slate-50 dark:border-brand-card transition-colors duration-300 ${getPresenceDotClass(otherUser?._id)}`}></div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0" onClick={() => selectChat(chat)}>
@@ -605,11 +641,7 @@ export default function PremiumChatPage() {
                       )
                     )}
                     {!activeChat.isGroupChat && (
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 shadow-lg border-slate-50 dark:border-brand-card ${
-                        isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                          ? "bg-green-500 animate-pulse"
-                          : "bg-gray-400"
-                      }`}></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2px] border-slate-50 dark:border-brand-card transition-colors duration-300 ${getPresenceDotClass(activeChat.participants?.find(p => p._id !== user.id)?._id)}`}></div>
                     )}
                   </div>
                   <div>
@@ -620,23 +652,19 @@ export default function PremiumChatPage() {
                     </h3>
                     {typing && (
                       <p className="text-sm animate-pulse text-blue-500 dark:text-blue-400">
-                        typing...
+                        {typing.userName || 'Someone'} is typing...
                       </p>
                     )}
-                    {!typing && !activeChat.isGroupChat && (
-                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                        <span className={`inline-block w-2 h-2 rounded-full ${
-                          isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "bg-green-500 animate-pulse"
-                            : "bg-gray-400"
-                        }`}></span>
-                        <span>
-                          {isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "Online"
-                            : "Offline"}
-                        </span>
-                      </div>
-                    )}
+                    {!typing && !activeChat.isGroupChat && (() => {
+                      const otherId = activeChat.participants?.find(p => p._id !== user.id)?._id;
+                      const { label, tooltip } = getPresenceLabel(otherId);
+                      return (
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                          <span className={`inline-block w-2 h-2 rounded-full ${getPresenceDotClass(otherId)}`}></span>
+                          <span className="cursor-default" title={tooltip}>{label}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -711,12 +739,16 @@ export default function PremiumChatPage() {
                           {msg.fileUrl && msg.fileType?.startsWith("audio") ? (
                             <AudioPlayer src={msg.fileUrl} isSender={msg.sender._id === user.id} />
                           ) : (
-                            <p className="text-sm leading-relaxed break-words">{msg.content}</p>
+                            <p className="text-sm leading-relaxed break-words">
+                              {isEncrypted(msg.content) 
+                                ? decryptMessage(msg.content, activeChat._id) 
+                                : msg.content}
+                            </p>
                           )}
                           <div className={`flex items-center gap-1.5 mt-2 text-xs ${
                             msg.sender._id === user.id ? "text-blue-100" : "text-slate-500 dark:text-slate-400"
                           }`}>
-                            <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                            <span>{new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}</span>
                             {msg.sender._id === user.id && (
                               <CheckCheck className="w-4 h-4" />
                             )}
@@ -738,7 +770,7 @@ export default function PremiumChatPage() {
                             <div className="absolute right-0 top-10 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-slate-200 dark:border-gray-600 py-2 z-50 min-w-[160px] animate-in fade-in duration-200 bg-slate-50 dark:bg-brand-card border-slate-200 dark:border-slate-800">
                               {!msg.fileUrl && (
                                 <button
-                                  onClick={() => copyMessageText(msg.content)}
+                                  onClick={() => copyMessageText(isEncrypted(msg.content) ? decryptMessage(msg.content, activeChat._id) : msg.content)}
                                   className="flex items-center w-full gap-3 px-4 py-2 text-sm font-medium text-left transition-colors duration-150 hover:opacity-80 text-slate-900 dark:text-white"
                                   title="Copy message text"
                                 >

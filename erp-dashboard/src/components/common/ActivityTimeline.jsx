@@ -64,25 +64,22 @@ export function TimelineCard({ activity }) {
     const isToday = date.toDateString() === today.toDateString();
     const isYesterday = date.toDateString() === yesterday.toDateString();
 
+    const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' };
     if (isToday) {
-      return date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return date.toLocaleTimeString('en-IN', timeOpts);
     } else if (isYesterday) {
       return (
         "Yesterday, " +
-        date.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+        date.toLocaleTimeString('en-IN', timeOpts)
       );
     } else {
-      return date.toLocaleDateString("en-US", {
+      return date.toLocaleDateString('en-IN', {
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
       });
     }
   };

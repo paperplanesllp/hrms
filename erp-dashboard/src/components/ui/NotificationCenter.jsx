@@ -157,7 +157,7 @@ export default function NotificationCenter() {
                         <p className="font-semibold text-[var(--text-main)] text-sm">{notif.title}</p>
                         <p className="text-xs text-[var(--text-light)] mt-0.5">{notif.message}</p>
                         <p className="text-xs text-[var(--text-ultra-light)] mt-1">
-                          {new Date(notif.createdAt).toLocaleTimeString()}
+                          {new Date(notif.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                         </p>
                       </div>
                       <button

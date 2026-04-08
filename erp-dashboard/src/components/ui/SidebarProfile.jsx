@@ -15,8 +15,8 @@ export default function SidebarProfile() {
             {(user?.name || user?.firstName || "U").charAt(0).toUpperCase()}
           </div>
 
-          {/* Online status */}
-          <div className="absolute w-2.5 h-2.5 rounded-full shadow-lg -bottom-0.5 -right-0.5 bg-emerald-500 border border-white dark:border-brand-card animate-pulse" />
+          {/* Online status — current user is always online while viewing */}
+          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-white dark:border-brand-card bg-green-500 ring-2 ring-green-400/30 transition-colors duration-300" />
         </div>
 
         {/* User Info */}

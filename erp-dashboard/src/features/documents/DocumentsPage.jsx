@@ -164,7 +164,7 @@ export default function DocumentsPage() {
                           <Calendar size={16} />
                           <span>
                             Deadline:{" "}
-                            {new Date(doc.deadline).toLocaleDateString()}
+                            {new Date(doc.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                           </span>
                         </div>
                       </div>

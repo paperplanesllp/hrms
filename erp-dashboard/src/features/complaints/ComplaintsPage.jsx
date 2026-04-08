@@ -280,7 +280,7 @@ export default function ComplaintsPage() {
                       </h3>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      Submitted on {new Date(complaint.createdAt).toLocaleDateString()}
+                      Submitted on {new Date(complaint.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -311,7 +311,7 @@ export default function ComplaintsPage() {
                         {complaint.adminReply}
                       </p>
                       <p className="text-xs text-green-700 dark:text-green-400 mt-2">
-                        Responded on {new Date(complaint.repliedAt).toLocaleDateString()}
+                        Responded on {new Date(complaint.repliedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                       </p>
                     </div>
                   </div>

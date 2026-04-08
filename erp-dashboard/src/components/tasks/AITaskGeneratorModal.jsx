@@ -156,7 +156,7 @@ const AITaskGeneratorModal = ({ isOpen, onClose, onTasksGenerated, departmentId 
 
                         {task.dueDate && (
                           <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded">
-                            📅 {new Date(task.dueDate).toLocaleDateString()}
+                            📅 {new Date(task.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                           </span>
                         )}
 

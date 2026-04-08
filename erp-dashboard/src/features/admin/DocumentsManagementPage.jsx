@@ -366,7 +366,7 @@ export default function DocumentsManagementPage() {
                             </Badge>
 
                             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              {new Date(submission.deadline).toLocaleDateString()}
+                              {new Date(submission.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                             </span>
 
                             <div className="flex gap-1.5 flex-shrink-0 ml-2">
@@ -412,7 +412,7 @@ export default function DocumentsManagementPage() {
 
                       <div className="flex items-center gap-4 mt-4 text-sm text-slate-600 dark:text-slate-400">
                         <span>
-                          Deadline: {new Date(type.deadline).toLocaleDateString()}
+                          Deadline: {new Date(type.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                         </span>
                         <Badge variant={type.isActive ? "success" : "secondary"}>
                           {type.isActive ? "Active" : "Inactive"}
@@ -528,14 +528,14 @@ export default function DocumentsManagementPage() {
                       <p className="text-slate-600 dark:text-slate-400">Submitted At</p>
                       <p className="font-medium text-slate-900 dark:text-white">
                         {selectedSubmission.submittedAt 
-                          ? new Date(selectedSubmission.submittedAt).toLocaleString()
+                          ? new Date(selectedSubmission.submittedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
                           : "Not submitted"}
                       </p>
                     </div>
                     <div>
                       <p className="text-slate-600 dark:text-slate-400">Deadline</p>
                       <p className="font-medium text-slate-900 dark:text-white">
-                        {new Date(selectedSubmission.deadline).toLocaleString()}
+                        {new Date(selectedSubmission.deadline).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                       </p>
                     </div>
                   </div>

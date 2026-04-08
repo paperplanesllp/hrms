@@ -14,8 +14,10 @@ export default function StatusTimeline({ leave }) {
       day: "2-digit",
       month: "short",
       year: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata"
     });
   };
 
@@ -26,7 +28,7 @@ export default function StatusTimeline({ leave }) {
         title: "Request Submitted",
         description: `Leave request submitted on ${new Date(
           leave.createdAt
-        ).toLocaleDateString("en-IN")}`,
+        ).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}`,
         icon: Send,
         status: "completed",
         date: leave.createdAt,

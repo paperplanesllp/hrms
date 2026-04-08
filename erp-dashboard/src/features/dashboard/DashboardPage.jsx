@@ -624,12 +624,12 @@ export default function DashboardPage() {
                     
                     <div className="pt-3 border-t border-blue-300 dark:border-blue-800/50">
                       <span className="text-xs text-[#4A7FA7] dark:text-slate-400">Last Paid</span>
-                      <p className="text-sm font-semibold text-[#0A1931] dark:text-white mt-1">{new Date(payrollInfo.lastPaid).toLocaleDateString()}</p>
+                      <p className="text-sm font-semibold text-[#0A1931] dark:text-white mt-1">{new Date(payrollInfo.lastPaid).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
                     </div>
                     
                     <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg dark:bg-blue-900/30 dark:border-blue-800/50">
                       <span className="text-xs text-blue-900 dark:text-blue-200">Next Pay Date</span>
-                      <p className="mt-1 text-lg font-bold text-blue-600 dark:text-blue-300">{new Date(payrollInfo.nextPayDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                      <p className="mt-1 text-lg font-bold text-blue-600 dark:text-blue-300">{new Date(payrollInfo.nextPayDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
                     </div>
                   </div>
                 </div>
@@ -653,7 +653,7 @@ export default function DashboardPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-[#0A1931] dark:text-white">{task.title}</p>
-                              <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                              <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
                             </div>
                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${
                               task.priority === 'high' 
@@ -799,7 +799,7 @@ export default function DashboardPage() {
                         if (diffMins < 60) return `${diffMins}m ago`;
                         if (diffHours < 24) return `${diffHours}h ago`;
                         if (diffDays < 7) return `${diffDays}d ago`;
-                        return d.toLocaleDateString();
+                        return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
                       };
 
                       return (
@@ -874,7 +874,7 @@ export default function DashboardPage() {
                       if (diffMins < 60) return `${diffMins}m ago`;
                       if (diffHours < 24) return `${diffHours}h ago`;
                       if (diffDays < 7) return `${diffDays}d ago`;
-                      return d.toLocaleDateString();
+                      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
                     };
 
                     return (

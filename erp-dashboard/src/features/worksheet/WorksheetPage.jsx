@@ -36,7 +36,10 @@ const formatTime = (timeStr) => {
   // Ensure format is HH:MM
   const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
   if (timeRegex.test(timeStr)) {
-    return timeStr;
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h12 = hours % 12 || 12;
+    return `${h12}:${String(minutes).padStart(2, "0")} ${ampm}`;
   }
   
   // Try to fix malformed times
@@ -44,7 +47,9 @@ const formatTime = (timeStr) => {
   if (parts.length === 2) {
     const hours = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
     const mins = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
-    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h12 = hours % 12 || 12;
+    return `${h12}:${String(mins).padStart(2, "0")} ${ampm}`;
   }
   
   return "--:--";

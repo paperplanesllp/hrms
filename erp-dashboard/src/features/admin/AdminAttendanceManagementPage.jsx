@@ -21,7 +21,7 @@ export default function AdminAttendanceManagementPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "" });
+  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", checkInPeriod: "AM", checkOutPeriod: "PM" });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Load all employees and departments on mount
@@ -117,9 +117,23 @@ export default function AdminAttendanceManagementPage() {
 
   const handleEditRecord = (record) => {
     setEditingRecord(record);
+    // Convert 24h HH:MM to 12h for display
+    const to12h = (time24) => {
+      if (!time24) return { time: "", period: "AM" };
+      const [hStr, mStr] = time24.split(":");
+      let h = parseInt(hStr, 10);
+      const period = h >= 12 ? "PM" : "AM";
+      if (h === 0) h = 12;
+      else if (h > 12) h -= 12;
+      return { time: `${h}:${mStr}`, period };
+    };
+    const ci = to12h(record.checkIn);
+    const co = to12h(record.checkOut);
     setEditForm({
-      checkIn: record.checkIn || "",
-      checkOut: record.checkOut || ""
+      checkIn: ci.time,
+      checkInPeriod: ci.period,
+      checkOut: co.time,
+      checkOutPeriod: co.period
     });
     setShowEditModal(true);
   };
@@ -130,25 +144,51 @@ export default function AdminAttendanceManagementPage() {
     try {
       setEditSubmitting(true);
 
-      // Validate time format
-      if (editForm.checkIn && !/^\d{2}:\d{2}$/.test(editForm.checkIn)) {
+      // Convert 12h to 24h HH:MM for backend
+      const to24h = (time12, period) => {
+        if (!time12) return "";
+        const match = time12.match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) return null;
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        if (h < 1 || h > 12 || parseInt(m, 10) > 59) return null;
+        if (period === "AM") { if (h === 12) h = 0; }
+        else { if (h !== 12) h += 12; }
+        return `${String(h).padStart(2, "0")}:${m}`;
+      };
+
+      // Validate time format (H:MM or HH:MM)
+      const timeRegex = /^\d{1,2}:\d{2}$/;
+      if (editForm.checkIn && !timeRegex.test(editForm.checkIn)) {
         toast({ 
-          title: "Invalid check-in time format. Use HH:MM", 
+          title: "Invalid check-in time format. Use H:MM (e.g. 9:30)", 
           type: "error" 
         });
         return;
       }
-      if (editForm.checkOut && !/^\d{2}:\d{2}$/.test(editForm.checkOut)) {
+      if (editForm.checkOut && !timeRegex.test(editForm.checkOut)) {
         toast({ 
-          title: "Invalid check-out time format. Use HH:MM", 
+          title: "Invalid check-out time format. Use H:MM (e.g. 5:30)", 
           type: "error" 
         });
         return;
       }
 
+      const checkIn24 = to24h(editForm.checkIn, editForm.checkInPeriod);
+      const checkOut24 = to24h(editForm.checkOut, editForm.checkOutPeriod);
+
+      if (editForm.checkIn && checkIn24 === null) {
+        toast({ title: "Invalid check-in time. Hour must be 1-12.", type: "error" });
+        return;
+      }
+      if (editForm.checkOut && checkOut24 === null) {
+        toast({ title: "Invalid check-out time. Hour must be 1-12.", type: "error" });
+        return;
+      }
+
       await api.put(`/attendance/${editingRecord._id}`, {
-        checkIn: editForm.checkIn || "",
-        checkOut: editForm.checkOut || ""
+        checkIn: checkIn24 || "",
+        checkOut: checkOut24 || ""
       });
 
       toast({ 
@@ -468,31 +508,51 @@ export default function AdminAttendanceManagementPage() {
               {/* Check-In Time */}
               <div>
                 <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Check-In Time (HH:MM)
+                  Check-In Time
                 </label>
-                <input
-                  type="text"
-                  placeholder="09:00"
-                  value={editForm.checkIn}
-                  onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Leave empty if no check-in</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="9:00"
+                    value={editForm.checkIn}
+                    onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    value={editForm.checkInPeriod}
+                    onChange={(e) => setEditForm({ ...editForm, checkInPeriod: e.target.value })}
+                    className="px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+                <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">e.g. 9:30 AM — Leave empty if no check-in</p>
               </div>
 
               {/* Check-Out Time */}
               <div>
                 <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Check-Out Time (HH:MM)
+                  Check-Out Time
                 </label>
-                <input
-                  type="text"
-                  placeholder="17:00"
-                  value={editForm.checkOut}
-                  onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Leave empty if no check-out</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="5:30"
+                    value={editForm.checkOut}
+                    onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <select
+                    value={editForm.checkOutPeriod}
+                    onChange={(e) => setEditForm({ ...editForm, checkOutPeriod: e.target.value })}
+                    className="px-3 py-2 border border-[#B3CFE5] dark:border-slate-600 rounded-lg text-[#0A1931] dark:text-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+                <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">e.g. 6:30 PM — Leave empty if no check-out</p>
               </div>
 
               <div className="p-3 border rounded-lg bg-blue-50 border-blue-200">

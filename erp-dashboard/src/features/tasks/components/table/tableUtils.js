@@ -72,25 +72,28 @@ export const formatDate = (date, format = 'short') => {
 
   switch (format) {
     case 'short':
-      return d.toLocaleDateString('en-US', {
+      return d.toLocaleDateString('en-IN', {
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata'
       });
     case 'long':
-      return d.toLocaleDateString('en-US', {
+      return d.toLocaleDateString('en-IN', {
         weekday: 'short',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata'
       });
     case 'full':
-      return d.toLocaleDateString('en-US', {
+      return d.toLocaleDateString('en-IN', {
         weekday: 'long',
         month: 'long',
         day: 'numeric',
-        year: 'numeric'
+        year: 'numeric',
+        timeZone: 'Asia/Kolkata'
       });
     default:
-      return d.toLocaleDateString();
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   }
 };
 

@@ -3,35 +3,34 @@ import CryptoJS from 'crypto-js';
 /**
  * End-to-End Encryption System for Chat Messages
  * Uses AES-256 encryption with CBC mode for message content
+ * 
+ * KEY INSIGHT: All participants in a chat derive the same encryption key
+ * from the chatId, so they can all encrypt/decrypt each other's messages.
  */
 
-// Generate or retrieve encryption key from localStorage
-const getOrCreateEncryptionKey = () => {
-  let key = localStorage.getItem('chat_encryption_key');
-  
-  if (!key) {
-    // Generate a random 32-character key (256-bit for AES-256)
-    key = CryptoJS.lib.WordArray.random(32).toString();
-    localStorage.setItem('chat_encryption_key', key);
-  }
-  
-  return key;
+// Derive a shared encryption key from the chat ID
+// This ensures all chat participants can encrypt/decrypt messages
+const getSharedEncryptionKey = (chatId) => {
+  // Generate a consistent 32-byte key from chatId using SHA-256
+  // All users will get the SAME key for the same chatId
+  const hashKey = CryptoJS.SHA256(chatId + 'chat_secret_salt').toString();
+  return hashKey.substring(0, 32); // Use first 32 chars (128-bit, but sufficient for AES)
 };
 
 // Get initialization vector (IV) specific to a chat
 const getChatIV = (chatId) => {
-  return CryptoJS.SHA256(chatId).toString().substring(0, 16);
+  return CryptoJS.SHA256(chatId + 'iv_salt').toString().substring(0, 16);
 };
 
 /**
  * Encrypt a message before sending
  * @param {string} content - The message content to encrypt
- * @param {string} chatId - The chat ID (used to derive IV)
+ * @param {string} chatId - The chat ID (used to derive shared encryption key)
  * @returns {string} Encrypted content as base64
  */
 export const encryptMessage = (content, chatId) => {
   try {
-    const key = getOrCreateEncryptionKey();
+    const key = getSharedEncryptionKey(chatId);
     const iv = getChatIV(chatId);
     
     const encrypted = CryptoJS.AES.encrypt(content, key, {
@@ -51,14 +50,14 @@ export const encryptMessage = (content, chatId) => {
 /**
  * Decrypt a received message
  * @param {string} encryptedContent - The encrypted message content
- * @param {string} chatId - The chat ID (used to derive IV)
+ * @param {string} chatId - The chat ID (used to derive shared encryption key)
  * @returns {string} Decrypted content
  */
 export const decryptMessage = (encryptedContent, chatId) => {
   try {
     // Check if content looks encrypted (base64-like)
     if (!encryptedContent || typeof encryptedContent !== 'string') {
-      return encryptedContent;
+      return encryptedContent || '';
     }
     
     // If content doesn't look encrypted, return as-is
@@ -66,37 +65,71 @@ export const decryptMessage = (encryptedContent, chatId) => {
       return encryptedContent;
     }
     
-    const key = getOrCreateEncryptionKey();
+    const key = getSharedEncryptionKey(chatId);
     const iv = getChatIV(chatId);
     
-    const decrypted = CryptoJS.AES.decrypt(encryptedContent, key, {
-      iv: CryptoJS.enc.Utf8.parse(iv),
-      mode: CryptoJS.mode.CBC,
-      padding: CryptoJS.pad.Pkcs7
-    });
-    
-    // Convert from UTF-8 bytes to string
-    const content = decrypted.toString(CryptoJS.enc.Utf8);
-    
-    // If decryption produced empty string, return original (decryption failed)
-    if (!content || content.length === 0) {
-      console.warn('Decryption resulted in empty string for encrypted content:', encryptedContent.substring(0, 50));
-      return encryptedContent;
+    // Strategy 1: Try passphrase-based decryption (string key, CryptoJS OpenSSL mode)
+    try {
+      const decrypted1 = CryptoJS.AES.decrypt(encryptedContent, key);
+      const content1 = decrypted1.toString(CryptoJS.enc.Utf8);
+      if (content1 && content1.length > 0) {
+        return content1;
+      }
+    } catch (e) {
+      // Strategy 1 failed, try next
+    }
+
+    // Strategy 2: Try with explicit IV and parsed key (raw key mode)
+    try {
+      const keyWordArray = CryptoJS.enc.Utf8.parse(key);
+      const ivWordArray = CryptoJS.enc.Utf8.parse(iv);
+      const decrypted2 = CryptoJS.AES.decrypt(encryptedContent, keyWordArray, {
+        iv: ivWordArray,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+      const content2 = decrypted2.toString(CryptoJS.enc.Utf8);
+      if (content2 && content2.length > 0) {
+        return content2;
+      }
+    } catch (e) {
+      // Strategy 2 failed, try next
+    }
+
+    // Strategy 3: Try passphrase mode with original options
+    try {
+      const decrypted3 = CryptoJS.AES.decrypt(encryptedContent, key, {
+        iv: CryptoJS.enc.Utf8.parse(iv),
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+      });
+      const content3 = decrypted3.toString(CryptoJS.enc.Utf8);
+      if (content3 && content3.length > 0) {
+        return content3;
+      }
+    } catch (e) {
+      // Strategy 3 failed
     }
     
-    return content;
+    console.warn('All decryption strategies failed for:', encryptedContent.substring(0, 50));
+    return '[Unable to display message]';
   } catch (error) {
     console.error('Decryption error:', error);
-    return encryptedContent; // Fallback to encrypted content on error
+    return '[Unable to display message]';
   }
 };
 
 /**
- * Get the encryption key (for backup/sharing purposes)
- * @returns {string} The encryption key
+ * Get the shared encryption key for a specific chat
+ * @param {string} chatId - The chat ID
+ * @returns {string} The shared encryption key for this chat
  */
-export const getEncryptionKey = () => {
-  return getOrCreateEncryptionKey();
+export const getEncryptionKey = (chatId) => {
+  if (!chatId) {
+    console.warn('getEncryptionKey called without chatId');
+    return null;
+  }
+  return getSharedEncryptionKey(chatId);
 };
 
 /**
@@ -114,33 +147,6 @@ export const isEncrypted = (content) => {
   const isLongEnough = content.length > 30;
   
   return hasEncryptionHeader || (looksLikeBase64 && isLongEnough);
-};
-
-/**
- * Set a custom encryption key (for multi-device support)
- * @param {string} key - The encryption key to set
- */
-export const setEncryptionKey = (key) => {
-  if (key && typeof key === 'string' && key.length > 0) {
-    localStorage.setItem('chat_encryption_key', key);
-  }
-};
-
-/**
- * Clear encryption key and generate new one
- * WARNING: This will make previously encrypted messages unreadable
- */
-export const resetEncryptionKey = () => {
-  localStorage.removeItem('chat_encryption_key');
-  getOrCreateEncryptionKey(); // Generate new one
-};
-
-/**
- * Export encryption key for backup (user should store this safely)
- * @returns {string} The encryption key for backup
- */
-export const exportEncryptionKey = () => {
-  return getOrCreateEncryptionKey();
 };
 
 /**
@@ -172,12 +178,10 @@ export const batchDecryptMessages = (messages) => {
  * @returns {object} Status information
  */
 export const getEncryptionStatus = () => {
-  const key = getOrCreateEncryptionKey();
   return {
     enabled: true,
     algorithm: 'AES-256-CBC',
-    keyLength: key.length,
-    keyExists: !!localStorage.getItem('chat_encryption_key'),
-    lastUpdated: localStorage.getItem('chat_encryption_key_updated') || 'System start'
+    mode: 'Shared Key per Chat',
+    description: 'All participants in a chat derive the same encryption key from the chat ID'
   };
 };

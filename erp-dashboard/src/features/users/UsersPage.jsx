@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
@@ -8,7 +8,10 @@ import GoogleMapSelector from "../../components/ui/GoogleMapSelector.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
+import { usePresenceStore } from "../../store/presenceStore.js";
 import { ROLES } from "../../app/constants.js";
+import { getSocket } from "../../lib/socket.js";
+import { getDerivedPresenceStatus, getAvatarDotStyle, formatExactTimestamp } from "../../lib/presenceUtils.js";
 import { 
   Users, 
   Shield, 
@@ -73,10 +76,13 @@ const formatDateForDisplay = (dateString) => {
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
+  const socket = getSocket();
+  const presenceUsers = usePresenceStore(s => s.users);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState(""); 
+  const [filterRole, setFilterRole] = useState("");
+  const [filterPresence, setFilterPresence] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [departments, setDepartments] = useState([]);
@@ -111,6 +117,20 @@ export default function UsersPage() {
     emergencyContact: "", maritalStatus: "", nationality: "", bloodGroup: "",
     departmentId: "", designationId: "", role: ROLES.USER,
   });
+
+  // Presence comes from the global presenceStore (kept in sync by SocketProvider)
+  const getProfilePresence = (userId) => {
+    const presence = getDerivedPresenceStatus(presenceUsers[userId]);
+    const data = presenceUsers[userId];
+    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
+    const exactTooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
+    const dotStyle = getAvatarDotStyle(presence.status);
+    let label = presence.label;
+    if (presence.status === 'offline' && presence.lastSeen && presence.lastSeen !== 'never') {
+      label = `Last seen ${presence.lastSeen}`;
+    }
+    return { ...presence, label, exactTooltip, dotBg: dotStyle.bg, dotRing: dotStyle.ring, dotPulse: dotStyle.pulse };
+  };
 
   const openProfileModal = (user) => {
     setSelectedUser(user);
@@ -309,12 +329,30 @@ export default function UsersPage() {
     loadDepartments();
   }, []);
 
+  // Presence counts (recompute when items or status map changes)
+  const presenceCounts = useMemo(() => {
+    let online = 0, away = 0, offline = 0;
+    items.forEach(u => {
+      const p = getDerivedPresenceStatus(presenceUsers[u._id]);
+      if (['online', 'active-now', 'active-recently', 'typing'].includes(p.status)) online++;
+      else if (p.status === 'away') away++;
+      else offline++;
+    });
+    return { online, away, offline };
+  }, [items, presenceUsers]);
+
   // Filter logic
   const filteredItems = items.filter((user) => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = !filterRole || user.role === filterRole;
-    return matchesSearch && matchesRole;
+    if (!matchesSearch || !matchesRole) return false;
+    if (!filterPresence) return true;
+    const p = getDerivedPresenceStatus(presenceUsers[user._id]);
+    if (filterPresence === 'online') return ['online', 'active-now', 'active-recently', 'typing'].includes(p.status);
+    if (filterPresence === 'away') return p.status === 'away';
+    if (filterPresence === 'offline') return p.status === 'offline' || p.status === 'unknown';
+    return true;
   });
 
   // Load designations when department changes
@@ -476,6 +514,39 @@ export default function UsersPage() {
         </div>
       </Card>
 
+      {/* Presence Filter Tabs */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          { key: '', label: 'All', count: items.length },
+          { key: 'online', label: 'Online', count: presenceCounts.online, dot: 'bg-green-500' },
+          { key: 'away', label: 'Away', count: presenceCounts.away, dot: 'bg-amber-500' },
+          { key: 'offline', label: 'Offline', count: presenceCounts.offline, dot: 'bg-slate-400' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setFilterPresence(tab.key)}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              filterPresence === tab.key
+                ? 'bg-[#0A1931] text-white border-[#0A1931]'
+                : 'bg-white text-[#1A3D63] border-[#B3CFE5] hover:bg-[#F6FAFD]'
+            }`}
+          >
+            {tab.dot && <span className={`w-2 h-2 rounded-full ${tab.dot}${filterPresence === tab.key ? ' ring-1 ring-white/50' : ''}`}></span>}
+            {tab.label}
+            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+              filterPresence === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>{tab.count}</span>
+          </button>
+        ))}
+
+        {presenceCounts.online > 0 && (
+          <span className="ml-auto text-sm text-green-700 font-medium flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            {presenceCounts.online} online now
+          </span>
+        )}
+      </div>
+
       {/* Staff Table */}
       <Card className="p-6 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)] overflow-x-auto">
         <h3 className="text-lg font-semibold text-[#0A1931] mb-4">Staff Members ({filteredItems.length})</h3>
@@ -522,9 +593,25 @@ export default function UsersPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Badge className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-[#E6F4EA] border-[#137333] text-[#137333]">
-                          Active
-                        </Badge>
+                        {(() => {
+                          const p = getProfilePresence(user._id);
+                          const badgeMap = {
+                            'active-now': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', dot: 'bg-green-500' },
+                            'active-recently': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', dot: 'bg-green-500' },
+                            online: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+                            typing: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', dot: 'bg-blue-500' },
+                            away: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', dot: 'bg-amber-500' },
+                            offline: { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-600', dot: 'bg-slate-400' },
+                          };
+                          const s = badgeMap[p.status] || badgeMap.offline;
+                          return (
+                            <Badge className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${s.bg} ${s.border} ${s.text}`}
+                                   title={p.exactTooltip}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
+                              {p.label}
+                            </Badge>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -905,12 +992,29 @@ export default function UsersPage() {
               
               <div className="relative z-10 flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                    {selectedUser.name?.charAt(0)?.toUpperCase() || 'E'}
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+                      {selectedUser.name?.charAt(0)?.toUpperCase() || 'E'}
+                    </div>
+                    {/* Live presence dot */}
+                    {(() => {
+                      const p = getProfilePresence(selectedUser._id);
+                      return <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-[2.5px] border-blue-500 transition-colors duration-300 ${p.dotBg} ring-2 ${p.dotRing}${p.dotPulse ? ' animate-pulse' : ''}`}></div>;
+                    })()}
                   </div>
                   <div>
                     <h2 className="text-3xl font-bold text-white">{selectedUser.name}</h2>
                     <p className="text-blue-100 text-sm mt-1">{selectedUser.role}</p>
+                    {/* Live presence label */}
+                    {(() => {
+                      const p = getProfilePresence(selectedUser._id);
+                      return (
+                        <p className="text-sm mt-1 text-blue-50 font-medium" title={p.exactTooltip}>
+                          {p.label}
+                          {p.exactTooltip && <span className="ml-2 text-xs text-blue-200/80">({p.exactTooltip})</span>}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
                 <button
@@ -1019,10 +1123,24 @@ export default function UsersPage() {
                     </Badge>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</p>
-                    <Badge className="inline-block px-3 py-1 rounded-full text-xs font-semibold border mt-1 bg-emerald-50 border-emerald-300 text-emerald-700">
-                      Active
-                    </Badge>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Presence</p>
+                    {(() => {
+                      const p = getProfilePresence(selectedUser._id);
+                      const badgeColors = {
+                        'active-now': 'bg-green-50 border-green-300 text-green-700',
+                        'active-recently': 'bg-green-50 border-green-300 text-green-700',
+                        online: 'bg-emerald-50 border-emerald-300 text-emerald-700',
+                        away: 'bg-amber-50 border-amber-300 text-amber-700',
+                        offline: 'bg-slate-50 border-slate-300 text-slate-600',
+                        typing: 'bg-blue-50 border-blue-300 text-blue-700',
+                      };
+                      return (
+                        <Badge className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border mt-1 ${badgeColors[p.status] || badgeColors.offline}`}
+                               title={p.exactTooltip}>
+                          {p.label}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                   {selectedUser.department && (
                     <div>
@@ -1055,10 +1173,17 @@ export default function UsersPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Account Status</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                      <span className="text-sm font-medium text-green-700">Active</span>
-                    </div>
+                    {(() => {
+                      const p = getProfilePresence(selectedUser._id);
+                      const dotColor = p.status === 'offline' ? 'bg-slate-400' : p.status === 'away' ? 'bg-amber-500' : 'bg-green-500';
+                      const textColor = p.status === 'offline' ? 'text-slate-600' : p.status === 'away' ? 'text-amber-700' : 'text-green-700';
+                      return (
+                        <div className="flex items-center gap-2 mt-1" title={p.exactTooltip}>
+                          <div className={`w-2 h-2 rounded-full ${dotColor}${p.dotPulse ? ' animate-pulse' : ''}`}></div>
+                          <span className={`text-sm font-medium ${textColor}`}>{p.label}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

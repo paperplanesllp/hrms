@@ -53,9 +53,11 @@ export default function HRActivityFeed({ activity }) {
               <p className="mb-1 text-sm font-semibold text-white">{item.message}</p>
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <span>
-                  {new Date(item.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit"
+                  {new Date(item.timestamp).toLocaleTimeString('en-IN', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
                   })}
                 </span>
                 {item.user && <span>•</span>}

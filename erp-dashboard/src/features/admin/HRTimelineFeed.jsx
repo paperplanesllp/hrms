@@ -127,7 +127,7 @@ export default function HRTimelineFeed({ onActivityUpdate }) {
         type: "meeting",
         title: "📅 New Meeting",
         message: meeting.title || "A meeting was scheduled",
-        description: `Scheduled for ${new Date(meeting.scheduledFor).toLocaleString()}`,
+        description: `Scheduled for ${new Date(meeting.scheduledFor).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}`,
         author: meeting.organizer?.name || "A member",
         timestamp: new Date(),
         isPinned: true
@@ -310,10 +310,12 @@ export default function HRTimelineFeed({ onActivityUpdate }) {
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
                       <Clock className="w-3 h-3" />
                       <span>
-                        {item.timestamp.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit"
+                        {item.timestamp.toLocaleTimeString('en-IN', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: true,
+                          timeZone: 'Asia/Kolkata'
                         })}
                       </span>
                       {item.author && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useAuthStore } from "../../store/authStore.js";
 import { getSocket } from "../../lib/socket.js";
 import api from "../../lib/api.js";
@@ -11,6 +11,9 @@ import AudioPlayer from "./AudioPlayer.jsx";
 import GroupChatModal from "../../components/ui/GroupChatModal.jsx";
 import ClearChatConfirmationModal from "./ClearChatConfirmationModal.jsx";
 import DeleteConversationModal from "./DeleteConversationModal.jsx";
+import { encryptMessage, decryptMessage, isEncrypted } from "../../lib/encryption.js";
+import { getDerivedPresenceStatus, getAvatarDotStyle, sortItemsByPresence, formatExactTimestamp } from "../../lib/presenceUtils.js";
+import { usePresenceStore } from "../../store/presenceStore.js";
 import "../../../styles/chat.css";
 
 export default function ChatPage() {
@@ -24,7 +27,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -40,7 +43,7 @@ export default function ChatPage() {
   const [editContent, setEditContent] = useState("");
   const [showMessageInfoModal, setShowMessageInfoModal] = useState(false);
   const [messageInfo, setMessageInfo] = useState(null);
-  const [userOnlineStatus, setUserOnlineStatus] = useState({});
+  const presenceUsers = usePresenceStore(s => s.users);
   const [showChatMenu, setShowChatMenu] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState(null); // Track online/offline status
@@ -58,49 +61,33 @@ export default function ChatPage() {
   
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingExpireRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     loadChats();
     
     if (socket) {
-      // Message events
+      const handleTyping = ({ userName, userId }) => {
+        setTyping({ userName, userId });
+        clearTimeout(typingExpireRef.current);
+        typingExpireRef.current = setTimeout(() => setTyping(null), 3000);
+      };
+      const handleStopTyping = () => {
+        clearTimeout(typingExpireRef.current);
+        setTyping(null);
+      };
       socket.on("new_message", handleNewMessage);
-      socket.on("user_typing", () => setTyping(true));
-      socket.on("user_stop_typing", () => setTyping(false));
+      socket.on("user_typing", handleTyping);
+      socket.on("user_stop_typing", handleStopTyping);
       socket.on("group_updated", handleGroupUpdate);
       
-      // User status events
-      socket.on("user_online", (userData) => {
-        setUserOnlineStatus(prev => ({
-          ...prev,
-          [userData.userId]: "online"
-        }));
-      });
-
-      socket.on("user_offline", (userData) => {
-        setUserOnlineStatus(prev => ({
-          ...prev,
-          [userData.userId]: "offline"
-        }));
-      });
-
-      socket.on("online_users_list", (onlineUsersList) => {
-        const statusMap = {};
-        onlineUsersList.forEach(userData => {
-          statusMap[userData.userId] = userData.status;
-        });
-        setUserOnlineStatus(statusMap);
-      });
-      
       return () => {
-        socket.off("new_message");
-        socket.off("user_typing");
-        socket.off("user_stop_typing");
-        socket.off("group_updated");
-        socket.off("user_online");
-        socket.off("user_offline");
-        socket.off("online_users_list");
+        socket.off("new_message", handleNewMessage);
+        socket.off("user_typing", handleTyping);
+        socket.off("user_stop_typing", handleStopTyping);
+        socket.off("group_updated", handleGroupUpdate);
+        clearTimeout(typingExpireRef.current);
       };
     }
   }, [socket]);
@@ -111,14 +98,35 @@ export default function ChatPage() {
 
   const emojis = ["😀", "😂", "😍", "🥰", "😎", "🤔", "👍", "👏", "🙏", "❤️", "🔥", "✨", "🎉", "💯", "👌", "✅"];
 
-  // Helper function to get user online status
-  const getUserStatus = (userId) => {
-    return userOnlineStatus[userId] === "online" ? "online" : "offline";
-  };
+  // Presence helpers
+  const getUserPresence = (userId) => getDerivedPresenceStatus(presenceUsers[userId]);
+  const isUserOnline = (userId) => presenceUsers[userId]?.isOnline === true;
 
-  // Helper function to check if a user is online
-  const isUserOnline = (userId) => {
-    return userOnlineStatus[userId] === "online";
+  // Sort chats by other participant's presence (online first)
+  const sortedChats = useMemo(() => 
+    sortItemsByPresence(chats, (chat) => {
+      if (chat.isGroupChat) return null;
+      const otherId = chat.participants?.find(p => p._id !== user.id)?._id;
+      return presenceUsers[otherId];
+    }),
+    [chats, presenceUsers, user?.id]
+  );
+
+  const getPresenceDotClass = (userId) => {
+    const { status } = getUserPresence(userId);
+    const d = getAvatarDotStyle(status);
+    return `${d.bg} ring-2 ${d.ring}${d.pulse ? ' animate-pulse' : ''}`;
+  };
+  const getPresenceLabel = (userId) => {
+    const presence = getUserPresence(userId);
+    const data = presenceUsers[userId];
+    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
+    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
+    if (presence.status === 'offline') {
+      const label = presence.lastSeen && presence.lastSeen !== 'never' ? `Last seen ${presence.lastSeen}` : 'Offline';
+      return { label, tooltip };
+    }
+    return { label: presence.label, tooltip };
   };
 
   const loadChats = async () => {
@@ -146,7 +154,11 @@ export default function ChatPage() {
   const loadMessages = async (chatId) => {
     try {
       const res = await api.get(`/chat/${chatId}/messages`);
-      setMessages(res.data || []);
+      const decryptedMessages = (res.data || []).map(msg => ({
+        ...msg,
+        content: isEncrypted(msg.content) ? decryptMessage(msg.content, chatId) : msg.content
+      }));
+      setMessages(decryptedMessages);
       socket?.emit("join_chat", chatId);
       await api.put(`/chat/${chatId}/read`);
     } catch (err) {
@@ -163,8 +175,11 @@ export default function ChatPage() {
 
   const handleNewMessage = (message) => {
     if (message.chatId === activeChat?._id) {
-      // Display message as plain text
-      setMessages(prev => [...prev, message]);
+      const decryptedMessage = {
+        ...message,
+        content: isEncrypted(message.content) ? decryptMessage(message.content, message.chatId) : message.content
+      };
+      setMessages(prev => [...prev, decryptedMessage]);
     }
     loadChats(); // Refresh chat list
   };
@@ -225,13 +240,19 @@ export default function ChatPage() {
     setNewMessage(e.target.value);
     
     if (!activeChat) return;
+
+    if (!e.target.value.trim()) {
+      clearTimeout(typingTimeoutRef.current);
+      socket?.emit("stop_typing", { chatId: activeChat._id });
+      return;
+    }
     
-    socket?.emit("typing", { chatId: activeChat._id, userName: user.name });
+    socket?.emit("typing", { chatId: activeChat._id, userName: user.name, isGroupChat: activeChat.isGroupChat });
     
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socket?.emit("stop_typing", { chatId: activeChat._id });
-    }, 1000);
+      socket?.emit("stop_typing", { chatId: activeChat._id, isGroupChat: activeChat.isGroupChat });
+    }, 2000);
   };
 
   const searchUsers = async (query) => {
@@ -612,7 +633,7 @@ export default function ChatPage() {
               </div>
             </div>
           ) : (
-            chats.map(chat => (
+            sortedChats.map(chat => (
               <div
                 key={chat._id}
                 className={`px-4 py-3 border-b border-slate-200 dark:border-gray-700 transition-all hover:bg-slate-100 dark:hover:bg-gray-700 group/chat ${
@@ -638,11 +659,7 @@ export default function ChatPage() {
                         </div>
                       )
                     )}
-                    <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                      isUserOnline(chat.participants?.find(p => p._id !== user.id)?._id)
-                        ? "bg-green-500 animate-pulse"
-                        : "bg-slate-400"
-                    }`}></div>
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-[2px] border-white dark:border-slate-900 transition-colors duration-300 ${getPresenceDotClass(chat.participants?.find(p => p._id !== user.id)?._id)}`}></div>
                   </div>
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => selectChat(chat)}>
                     <p className="font-semibold text-slate-900 dark:text-white text-sm truncate max-w-[150px]">
@@ -651,7 +668,11 @@ export default function ChatPage() {
                         : chat.participants?.find(p => p._id !== user.id)?.name || "Unknown"}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-gray-400 max-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis">
-                      {chat.lastMessage?.content || "No messages yet"}
+                      {chat.lastMessage?.content 
+                        ? (isEncrypted(chat.lastMessage.content)
+                            ? decryptMessage(chat.lastMessage.content, chat._id)
+                            : chat.lastMessage.content)
+                        : "No messages yet"}
                     </p>
                   </div>
                   <div className="relative flex-shrink-0 transition-opacity opacity-0 group-hover/chat:opacity-100">
@@ -732,11 +753,7 @@ export default function ChatPage() {
                         </div>
                       )
                     )}
-                    <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-3 border-slate-800 shadow-lg ${
-                      isUserOnline(activeChat?.participants?.find(p => p._id !== user.id)?._id)
-                        ? "bg-green-500 animate-pulse"
-                        : "bg-slate-400"
-                    }`}></div>
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2px] border-slate-800 shadow-sm transition-colors duration-300 ${getPresenceDotClass(activeChat?.participants?.find(p => p._id !== user.id)?._id)}`}></div>
                   </div>
                   <div>
                     <h3 className="text-lg font-bold">
@@ -746,23 +763,19 @@ export default function ChatPage() {
                     </h3>
                     {typing && (
                       <p className="text-sm font-medium text-blue-200 animate-pulse">
-                        ✓ typing...
+                        {typing.userName || 'Someone'} is typing...
                       </p>
                     )}
-                    {!typing && activeChat && !activeChat.isGroupChat && (
-                      <div className="flex items-center gap-2 text-sm text-blue-100">
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${
-                          isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "bg-green-400 animate-pulse"
-                            : "bg-slate-400"
-                        }`}></span>
-                        <span className="font-medium">
-                          {isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "Online"
-                            : "Offline"}
-                        </span>
-                      </div>
-                    )}
+                    {!typing && activeChat && !activeChat.isGroupChat && (() => {
+                      const otherId = activeChat.participants?.find(p => p._id !== user.id)?._id;
+                      const { label, tooltip } = getPresenceLabel(otherId);
+                      return (
+                        <div className="flex items-center gap-2 text-sm text-blue-100">
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${getPresenceDotClass(otherId)}`}></span>
+                          <span className="font-medium cursor-default" title={tooltip}>{label}</span>
+                        </div>
+                      );
+                    })()}
                     {activeChat?.isGroupChat && (
                       <p className="text-sm font-medium text-blue-100">{activeChat.participants.length} members</p>
                     )}
@@ -877,14 +890,18 @@ export default function ChatPage() {
                                 onClick={() => setFullImageView(msg.fileUrl)}
                               />
                               {msg.content !== "📷 Image" && (
-                                <p className="text-sm leading-relaxed break-words">{msg.content}</p>
+                                <p className="text-sm leading-relaxed break-words">
+                                  {isEncrypted(msg.content) ? decryptMessage(msg.content, activeChat._id) : msg.content}
+                                </p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm leading-relaxed break-words">{msg.content}</p>
+                            <p className="text-sm leading-relaxed break-words">
+                              {isEncrypted(msg.content) ? decryptMessage(msg.content, activeChat._id) : msg.content}
+                            </p>
                           )}
                           <div className={`flex items-center gap-1.5 mt-2 text-xs ${msg.sender._id === user.id ? "text-blue-100" : "text-slate-500"}`}>
-                            <span>{new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                            <span>{new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}</span>
                             {msg.sender._id === user.id && (
                               <span className="flex gap-0.5">
                                 <Check className="w-3.5 h-3.5" />
@@ -1047,23 +1064,43 @@ export default function ChatPage() {
               </Button>
             </div>
             <div className="space-y-4 text-center">
-              {profileUser.profileImageUrl ? (
-                <img 
-                  src={profileUser.profileImageUrl} 
-                  alt={profileUser.name} 
-                  className="object-cover w-32 h-32 mx-auto rounded-full shadow-lg ring-4 ring-blue-200"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-32 h-32 mx-auto text-5xl font-bold text-white rounded-full shadow-lg bg-gradient-to-br from-slate-700 to-slate-900 ring-4 ring-slate-200">
-                  {profileUser.name?.[0] || "?"}
-                </div>
-              )}
+              <div className="relative inline-block">
+                {profileUser.profileImageUrl ? (
+                  <img 
+                    src={profileUser.profileImageUrl} 
+                    alt={profileUser.name} 
+                    className="object-cover w-32 h-32 mx-auto rounded-full shadow-lg ring-4 ring-blue-200"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center w-32 h-32 mx-auto text-5xl font-bold text-white rounded-full shadow-lg bg-gradient-to-br from-slate-700 to-slate-900 ring-4 ring-slate-200">
+                    {profileUser.name?.[0] || "?"}
+                  </div>
+                )}
+                {/* Live presence dot */}
+                <div className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-[2.5px] border-white transition-colors duration-300 ${getPresenceDotClass(profileUser._id)}`}></div>
+              </div>
               <div>
                 <h4 className="text-2xl font-bold text-slate-900">{profileUser.name}</h4>
                 <p className="mt-1 text-sm text-slate-600">{profileUser.email}</p>
                 <div className="inline-block px-3 py-1 mt-3 text-xs font-semibold tracking-wider text-blue-700 uppercase bg-blue-100 rounded-full">
                   {profileUser.role}
                 </div>
+                {/* Live presence status */}
+                {(() => {
+                  const presence = getUserPresence(profileUser._id);
+                  const { label, tooltip } = getPresenceLabel(profileUser._id);
+                  const colorMap = { 'active-now': 'text-green-600', 'active-recently': 'text-green-600', online: 'text-green-600', typing: 'text-blue-500', away: 'text-amber-600', offline: 'text-slate-500' };
+                  return (
+                    <div className="mt-3 space-y-0.5">
+                      <p className={`text-sm font-semibold ${colorMap[presence.status] || 'text-slate-500'}`} title={tooltip}>
+                        {label}
+                      </p>
+                      {tooltip && (
+                        <p className="text-xs text-slate-400">{tooltip}</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="flex gap-2 pt-4">
                 <Button
@@ -1155,7 +1192,7 @@ export default function ChatPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 p-3 text-sm rounded-lg bg-slate-50">
                   <span className="font-bold text-slate-700">Sent:</span>
-                  <span className="text-slate-600">{new Date(messageInfo.sentAt).toLocaleString()}</span>
+                  <span className="text-slate-600">{new Date(messageInfo.sentAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}</span>
                 </div>
                 <div className="pt-4 border-t border-slate-300">
                   <p className="flex items-center gap-2 mb-3 text-sm font-bold text-slate-700">

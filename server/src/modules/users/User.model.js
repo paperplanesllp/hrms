@@ -71,7 +71,12 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpires: { type: Date },
     failedLoginAttempts: { type: Number, default: 0 },
     accountLocked: { type: Boolean, default: false },
-    lockUntil: { type: Date }
+    lockUntil: { type: Date },
+
+    // Real-time presence tracking
+    isOnline: { type: Boolean, default: false, index: true },
+    lastSeen: { type: Date, default: null },
+    lastActivityAt: { type: Date, default: null }
   },
   { timestamps: true }
 );

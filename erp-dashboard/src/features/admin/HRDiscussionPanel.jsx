@@ -75,7 +75,7 @@ export default function HRDiscussionPanel({ discussions, onRefresh, onNewDiscuss
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-400">
-                      {new Date(discussion.createdAt).toLocaleDateString()}
+                      {new Date(discussion.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 </div>
@@ -125,7 +125,7 @@ export default function HRDiscussionPanel({ discussions, onRefresh, onNewDiscuss
                             {reply.author?.name}
                           </span>
                           <span className="text-xs text-gray-500">
-                            {new Date(reply.createdAt).toLocaleString()}
+                            {new Date(reply.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                           </span>
                         </div>
                         <p className="text-sm text-gray-300">{reply.text}</p>

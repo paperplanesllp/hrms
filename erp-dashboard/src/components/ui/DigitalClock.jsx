@@ -21,25 +21,38 @@ export default function DigitalClock() {
     const updateTime = () => {
       const now = new Date();
       
-      // Use local system time (no conversion)
-      const hour24 = now.getHours();
-      const min = now.getMinutes();
-      let hours = hour24;
-      const minutes = String(min).padStart(2, "0");
-      const seconds = String(now.getSeconds()).padStart(2, "0");
-      const ampm = hours >= 12 ? "pm" : "am";
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const displayHours = String(hours).padStart(2, "0");
+      // Use IST (Asia/Kolkata) time
+      const istParts = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }).formatToParts(now);
       
-      setTime(`${displayHours}:${minutes}:${seconds} ${ampm}`);
-      setColorClass(getClockColor(hour24, min));
+      const hour24Parts = new Intl.DateTimeFormat('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(now);
       
-      // Format full date: Tuesday, 24 March 2026
-      const dayName = now.toLocaleDateString("en-US", { weekday: "long" });
-      const day = String(now.getDate()).padStart(2, "0");
-      const month = now.toLocaleDateString("en-US", { month: "long" });
-      const year = now.getFullYear();
+      const h24 = parseInt(hour24Parts.find(p => p.type === 'hour')?.value || '0');
+      const min = parseInt(hour24Parts.find(p => p.type === 'minute')?.value || '0');
+      
+      const hourVal = istParts.find(p => p.type === 'hour')?.value || '12';
+      const minuteVal = istParts.find(p => p.type === 'minute')?.value || '00';
+      const secondVal = istParts.find(p => p.type === 'second')?.value || '00';
+      const ampm = istParts.find(p => p.type === 'dayPeriod')?.value || 'am';
+      
+      setTime(`${hourVal.padStart(2, '0')}:${minuteVal}:${secondVal} ${ampm}`);
+      setColorClass(getClockColor(h24, min));
+      
+      // Format full date in IST: Tuesday, 24 March 2026
+      const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" });
+      const day = now.toLocaleDateString("en-US", { day: "2-digit", timeZone: "Asia/Kolkata" });
+      const month = now.toLocaleDateString("en-US", { month: "long", timeZone: "Asia/Kolkata" });
+      const year = now.toLocaleDateString("en-US", { year: "numeric", timeZone: "Asia/Kolkata" });
       
       setDateInfo(`${dayName}, ${day} ${month} ${year}`);
     };

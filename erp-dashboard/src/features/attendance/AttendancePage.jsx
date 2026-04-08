@@ -349,7 +349,7 @@ export default function AttendancePage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-[#0A1931] dark:text-white mb-1">Today's Status</h2>
-                <p className="text-sm text-[#4A7FA7] dark:text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                <p className="text-sm text-[#4A7FA7] dark:text-slate-400">{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
               </div>
               <div className="flex items-center justify-center w-16 h-16 shadow-lg bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl">
                 <Clock className="w-8 h-8 text-white" />

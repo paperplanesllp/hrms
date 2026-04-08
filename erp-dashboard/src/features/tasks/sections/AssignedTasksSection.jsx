@@ -405,7 +405,7 @@ export default function AssignedTasksSection() {
                       <div>
                         <h4 className="font-semibold text-slate-900 dark:text-white mb-1">Due Date</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                          {new Date(task.dueDate).toLocaleDateString()}
+                          {new Date(task.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                         </p>
                       </div>
                     </div>
@@ -424,7 +424,7 @@ export default function AssignedTasksSection() {
                     )}
 
                     <div className="text-xs text-slate-500 dark:text-slate-500 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      Created: {new Date(task.createdAt).toLocaleDateString()} at {new Date(task.createdAt).toLocaleTimeString()}
+                      Created: {new Date(task.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                     </div>
                   </div>
                 )}

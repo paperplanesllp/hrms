@@ -146,7 +146,7 @@ export default function PolicyCard() {
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Last Updated</p>
-              <p className="font-semibold text-gray-800">{new Date().toLocaleDateString()}</p>
+              <p className="font-semibold text-gray-800">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
             </div>
           </div>
         </div>

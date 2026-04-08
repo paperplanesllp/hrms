@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getSocket } from "../../lib/socket.js";
+import { usePresenceStore } from "../../store/presenceStore.js";
 import api from "../../lib/api.js";
+import { getDerivedPresenceStatus, getAvatarDotStyle, sortItemsByPresence, formatExactTimestamp } from "../../lib/presenceUtils.js";
 import { toast } from "../../store/toastStore.js";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
@@ -77,7 +79,7 @@ export default function HRTeamPage() {
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const [onlineMembers, setOnlineMembers] = useState({});
+  const presenceUsers = usePresenceStore(s => s.users);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [showCreateHRModal, setShowCreateHRModal] = useState(false);
   const [createHRLoading, setCreateHRLoading] = useState(false);
@@ -157,14 +159,6 @@ export default function HRTeamPage() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleOnline = (data) => {
-      setOnlineMembers((prev) => ({ ...prev, [data.userId]: true }));
-    };
-
-    const handleOffline = (data) => {
-      setOnlineMembers((prev) => ({ ...prev, [data.userId]: false }));
-    };
-
     const handleDiscussion = (discussion) => {
       setDiscussions((prev) => [discussion, ...prev]);
       setActivity((prev) => [
@@ -219,16 +213,12 @@ export default function HRTeamPage() {
       );
     };
 
-    socket.on("hr_member_online", handleOnline);
-    socket.on("hr_member_offline", handleOffline);
     socket.on("new_hr_discussion", handleDiscussion);
     socket.on("new_hr_reply", handleReply);
     socket.on("new_hr_meeting", handleMeeting);
     socket.on("hr_member_status_updated", handleStatusUpdated);
 
     return () => {
-      socket.off("hr_member_online", handleOnline);
-      socket.off("hr_member_offline", handleOffline);
       socket.off("new_hr_discussion", handleDiscussion);
       socket.off("new_hr_reply", handleReply);
       socket.off("new_hr_meeting", handleMeeting);
@@ -237,9 +227,38 @@ export default function HRTeamPage() {
   }, [socket]);
 
   const onlineCount = useMemo(
-    () => Object.values(onlineMembers).filter(Boolean).length,
-    [onlineMembers]
+    () => Object.values(presenceUsers).filter(m => m?.isOnline).length,
+    [presenceUsers]
   );
+
+  // Sort HR team by presence (online members first)
+  const sortedHrTeam = useMemo(() =>
+    sortItemsByPresence(hrTeam, (member) => presenceUsers[member._id]),
+    [hrTeam, presenceUsers]
+  );
+
+  const getMemberPresence = (memberId) => getDerivedPresenceStatus(presenceUsers[memberId]);
+  const getMemberDotClass = (memberId) => {
+    const d = getAvatarDotStyle(getMemberPresence(memberId).status);
+    return `${d.bg} ring-2 ${d.ring}${d.pulse ? ' animate-pulse' : ''}`;
+  };
+  const getMemberPresenceLabel = (memberId) => {
+    const presence = getMemberPresence(memberId);
+    const data = presenceUsers[memberId];
+    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
+    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
+    if (presence.status === 'offline') {
+      const label = presence.lastSeen && presence.lastSeen !== 'never' ? `Last seen ${presence.lastSeen}` : 'Offline';
+      return { label, tooltip };
+    }
+    return { label: presence.label, tooltip };
+  };
+  const getMemberPresenceTextColor = (memberId) => {
+    const { status } = getMemberPresence(memberId);
+    if (status === 'online' || status === 'active-now' || status === 'active-recently' || status === 'typing') return 'text-emerald-400';
+    if (status === 'away') return 'text-amber-400';
+    return 'text-slate-500';
+  };
 
   if (loading) {
     return (
@@ -427,7 +446,7 @@ export default function HRTeamPage() {
                     </thead>
 
                     <tbody>
-                      {hrTeam.map((member) => (
+                      {sortedHrTeam.map((member) => (
                         <tr
                           key={member._id}
                           className="border-b border-white/5 transition-colors hover:bg-white/[0.03]"
@@ -439,9 +458,7 @@ export default function HRTeamPage() {
                                   {member?.name?.charAt(0)?.toUpperCase() || "H"}
                                 </div>
                                 <span
-                                  className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-slate-900 ${
-                                    onlineMembers[member._id] ? "bg-green-500" : "bg-slate-500"
-                                  }`}
+                                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-[2px] border-slate-900 transition-colors duration-300 ${getMemberDotClass(member._id)}`}
                                 />
                               </div>
 
@@ -451,6 +468,10 @@ export default function HRTeamPage() {
                                 </p>
                                 <p className="text-xs text-slate-400">
                                   {member.phone || "No phone"}
+                                </p>
+                                <p className={`text-[11px] mt-0.5 cursor-default ${getMemberPresenceTextColor(member._id)}`}
+                                   title={getMemberPresenceLabel(member._id).tooltip}>
+                                  {getMemberPresenceLabel(member._id).label}
                                 </p>
                               </div>
                             </div>
@@ -603,7 +624,7 @@ export default function HRTeamPage() {
                     >
                       <p className="text-sm font-medium text-white">{item.message}</p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {new Date(item.timestamp).toLocaleString()}
+                        {new Date(item.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                       </p>
                     </div>
                   ))}

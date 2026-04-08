@@ -143,7 +143,7 @@ export default function PolicyPage() {
                       <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" /> 
-                          Updated {new Date(policy?.updatedAt).toLocaleDateString()}
+                          Updated {new Date(policy?.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                         </span>
                         <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Verified

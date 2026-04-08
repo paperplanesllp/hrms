@@ -292,7 +292,7 @@ export default function AdminComplaintsPage() {
                 <div className="flex gap-4 mt-4 text-sm text-gray-700">
                   <p><strong>Status:</strong> {selectedComplaint.status}</p>
                   <p><strong>Priority:</strong> {selectedComplaint.priority}</p>
-                  <p><strong>Submitted:</strong> {selectedComplaint.submittedAt ? new Date(selectedComplaint.submittedAt).toLocaleDateString() : 'N/A'}</p>
+                  <p><strong>Submitted:</strong> {selectedComplaint.submittedAt ? new Date(selectedComplaint.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : 'N/A'}</p>
                 </div>
               </Card>
 
@@ -305,7 +305,7 @@ export default function AdminComplaintsPage() {
                 <Card className="p-4 border bg-gray-50">
                   <h3 className="mb-2 text-sm font-bold">Reply Sent</h3>
                   <p className="mb-2 text-xs text-gray-600">
-                    Replied on {new Date(selectedComplaint.repliedAt).toLocaleString()}
+                    Replied on {new Date(selectedComplaint.repliedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                   </p>
                   <p className="text-sm whitespace-pre-wrap">{selectedComplaint.replyMessage}</p>
                 </Card>

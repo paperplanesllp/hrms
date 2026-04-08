@@ -204,7 +204,7 @@ const generatePDFSimple = (analyticsData, teamPerformance, fileName) => {
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
         <h1 style="color: #1f2937; margin-bottom: 10px;">Task Reports & Analytics</h1>
-        <p style="color: #666; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <p style="color: #666; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })} ${new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}</p>
         
         <h2 style="color: #1f2937; margin-top: 30px; margin-bottom: 15px;">📊 Analytics Summary</h2>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">

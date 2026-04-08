@@ -4,6 +4,12 @@ import { toast } from "../store/toastStore.js";
 
 let socket = null;
 let connectionAttempts = 0;
+let heartbeatInterval = null;
+let activityThrottleTimer = null;
+let cachedOnlineUsers = [];
+
+const HEARTBEAT_INTERVAL = 25000; // 25 seconds
+const ACTIVITY_THROTTLE = 10000; // 10 seconds
 
 export const initializeSocket = () => {
   const auth = getAuth();
@@ -57,11 +63,16 @@ export const initializeSocket = () => {
   socket.on("connect", () => {
     console.log("✅ Socket connected successfully");
     connectionAttempts = 0;
+    
+    // Start heartbeat to keep presence alive
+    startHeartbeat();
   });
 
   // Connection lost
   socket.on("disconnect", (reason) => {
     console.log("🔌 Socket disconnected. Reason:", reason);
+    stopHeartbeat();
+    
     if (reason === "io server disconnect") {
       socket.connect();
     }
@@ -89,12 +100,84 @@ export const initializeSocket = () => {
     console.error("❌ Max reconnection attempts reached");
   });
 
+  // ============ PRESENCE EVENTS ============
+  
+  // Cache presence data and dispatch window events for store bridge
+  socket.on("presence:init", ({ onlineUsers }) => {
+    console.log("📋 Received initial presence list:", onlineUsers.length, "online users");
+    cachedOnlineUsers = onlineUsers || [];
+    window.dispatchEvent(new CustomEvent('socket:presence:init', { detail: { onlineUsers } }));
+  });
+
+  socket.on("presence:update", (presenceData) => {
+    console.log("👁️ Presence update:", presenceData.userName, presenceData.isOnline ? "ONLINE" : "OFFLINE");
+    // Update cache
+    if (presenceData.isOnline) {
+      const idx = cachedOnlineUsers.findIndex(u => u.userId === presenceData.userId);
+      if (idx >= 0) {
+        cachedOnlineUsers[idx] = { ...cachedOnlineUsers[idx], ...presenceData };
+      } else {
+        cachedOnlineUsers.push(presenceData);
+      }
+    } else {
+      cachedOnlineUsers = cachedOnlineUsers.filter(u => u.userId !== presenceData.userId);
+    }
+    window.dispatchEvent(new CustomEvent('socket:presence:update', { detail: presenceData }));
+  });
+
   return socket;
 };
+
+/**
+ * Start heartbeat to keep user presence alive
+ */
+const startHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+  }
+
+  heartbeatInterval = setInterval(() => {
+    if (socket && socket.connected) {
+      socket.emit("heartbeat");
+    }
+  }, HEARTBEAT_INTERVAL);
+
+  console.log("❤️ Heartbeat started");
+};
+
+/**
+ * Stop heartbeat
+ */
+const stopHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+    console.log("💔 Heartbeat stopped");
+  }
+};
+
+/**
+ * Trigger user activity event (throttled to avoid flooding)
+ */
+export const triggerUserActivity = () => {
+  if (activityThrottleTimer) return;
+  if (socket && socket.connected) {
+    socket.emit("user:activity");
+  }
+  activityThrottleTimer = setTimeout(() => {
+    activityThrottleTimer = null;
+  }, ACTIVITY_THROTTLE);
+};
+
+/**
+ * Get cached online users from last presence:init
+ */
+export const getCachedPresenceInit = () => cachedOnlineUsers;
 
 export const getSocket = () => socket;
 
 export const disconnectSocket = () => {
+  stopHeartbeat();
   if (socket) {
     socket.disconnect();
     socket = null;
@@ -102,8 +185,12 @@ export const disconnectSocket = () => {
 };
 
 // Notification handlers
-export const setupNotificationHandlers = (notificationStore) => {
+export const setupNotificationHandlers = (notificationStore = null) => {
   if (!socket) return;
+
+  // Remove any previously registered listeners to prevent double-firing
+  socket.off("new_leave_request");
+  socket.off("leave_status_update");
 
   // HR receives new leave requests
   socket.on("new_leave_request", (data) => {
@@ -113,8 +200,9 @@ export const setupNotificationHandlers = (notificationStore) => {
       type: "info"
     });
     
-    // Refresh notifications
-    notificationStore.fetchNotifications();
+    if (notificationStore?.fetchNotifications) {
+      notificationStore.fetchNotifications();
+    }
   });
 
   // Users receive leave status updates
@@ -125,8 +213,9 @@ export const setupNotificationHandlers = (notificationStore) => {
       type: data.status === "APPROVED" ? "success" : "error"
     });
     
-    // Refresh notifications and trigger leave data refresh
-    notificationStore.fetchNotifications();
+    if (notificationStore?.fetchNotifications) {
+      notificationStore.fetchNotifications();
+    }
     
     // Emit custom event for leave page to refresh
     window.dispatchEvent(new CustomEvent("leaveStatusUpdate", { detail: data }));
@@ -137,5 +226,7 @@ export default {
   initializeSocket,
   getSocket,
   disconnectSocket,
-  setupNotificationHandlers
+  setupNotificationHandlers,
+  triggerUserActivity,
+  getCachedPresenceInit
 };

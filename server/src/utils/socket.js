@@ -2,9 +2,9 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { User } from "../modules/users/User.model.js";
+import presenceManager from "./presenceManager.js";
 
 let io;
-const onlineUsers = new Map(); // Track online users: userId -> { socketId, userName, userRole, connectedAt }
 
 export const initializeSocket = (server) => {
   io = new Server(server, {
@@ -58,174 +58,248 @@ export const initializeSocket = (server) => {
     }
   });
 
-  io.on("connection", (socket) => {
-    console.log(`✅ User ${socket.userName} connected (${socket.userRole})`);
+  // Give presence manager access to io for stale-session cleanup broadcasts
+  presenceManager.setIO(io);
+
+  io.on("connection", async (socket) => {
+    console.log(`🔗 User ${socket.userName} connecting...`);
     
-    // Track online user
-    onlineUsers.set(socket.userId, {
-      socketId: socket.id,
-      userName: socket.userName,
-      userRole: socket.userRole,
-      userEmail: socket.userEmail,
-      userImage: socket.userImage,
-      connectedAt: new Date()
-    });
+    try {
+      // Add connection to presence manager
+      const wasOffline = !presenceManager.isUserOnline(socket.userId);
+      
+      presenceManager.addConnection(socket.userId, socket.id, {
+        name: socket.userName,
+        email: socket.userEmail,
+        image: socket.userImage,
+        role: socket.userRole
+      });
 
-    // Broadcast user online status to all connected clients
-    io.emit("user_online", {
-      userId: socket.userId,
-      userName: socket.userName,
-      userEmail: socket.userEmail,
-      userImage: socket.userImage,
-      status: "online"
-    });
+      // Update user in database
+      await User.findByIdAndUpdate(socket.userId, {
+        isOnline: true,
+        lastActivityAt: new Date()
+      });
 
-    // Send list of all online users to newly connected user
-    socket.emit("online_users_list", Array.from(onlineUsers.entries()).map(([userId, data]) => ({
-      userId,
-      userName: data.userName,
-      userEmail: data.userEmail,
-      userImage: data.userImage,
-      status: "online"
-    })));
+      // If user was offline, broadcast to all that they're now online
+      if (wasOffline) {
+        console.log(`✅ User ${socket.userName} is now ONLINE`);
+        io.emit("presence:update", {
+          userId: socket.userId,
+          isOnline: true,
+          lastActivityAt: new Date(),
+          userName: socket.userName,
+          userEmail: socket.userEmail,
+          userImage: socket.userImage,
+          statusChangedAt: new Date()
+        });
+      }
 
-    // Join user to their personal room
-    socket.join(`user_${socket.userId}`);
-    
-    // Join HR/Admin to management room
-    if (socket.userRole === "HR" || socket.userRole === "ADMIN") {
-      socket.join("hr_management");
+      // Send current online users list to the newly connected socket
+      const onlineUsers = presenceManager.getOnlineUsers();
+      socket.emit("presence:init", {
+        onlineUsers
+      });
+
+      // Join user to their personal room
+      socket.join(`user_${socket.userId}`);
+      
+      // Join HR/Admin to management room
+      if (socket.userRole === "HR" || socket.userRole === "ADMIN") {
+        socket.join("hr_management");
+      }
+
+      // ============ HEARTBEAT EVENT ============
+      socket.on("heartbeat", async () => {
+        presenceManager.updateActivity(socket.userId, socket.id);
+        
+        await User.findByIdAndUpdate(socket.userId, {
+          lastActivityAt: new Date()
+        }).catch(err => {
+          console.error(`Error updating heartbeat for user ${socket.userId}:`, err.message);
+        });
+      });
+
+      // ============ ACTIVITY EVENT ============
+      // Lightweight — only updates in-memory presence (heartbeat handles DB writes)
+      socket.on("user:activity", () => {
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      // Chat events - unified handler for both 1-on-1 and group chats
+      socket.on("join_chat", (chatId) => {
+        socket.join(`chat_${chatId}`);
+      });
+
+      socket.on("leave_chat", (chatId) => {
+        socket.leave(`chat_${chatId}`);
+      });
+
+      socket.on("join_group", (groupId) => {
+        socket.join(`group_${groupId}`);
+      });
+
+      socket.on("leave_group", (groupId) => {
+        socket.leave(`group_${groupId}`);
+      });
+
+      // Typing indicators - works for both direct and group chats
+      socket.on("typing", ({ chatId, userName, isGroupChat }) => {
+        const roomName = isGroupChat ? `group_${chatId}` : `chat_${chatId}`;
+        socket.to(roomName).emit("user_typing", { 
+          userName, 
+          userId: socket.userId,
+          timestamp: new Date().toISOString()
+        });
+
+        // Update activity on typing
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("stop_typing", ({ chatId, isGroupChat }) => {
+        const roomName = isGroupChat ? `group_${chatId}` : `chat_${chatId}`;
+        socket.to(roomName).emit("user_stop_typing", { userId: socket.userId });
+      });
+
+      // Member typing status for groups
+      socket.on("group_member_typing", ({ groupId, memberName }) => {
+        socket.to(`group_${groupId}`).emit("group_member_typing", { 
+          memberId: socket.userId,
+          memberName,
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("group_member_stop_typing", ({ groupId }) => {
+        socket.to(`group_${groupId}`).emit("group_member_stop_typing", { 
+          memberId: socket.userId
+        });
+      });
+
+      // HR Team Events
+      socket.on("hr_member_status_change", ({ status }) => {
+        io.to("hr_management").emit("hr_member_status_updated", {
+          userId: socket.userId,
+          userName: socket.userName,
+          status,
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("hr_discussion_created", (discussion) => {
+        io.to("hr_management").emit("new_hr_discussion", {
+          ...discussion,
+          createdBy: {
+            _id: socket.userId,
+            name: socket.userName,
+            email: socket.userEmail
+          },
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("hr_discussion_replied", ({ discussionId, reply }) => {
+        io.to("hr_management").emit("new_hr_reply", {
+          ...reply,
+          discussionId,
+          author: {
+            _id: socket.userId,
+            name: socket.userName,
+            email: socket.userEmail
+          },
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("hr_meeting_created", (meeting) => {
+        io.to("hr_management").emit("new_hr_meeting", {
+          ...meeting,
+          organizer: {
+            _id: socket.userId,
+            name: socket.userName,
+            email: socket.userEmail
+          },
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("hr_meeting_updated", ({ meetingId, status }) => {
+        io.to("hr_management").emit("hr_meeting_status_changed", {
+          meetingId,
+          status,
+          updatedBy: socket.userName,
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      // News/Updates events
+      socket.on("news_created", (newsItem) => {
+        io.emit("news_created", {
+          ...newsItem,
+          createdBy: {
+            _id: socket.userId,
+            name: socket.userName,
+            email: socket.userEmail
+          },
+          timestamp: new Date().toISOString()
+        });
+        presenceManager.updateActivity(socket.userId, socket.id);
+      });
+
+      socket.on("news_deleted", (newsId) => {
+        io.emit("news_deleted", newsId);
+      });
+
+      socket.on("disconnect", async () => {
+        const userId = socket.userId;
+        const userName = socket.userName;
+
+        if (!userId) return;
+
+        console.log(`🔌 Socket disconnected for user ${userName}: ${socket.id}`);
+        
+        // Remove only this socket from the user's active set
+        const stillOnline = presenceManager.removeConnection(userId, socket.id);
+
+        if (stillOnline) {
+          console.log(`ℹ️ User ${userName} still has ${presenceManager.getConnectionCount(userId)} active socket(s)`);
+          return;
+        }
+
+        // No sockets remain — user is truly offline
+        const now = new Date();
+        console.log(`📴 User ${userName} is now OFFLINE (all sockets closed)`);
+
+        // Atomically update DB to prevent race conditions
+        await User.findByIdAndUpdate(userId, {
+          isOnline: false,
+          lastSeen: now,
+          lastActivityAt: now
+        }).catch(err => {
+          console.error(`Error marking user ${userId} offline:`, err.message);
+        });
+
+        // Broadcast offline status to all connected clients
+        io.emit("presence:update", {
+          userId,
+          isOnline: false,
+          lastSeen: now,
+          lastActivityAt: now,
+          userName,
+          statusChangedAt: now
+        });
+      });
+
+    } catch (err) {
+      console.error(`❌ Error in socket connection:`, err.message);
+      socket.disconnect(true);
     }
-
-    // Chat events - unified handler for both 1-on-1 and group chats
-    socket.on("join_chat", (chatId) => {
-      socket.join(`chat_${chatId}`);
-    });
-
-    socket.on("leave_chat", (chatId) => {
-      socket.leave(`chat_${chatId}`);
-    });
-
-    socket.on("join_group", (groupId) => {
-      socket.join(`group_${groupId}`);
-    });
-
-    socket.on("leave_group", (groupId) => {
-      socket.leave(`group_${groupId}`);
-    });
-
-    // Typing indicators - works for both direct and group chats
-    socket.on("typing", ({ chatId, userName, isGroupChat }) => {
-      const roomName = isGroupChat ? `group_${chatId}` : `chat_${chatId}`;
-      socket.to(roomName).emit("user_typing", { userName, userId: socket.userId });
-    });
-
-    socket.on("stop_typing", ({ chatId, isGroupChat }) => {
-      const roomName = isGroupChat ? `group_${chatId}` : `chat_${chatId}`;
-      socket.to(roomName).emit("user_stop_typing", { userId: socket.userId });
-    });
-
-    // Member typing status for groups
-    socket.on("group_member_typing", ({ groupId, memberName }) => {
-      socket.to(`group_${groupId}`).emit("group_member_typing", { 
-        memberId: socket.userId,
-        memberName,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("group_member_stop_typing", ({ groupId }) => {
-      socket.to(`group_${groupId}`).emit("group_member_stop_typing", { 
-        memberId: socket.userId
-      });
-    });
-
-    // HR Team Events
-    socket.on("hr_member_status_change", ({ status }) => {
-      io.to("hr_management").emit("hr_member_status_updated", {
-        userId: socket.userId,
-        userName: socket.userName,
-        status, // meeting, busy, available, offline
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("hr_discussion_created", (discussion) => {
-      io.to("hr_management").emit("new_hr_discussion", {
-        ...discussion,
-        createdBy: {
-          _id: socket.userId,
-          name: socket.userName,
-          email: socket.userEmail
-        },
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("hr_discussion_replied", ({ discussionId, reply }) => {
-      io.to("hr_management").emit("new_hr_reply", {
-        ...reply,
-        discussionId,
-        author: {
-          _id: socket.userId,
-          name: socket.userName,
-          email: socket.userEmail
-        },
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("hr_meeting_created", (meeting) => {
-      io.to("hr_management").emit("new_hr_meeting", {
-        ...meeting,
-        organizer: {
-          _id: socket.userId,
-          name: socket.userName,
-          email: socket.userEmail
-        },
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("hr_meeting_updated", ({ meetingId, status }) => {
-      io.to("hr_management").emit("hr_meeting_status_changed", {
-        meetingId,
-        status,
-        updatedBy: socket.userName,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // News/Updates events
-    socket.on("news_created", (newsItem) => {
-      io.emit("news_created", {
-        ...newsItem,
-        createdBy: {
-          _id: socket.userId,
-          name: socket.userName,
-          email: socket.userEmail
-        },
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("news_deleted", (newsId) => {
-      io.emit("news_deleted", newsId);
-    });
-
-    socket.on("disconnect", () => {
-      console.log(`❌ User ${socket.userName} disconnected`);
-      
-      // Remove user from online list
-      onlineUsers.delete(socket.userId);
-      
-      // Broadcast user offline status to all connected clients
-      io.emit("user_offline", {
-        userId: socket.userId,
-        userName: socket.userName,
-        status: "offline"
-      });
-    });
   });
 
   return io;
@@ -238,41 +312,9 @@ export const getIO = () => {
   return io;
 };
 
-// Notification helpers
-export const notifyHRNewLeaveRequest = (employeeName, leaveId, startDate, endDate, reason) => {
-  if (io) {
-    io.to("hr_management").emit("new_leave_request", {
-      type: "leave_request",
-      title: "New Leave Request",
-      message: `New Leave Request from ${employeeName}`,
-      details: `${startDate} to ${endDate} (${reason})`,
-      leaveId,
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
-export const notifyUserLeaveStatus = (userId, status, startDate, endDate, rejectionReason = null) => {
-  if (io) {
-    const isApproved = status === "APPROVED";
-    const message = isApproved 
-      ? `Update: Your leave for ${startDate} to ${endDate} has been Approved. ✅`
-      : `Update: Your leave for ${startDate} to ${endDate} was Rejected. Reason: ${rejectionReason || 'No reason provided'} ❌`;
-
-    io.to(`user_${userId}`).emit("leave_status_update", {
-      type: "leave_status",
-      title: isApproved ? "Leave Approved" : "Leave Rejected",
-      message,
-      status,
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
-// Chat helpers
+// ============ CHAT NOTIFICATION HELPERS ============
 export const notifyNewMessage = (chatId, message, excludeUserId) => {
   if (io) {
-    // For group chats, emit to group room; for direct chats, emit to chat room
     const roomName = message.isGroupChat ? `group_${chatId}` : `chat_${chatId}`;
     io.to(roomName).except(`user_${excludeUserId}`).emit("new_message", {
       ...message,
@@ -336,30 +378,38 @@ export const notifyMessageRead = (chatId, userId, isGroupChat) => {
   }
 };
 
-// HR Team Event Broadcasters
-export const notifyHRTeamMemberOnline = (userId, userName, userEmail, userImage) => {
+// ============ LEAVE & HR NOTIFICATIONS ============
+export const notifyHRNewLeaveRequest = (employeeName, leaveId, startDate, endDate, reason) => {
   if (io) {
-    io.to("hr_management").emit("hr_member_online", {
-      userId,
-      userName,
-      userEmail,
-      userImage,
-      status: "online",
+    io.to("hr_management").emit("new_leave_request", {
+      type: "leave_request",
+      title: "New Leave Request",
+      message: `New Leave Request from ${employeeName}`,
+      details: `${startDate} to ${endDate} (${reason})`,
+      leaveId,
       timestamp: new Date().toISOString()
     });
   }
 };
 
-export const notifyHRTeamMemberOffline = (userId, userName) => {
+export const notifyUserLeaveStatus = (userId, status, startDate, endDate, rejectionReason = null) => {
   if (io) {
-    io.to("hr_management").emit("hr_member_offline", {
-      userId,
-      userName,
-      status: "offline",
+    const isApproved = status === "APPROVED";
+    const message = isApproved 
+      ? `Update: Your leave for ${startDate} to ${endDate} has been Approved. ✅`
+      : `Update: Your leave for ${startDate} to ${endDate} was Rejected. Reason: ${rejectionReason || 'No reason provided'} ❌`;
+
+    io.to(`user_${userId}`).emit("leave_status_update", {
+      type: "leave_status",
+      title: isApproved ? "Leave Approved" : "Leave Rejected",
+      message,
+      status,
       timestamp: new Date().toISOString()
     });
   }
 };
+
+// ============ HR TEAM BROADCASTERS ============
 
 export const notifyNewHRDiscussion = (discussion) => {
   if (io) {
@@ -401,7 +451,7 @@ export const notifyHRMeetingStatusChanged = (meetingId, oldStatus, newStatus, up
   }
 };
 
-// News/Updates Event Broadcasters
+// ============ NEWS/UPDATES BROADCASTERS ============
 export const notifyNewsCreated = (newsItem) => {
   if (io) {
     io.emit("news_created", {
@@ -429,16 +479,9 @@ export const notifyNewsPolicyUpdate = (newsItem, policyTitle) => {
   }
 };
 
-// ==================== TASK EVENT BROADCASTERS ====================
-
-/**
- * Notify when a new task is created
- * @param {Object} task - The newly created task
- * @param {string} createdBy - User ID of the creator
- */
+// ============ TASK EVENT BROADCASTERS ============
 export const notifyTaskCreated = (task, createdBy) => {
   if (io) {
-    // If task has assignedTo, notify the assigned user
     if (task.assignedTo && task.assignedTo._id) {
       io.to(`user_${task.assignedTo._id}`).emit("task:created", {
         task,
@@ -448,7 +491,6 @@ export const notifyTaskCreated = (task, createdBy) => {
       });
     }
     
-    // Broadcast to HR/Admin room for administrative visibility
     io.to("hr_management").emit("task:created", {
       task,
       message: `New task created: ${task.title}`,
@@ -458,14 +500,8 @@ export const notifyTaskCreated = (task, createdBy) => {
   }
 };
 
-/**
- * Notify when a task is updated
- * @param {Object} task - The updated task
- * @param {string} changedBy - User ID who made the change
- */
 export const notifyTaskUpdated = (task, changedBy) => {
   if (io) {
-    // Notify the assigned user
     if (task.assignedTo && task.assignedTo._id) {
       io.to(`user_${task.assignedTo._id}`).emit("task:updated", {
         task,
@@ -475,7 +511,6 @@ export const notifyTaskUpdated = (task, changedBy) => {
       });
     }
     
-    // Broadcast to HR/Admin room
     io.to("hr_management").emit("task:updated", {
       task,
       message: `Task updated: ${task.title}`,
@@ -485,14 +520,8 @@ export const notifyTaskUpdated = (task, changedBy) => {
   }
 };
 
-/**
- * Notify when a task status changes
- * @param {Object} task - The task with updated status
- * @param {string} changedBy - User ID who changed the status
- */
 export const notifyTaskStatusChanged = (task, changedBy) => {
   if (io) {
-    // Notify the task creator (if they assigned it)
     if (task.createdBy && task.createdBy._id) {
       io.to(`user_${task.createdBy._id}`).emit("task:status-changed", {
         task,
@@ -502,7 +531,6 @@ export const notifyTaskStatusChanged = (task, changedBy) => {
       });
     }
     
-    // Broadcast to HR/Admin room
     io.to("hr_management").emit("task:status-changed", {
       task,
       message: `Task "${task.title}" status changed to ${task.status}`,
@@ -512,15 +540,8 @@ export const notifyTaskStatusChanged = (task, changedBy) => {
   }
 };
 
-/**
- * Notify when a task is deleted
- * @param {string} taskId - The ID of the deleted task
- * @param {string} taskTitle - The title of the deleted task
- * @param {string} deletedBy - User ID who deleted the task
- */
 export const notifyTaskDeleted = (taskId, taskTitle, deletedBy) => {
   if (io) {
-    // Broadcast to all HR/Admin users
     io.to("hr_management").emit("task:deleted", {
       taskId,
       message: `Task "${taskTitle}" has been deleted`,

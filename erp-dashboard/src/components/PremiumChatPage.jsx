@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useAuthStore } from "../../store/authStore.js";
+import { usePresenceStore } from "../../store/presenceStore.js";
 import { getSocket } from "../../lib/socket.js";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { encryptMessage, decryptMessage, isEncrypted } from "../../lib/encryption.js";
+import { getDerivedPresenceStatus, getAvatarDotStyle, sortItemsByPresence, formatExactTimestamp } from "../../lib/presenceUtils.js";
 import { MessageCircle, Send, Search, Users, Plus, Smile, Mic, Phone, Video, Lock, Check, CheckCheck, Sun, Moon, MoreVertical, Edit2, Trash2, X } from "lucide-react";
 import Input from "../../components/ui/Input.jsx";
 import AudioPlayer from "./AudioPlayer.jsx";
@@ -19,38 +21,44 @@ export default function PremiumChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [typing, setTyping] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [userOnlineStatus, setUserOnlineStatus] = useState({});
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [editContent, setEditContent] = useState("");
   
+  // Read presence from global store (kept in sync by SocketProvider)
+  const presenceUsers = usePresenceStore(s => s.users);
+  
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const typingExpireRef = useRef(null);
 
   useEffect(() => {
     loadChats();
     
     if (socket) {
+      const handleTyping = ({ userName, userId }) => {
+        setTyping({ userName, userId });
+        clearTimeout(typingExpireRef.current);
+        typingExpireRef.current = setTimeout(() => setTyping(null), 3000);
+      };
+      const handleStopTyping = () => {
+        clearTimeout(typingExpireRef.current);
+        setTyping(null);
+      };
+
       socket.on("new_message", handleNewMessage);
-      socket.on("user_typing", () => setTyping(true));
-      socket.on("user_stop_typing", () => setTyping(false));
-      socket.on("user_online", (userData) => {
-        setUserOnlineStatus(prev => ({ ...prev, [userData.userId]: "online" }));
-      });
-      socket.on("user_offline", (userData) => {
-        setUserOnlineStatus(prev => ({ ...prev, [userData.userId]: "offline" }));
-      });
+      socket.on("user_typing", handleTyping);
+      socket.on("user_stop_typing", handleStopTyping);
       
       return () => {
-        socket.off("new_message");
-        socket.off("user_typing");
-        socket.off("user_stop_typing");
-        socket.off("user_online");
-        socket.off("user_offline");
+        socket.off("new_message", handleNewMessage);
+        socket.off("user_typing", handleTyping);
+        socket.off("user_stop_typing", handleStopTyping);
+        clearTimeout(typingExpireRef.current);
       };
     }
   }, [socket]);
@@ -61,7 +69,34 @@ export default function PremiumChatPage() {
 
   const emojis = ["ðŸ˜€", "ðŸ˜‚", "ðŸ˜", "ðŸ¥°", "ðŸ˜Ž", "ðŸ¤”", "ðŸ‘", "ðŸ‘", "ðŸ™", "â¤ï¸", "ðŸ”¥", "âœ¨", "ðŸŽ‰", "ðŸ’¯", "ðŸ‘Œ", "âœ…"];
 
-  const isUserOnline = (userId) => userOnlineStatus[userId] === "online";
+  const getUserPresence = (userId) => getDerivedPresenceStatus(presenceUsers[userId]);
+
+  // Sort chats by other participant's presence (online first)
+  const sortedChats = useMemo(() =>
+    sortItemsByPresence(chats, (chat) => {
+      if (chat.isGroupChat) return null;
+      const otherId = chat.participants?.find(p => p._id !== user.id)?._id;
+      return presenceUsers[otherId];
+    }),
+    [chats, presenceUsers, user?.id]
+  );
+
+  const getPresenceDotClass = (userId) => {
+    const { status } = getUserPresence(userId);
+    const d = getAvatarDotStyle(status);
+    return `${d.bg} ring-2 ${d.ring}${d.pulse ? ' animate-pulse' : ''}`;
+  };
+  const getPresenceLabel = (userId) => {
+    const presence = getUserPresence(userId);
+    const data = presenceUsers[userId];
+    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
+    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
+    if (presence.status === 'offline') {
+      const label = presence.lastSeen && presence.lastSeen !== 'never' ? `Last seen ${presence.lastSeen}` : 'Offline';
+      return { label, tooltip };
+    }
+    return { label: presence.label, tooltip };
+  };
 
   const loadChats = async () => {
     try {
@@ -129,12 +164,18 @@ export default function PremiumChatPage() {
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     if (!activeChat) return;
+
+    if (!e.target.value.trim()) {
+      clearTimeout(typingTimeoutRef.current);
+      socket?.emit("stop_typing", { chatId: activeChat._id });
+      return;
+    }
     
     socket?.emit("typing", { chatId: activeChat._id, userName: user.name });
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       socket?.emit("stop_typing", { chatId: activeChat._id });
-    }, 1000);
+    }, 2000);
   };
 
   const searchUsers = async (query) => {
@@ -264,13 +305,13 @@ export default function PremiumChatPage() {
   return (
     <div className={`h-[calc(100vh-120px)] flex ${isDarkMode ? 'dark' : ''}`}>
       {/* Security Badge */}
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-lg">
+      <div className="fixed z-50 flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white transform -translate-x-1/2 bg-green-500 rounded-full shadow-lg top-4 left-1/2">
         <Lock className="w-4 h-4" />
         End-to-End Encrypted
       </div>
 
       {/* Sidebar */}
-      <div className="w-80 flex flex-col bg-slate-50 dark:bg-brand-card border-r border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col border-r w-80 bg-slate-50 dark:bg-brand-card border-slate-200 dark:border-slate-800">
         {/* Sidebar Header */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center justify-between mb-4">
@@ -295,10 +336,10 @@ export default function PremiumChatPage() {
           
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-3 w-5 h-5 text-slate-500 dark:text-slate-400" />
+            <Search className="absolute w-5 h-5 left-3 top-3 text-slate-500 dark:text-slate-400" />
             <Input
               placeholder="Search conversations..."
-              className="pl-10 rounded-full border-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+              className="pl-10 border-0 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
             />
           </div>
           
@@ -311,17 +352,17 @@ export default function PremiumChatPage() {
                   setSearchQuery(e.target.value);
                   searchUsers(e.target.value);
                 }}
-                className="rounded-full border-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+                className="border-0 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
               />
               {searchResults.length > 0 && (
-                <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg p-2 bg-white dark:bg-slate-900">
+                <div className="p-2 space-y-1 overflow-y-auto bg-white rounded-lg max-h-48 dark:bg-slate-900">
                   {searchResults.map(u => (
                     <div
                       key={u._id}
                       onClick={() => startChat(u._id)}
-                      className="p-3 rounded-lg cursor-pointer transition-colors hover:opacity-80 bg-slate-100 dark:bg-slate-800"
+                      className="p-3 transition-colors rounded-lg cursor-pointer hover:opacity-80 bg-slate-100 dark:bg-slate-800"
                     >
-                      <p className="font-semibold text-sm text-slate-900 dark:text-white">{u.name}</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{u.name}</p>
                       <p className="text-xs text-slate-600 dark:text-slate-400">{u.email}</p>
                     </div>
                   ))}
@@ -341,9 +382,8 @@ export default function PremiumChatPage() {
               </div>
             </div>
           ) : (
-            chats.map(chat => {
+            sortedChats.map(chat => {
               const otherUser = chat.participants?.find(p => p._id !== user.id);
-              const isOnline = isUserOnline(otherUser?._id);
               
               return (
                 <div
@@ -356,7 +396,7 @@ export default function PremiumChatPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       {chat.isGroupChat ? (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg">
+                        <div className="flex items-center justify-center w-12 h-12 font-semibold text-white rounded-full shadow-lg bg-gradient-to-br from-blue-500 to-purple-600">
                           <Users className="w-6 h-6" />
                         </div>
                       ) : (
@@ -364,23 +404,21 @@ export default function PremiumChatPage() {
                           <img 
                             src={otherUser.profileImageUrl} 
                             alt="Profile" 
-                            className="w-12 h-12 rounded-full object-cover shadow-lg"
+                            className="object-cover w-12 h-12 rounded-full shadow-lg"
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-white font-semibold shadow-lg">
+                          <div className="flex items-center justify-center w-12 h-12 font-semibold text-white rounded-full shadow-lg bg-gradient-to-br from-slate-600 to-slate-800">
                             {otherUser?.name?.[0] || "?"}
                           </div>
                         )
                       )}
                       {!chat.isGroupChat && (
-                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 shadow-lg ${
-                          isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                        } border-slate-50 dark:border-brand-card`}></div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-[2px] border-slate-50 dark:border-brand-card transition-colors duration-300 ${getPresenceDotClass(otherUser?._id)}`}></div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="font-semibold text-sm truncate text-slate-900 dark:text-white">
+                        <p className="text-sm font-semibold truncate text-slate-900 dark:text-white">
                           {chat.isGroupChat ? chat.name : otherUser?.name || "Unknown"}
                         </p>
                         {chat.unreadCount > 0 && (
@@ -390,7 +428,11 @@ export default function PremiumChatPage() {
                         )}
                       </div>
                       <p className="text-xs truncate text-slate-600 dark:text-slate-400">
-                        {chat.lastMessage?.content || "No messages yet"}
+                        {chat.lastMessage?.content 
+                          ? (isEncrypted(chat.lastMessage.content)
+                              ? decryptMessage(chat.lastMessage.content, chat._id)
+                              : chat.lastMessage.content)
+                          : "No messages yet"}
                       </p>
                     </div>
                   </div>
@@ -402,16 +444,16 @@ export default function PremiumChatPage() {
       </div>
 
       {/* Chat Window */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-slate-900">
+      <div className="flex flex-col flex-1 bg-white dark:bg-slate-900">
         {activeChat ? (
           <>
             {/* Premium Header */}
-            <div className="px-6 py-4 shadow-lg bg-slate-50 dark:bg-brand-card border-b border-slate-200 dark:border-slate-800">
+            <div className="px-6 py-4 border-b shadow-lg bg-slate-50 dark:bg-brand-card border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="relative">
                     {activeChat.isGroupChat ? (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg">
+                      <div className="flex items-center justify-center w-12 h-12 font-bold text-white rounded-full shadow-lg bg-gradient-to-br from-blue-500 to-purple-600">
                         <Users className="w-6 h-6" />
                       </div>
                     ) : (
@@ -419,60 +461,52 @@ export default function PremiumChatPage() {
                         <img 
                           src={activeChat.participants.find(p => p._id !== user.id).profileImageUrl} 
                           alt="Profile" 
-                          className="w-12 h-12 rounded-full object-cover shadow-lg"
+                          className="object-cover w-12 h-12 rounded-full shadow-lg"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-white font-bold shadow-lg">
+                        <div className="flex items-center justify-center w-12 h-12 font-bold text-white rounded-full shadow-lg bg-gradient-to-br from-slate-600 to-slate-800">
                           {activeChat.participants?.find(p => p._id !== user.id)?.name?.[0] || "?"}
                         </div>
                       )
                     )}
                     {!activeChat.isGroupChat && (
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 shadow-lg ${
-                        isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                          ? "bg-green-500 animate-pulse"
-                          : "bg-gray-400"
-                      } border-slate-50 dark:border-brand-card`}></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-[2px] border-slate-50 dark:border-brand-card transition-colors duration-300 ${getPresenceDotClass(activeChat.participants?.find(p => p._id !== user.id)?._id)}`}></div>
                     )}
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                       {activeChat.isGroupChat 
                         ? activeChat.name 
                         : activeChat.participants?.find(p => p._id !== user.id)?.name || "Unknown"}
                     </h3>
                     {typing && (
                       <p className="text-sm animate-pulse text-brand-accent">
-                        typing...
+                        {typing.userName || 'Someone'} is typing...
                       </p>
                     )}
-                    {!typing && !activeChat.isGroupChat && (
-                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                        <span className={`inline-block w-2 h-2 rounded-full ${
-                          isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "bg-green-500 animate-pulse"
-                            : "bg-gray-400"
-                        }`}></span>
-                        <span>
-                          {isUserOnline(activeChat.participants?.find(p => p._id !== user.id)?._id)
-                            ? "Online"
-                            : "Offline"}
-                        </span>
-                      </div>
-                    )}
+                    {!typing && !activeChat.isGroupChat && (() => {
+                      const otherId = activeChat.participants?.find(p => p._id !== user.id)?._id;
+                      const { label, tooltip } = getPresenceLabel(otherId);
+                      return (
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                          <span className={`inline-block w-2 h-2 rounded-full ${getPresenceDotClass(otherId)}`}></span>
+                          <span className="cursor-default" title={tooltip}>{label}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => toast({ title: "Voice call feature coming soon", type: "info" })}
-                    className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                    className="p-3 text-white transition-all bg-blue-500 rounded-full shadow-lg hover:bg-blue-600 hover:scale-110"
                     title="Voice Call"
                   >
                     <Phone className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => toast({ title: "Video call feature coming soon", type: "info" })}
-                    className="p-3 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                    className="p-3 text-white transition-all bg-green-500 rounded-full shadow-lg hover:bg-green-600 hover:scale-110"
                     title="Video Call"
                   >
                     <Video className="w-5 h-5" />
@@ -482,7 +516,7 @@ export default function PremiumChatPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4" onClick={closeContextMenu}>
+            <div className="flex-1 px-6 py-6 space-y-4 overflow-y-auto" onClick={closeContextMenu}>
               {messages.map(msg => (
                 <div
                   key={msg._id}
@@ -515,12 +549,16 @@ export default function PremiumChatPage() {
                           {msg.fileUrl && msg.fileType?.startsWith("audio") ? (
                             <AudioPlayer src={msg.fileUrl} isSender={msg.sender._id === user.id} />
                           ) : (
-                            <p className="text-sm leading-relaxed break-words">{msg.content}</p>
+                            <p className="text-sm leading-relaxed break-words">
+                              {isEncrypted(msg.content)
+                                ? decryptMessage(msg.content, activeChat._id)
+                                : msg.content}
+                            </p>
                           )}
                           <div className={`flex items-center gap-1.5 mt-2 text-xs ${
                             msg.sender._id === user.id ? "text-blue-100" : "text-slate-500 dark:text-slate-400"
                           }`}>
-                            <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                            <span>{new Date(msg.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}</span>
                             {msg.sender._id === user.id && (
                               <CheckCheck className="w-4 h-4" />
                             )}
@@ -543,9 +581,9 @@ export default function PremiumChatPage() {
             </div>
 
             {/* Input Area */}
-            <div className="px-6 py-4 shadow-lg bg-slate-50 dark:bg-brand-card border-t border-slate-200 dark:border-slate-800">
+            <div className="px-6 py-4 border-t shadow-lg bg-slate-50 dark:bg-brand-card border-slate-200 dark:border-slate-800">
               {showEmojiPicker && (
-                <div className="mb-4 p-4 rounded-2xl shadow-lg bg-slate-100 dark:bg-slate-800">
+                <div className="p-4 mb-4 shadow-lg rounded-2xl bg-slate-100 dark:bg-slate-800">
                   <div className="flex flex-wrap gap-2">
                     {emojis.map((emoji, i) => (
                       <button
@@ -559,20 +597,20 @@ export default function PremiumChatPage() {
                   </div>
                 </div>
               )}
-              <div className="flex gap-3 items-end">
+              <div className="flex items-end gap-3">
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="p-3 rounded-full transition-all hover:scale-110 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  className="p-3 transition-all rounded-full hover:scale-110 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                 >
                   <Smile className="w-5 h-5" />
                 </button>
-                <div className="flex-1 relative">
+                <div className="relative flex-1">
                   <Input
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={handleTyping}
                     onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                    className="w-full rounded-full px-5 py-3 border-0 focus:ring-2 focus:ring-blue-500 transition-all bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-5 py-3 transition-all border-0 rounded-full focus:ring-2 focus:ring-blue-500 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
                   />
                 </div>
                 <button
@@ -587,7 +625,7 @@ export default function PremiumChatPage() {
                 </button>
                 <button
                   onClick={sendMessage}
-                  className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-400 hover:to-blue-500 transition-all shadow-lg hover:shadow-xl transform hover:scale-110"
+                  className="p-3 text-white transition-all transform rounded-full shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 hover:shadow-xl hover:scale-110"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -595,11 +633,11 @@ export default function PremiumChatPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-600 dark:text-slate-400">
+          <div className="flex items-center justify-center flex-1 text-slate-600 dark:text-slate-400">
             <div className="text-center">
               <MessageCircle className="w-20 h-20 mx-auto mb-4 opacity-20" />
               <p className="text-lg font-medium">Select a conversation to start</p>
-              <p className="text-sm mt-1 opacity-70">Choose a chat from the sidebar</p>
+              <p className="mt-1 text-sm opacity-70">Choose a chat from the sidebar</p>
             </div>
           </div>
         )}
@@ -618,13 +656,13 @@ export default function PremiumChatPage() {
           >
             <button
               onClick={startEdit}
-              className="w-full px-4 py-3 text-left text-sm hover:opacity-80 flex items-center gap-3 transition-colors font-medium text-slate-900 dark:text-white"
+              className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium text-left transition-colors hover:opacity-80 text-slate-900 dark:text-white"
             >
               <Edit2 className="w-4 h-4 text-blue-600" /> Edit
             </button>
             <button
               onClick={deleteMessage}
-              className="w-full px-4 py-3 text-left text-sm hover:opacity-80 flex items-center gap-3 text-red-600 transition-colors font-medium"
+              className="flex items-center w-full gap-3 px-4 py-3 text-sm font-medium text-left text-red-600 transition-colors hover:opacity-80"
             >
               <Trash2 className="w-4 h-4" /> Delete
             </button>

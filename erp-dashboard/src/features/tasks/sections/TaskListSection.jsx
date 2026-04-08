@@ -203,7 +203,7 @@ export default function TaskListSection({
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                    {new Date(task.dueDate).toLocaleDateString()}
+                    {new Date(task.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                   </td>
                   <td className="px-6 py-4">
                     <button

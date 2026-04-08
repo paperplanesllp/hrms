@@ -59,3 +59,92 @@ export function formatDistance(distance) {
   }
   return `${(distance / 1000).toFixed(2)}km`;
 }
+
+/**
+ * Format time in IST (Asia/Kolkata) 12-hour format
+ * @param {Date|string} date - Date object or date string
+ * @returns {string} e.g., "3:15 PM"
+ */
+export function formatISTTime(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata'
+  });
+}
+
+/**
+ * Format date and time in IST (Asia/Kolkata) 12-hour format
+ * @param {Date|string} date - Date object or date string
+ * @returns {string} e.g., "08 Apr 2026, 3:15 PM"
+ */
+export function formatISTDateTime(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata'
+  });
+}
+
+/**
+ * Format "last seen" or relative time in IST
+ * @param {Date|string} date - Date object or date string
+ * @returns {string} e.g., "today at 3:15 PM", "yesterday at 9:05 AM"
+ */
+export function formatLastSeenIST(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const istOptions = { timeZone: 'Asia/Kolkata' };
+  
+  // Get IST date parts for comparison
+  const dIST = new Date(d.toLocaleString('en-US', istOptions));
+  const nowIST = new Date(now.toLocaleString('en-US', istOptions));
+  
+  const dDay = new Date(dIST); dDay.setHours(0,0,0,0);
+  const nowDay = new Date(nowIST); nowDay.setHours(0,0,0,0);
+  const diffDays = Math.floor((nowDay - dDay) / (24 * 3600000));
+  
+  const time = formatISTTime(date);
+  
+  if (diffDays === 0) return `today at ${time}`;
+  if (diffDays === 1) return `yesterday at ${time}`;
+  
+  const dateStr = d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata'
+  });
+  return `${dateStr} at ${time}`;
+}
+
+/**
+ * Format date only in IST (Asia/Kolkata)
+ * @param {Date|string} date - Date object or date string
+ * @returns {string} e.g., "08 Apr 2026"
+ */
+export function formatISTDate(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata'
+  });
+}
