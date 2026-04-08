@@ -58,6 +58,40 @@ async function assertCanEditAttendanceTarget(actor, targetUserId) {
   }
 }
 
+async function resolveCoordinatesFromPayloadOrTrackedLocation({
+  userId,
+  latitude,
+  longitude,
+  accuracy,
+  actionLabel,
+}) {
+  if (latitude !== undefined && longitude !== undefined) {
+    return { latitude, longitude, accuracy: accuracy ?? null, source: "request" };
+  }
+
+  const trackedUser = await User.findById(userId).select(
+    "currentLatitude currentLongitude currentLocationAccuracy lastLocationUpdate"
+  );
+
+  if (
+    trackedUser &&
+    trackedUser.currentLatitude !== null &&
+    trackedUser.currentLongitude !== null
+  ) {
+    return {
+      latitude: trackedUser.currentLatitude,
+      longitude: trackedUser.currentLongitude,
+      accuracy: trackedUser.currentLocationAccuracy ?? accuracy ?? null,
+      source: "tracked",
+    };
+  }
+
+  throw new ApiError(
+    StatusCodes.BAD_REQUEST,
+    `Location coordinates are required for ${actionLabel}. Please enable GPS and wait for live location sync.`
+  );
+}
+
 /**
  * POST /attendance/checkin
  * 
@@ -92,21 +126,21 @@ export const postMarkMine = asyncHandler(async (req, res) => {
     }
   }
 
-  // Validate geolocation is provided
-  if (data.checkInLatitude === undefined || data.checkInLongitude === undefined) {
-    throw new ApiError(
-      StatusCodes.BAD_REQUEST,
-      "Location coordinates are required. Please enable GPS and allow permission."
-    );
-  }
+  const resolvedLocation = await resolveCoordinatesFromPayloadOrTrackedLocation({
+    userId: req.user.id,
+    latitude: data.checkInLatitude,
+    longitude: data.checkInLongitude,
+    accuracy: data.checkInAccuracy,
+    actionLabel: "check-in",
+  });
 
   // Perform check-in with server-generated time
   const doc = await performCheckIn(
     req.user.id,
     date,
-    data.checkInLatitude,
-    data.checkInLongitude,
-    data.checkInAccuracy,
+    resolvedLocation.latitude,
+    resolvedLocation.longitude,
+    resolvedLocation.accuracy,
     fraudAnalysis // Pass fraud analysis to service
   );
 
@@ -159,7 +193,7 @@ export const postCheckOut = asyncHandler(async (req, res) => {
   if (!parsedPayload.success) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
-      "Location coordinates are required for check-out. Please enable GPS and try again."
+      "Invalid location payload for check-out. Please verify GPS data and try again."
     );
   }
 
@@ -177,21 +211,21 @@ export const postCheckOut = asyncHandler(async (req, res) => {
     }
   }
 
-  // Validate geolocation is provided
-  if (data.checkOutLatitude === undefined || data.checkOutLongitude === undefined) {
-    throw new ApiError(
-      StatusCodes.BAD_REQUEST,
-      "Location coordinates are required for check-out. Please enable GPS."
-    );
-  }
+  const resolvedLocation = await resolveCoordinatesFromPayloadOrTrackedLocation({
+    userId: req.user.id,
+    latitude: data.checkOutLatitude,
+    longitude: data.checkOutLongitude,
+    accuracy: data.checkOutAccuracy,
+    actionLabel: "check-out",
+  });
 
   // Perform check-out with server-generated time
   const doc = await performCheckOut(
     req.user.id,
     date,
-    data.checkOutLatitude,
-    data.checkOutLongitude,
-    data.checkOutAccuracy,
+    resolvedLocation.latitude,
+    resolvedLocation.longitude,
+    resolvedLocation.accuracy,
     fraudAnalysis
   );
 
