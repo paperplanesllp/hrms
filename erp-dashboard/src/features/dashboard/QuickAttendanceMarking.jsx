@@ -109,16 +109,18 @@ export default function QuickAttendanceMarking() {
       
       toast({ 
         title: "✅ Checked in successfully", 
-        description: `Distance from office: ${res.data.attendance?.distanceFromOffice || 0}m`,
+        message: `Distance from office: ${res.data.attendance?.distanceFromOffice || 0}m`,
         type: "success" 
       });
       
       setHasCheckedInToday(true);
       setCheckInTime(res.data.attendance?.checkIn || clientCheckInTime);
     } catch (e) {
+      const backendMessage = e?.response?.data?.message || e.message;
+      const isTooFar = /away from office|inside the office location/i.test(backendMessage);
       toast({
-        title: "Check-in failed",
-        message: e?.response?.data?.message || e.message,
+        title: isTooFar ? "You are too far away from office" : "Check-in failed",
+        message: backendMessage,
         type: "error"
       });
     } finally {
@@ -129,21 +131,32 @@ export default function QuickAttendanceMarking() {
   const handleCheckOut = async () => {
     try {
       setAttendanceLoading(true);
+      const location = await requestGeolocation();
       
-      // Get current time from client
+      // Device time is sent only for audit; server still records official time
       const now = new Date();
-      const clientCheckOutTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const deviceTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
-      await api.post("/attendance/checkout", {
-        checkOut: clientCheckOutTime
+      const res = await api.post("/attendance/checkout", {
+        checkOutLatitude: location.latitude,
+        checkOutLongitude: location.longitude,
+        checkOutAccuracy: location.accuracy,
+        deviceTime,
       });
-      toast({ title: "✅ Checked out successfully", type: "success" });
+
+      toast({ 
+        title: "✅ Checked out successfully",
+        message: `Distance from office: ${res.data.attendance?.checkOutDistanceFromOffice || 0}m`,
+        type: "success"
+      });
       
       setHasCheckedOutToday(true);
     } catch (e) {
+      const backendMessage = e?.response?.data?.message || e.message;
+      const isTooFar = /away from office|inside the office location/i.test(backendMessage);
       toast({
-        title: "Check-out failed",
-        message: e?.response?.data?.message || e.message,
+        title: isTooFar ? "You are too far away from office" : "Check-out failed",
+        message: backendMessage,
         type: "error"
       });
     } finally {

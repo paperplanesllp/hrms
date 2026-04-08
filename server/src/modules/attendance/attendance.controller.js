@@ -155,7 +155,15 @@ export const postMarkMine = asyncHandler(async (req, res) => {
  * }
  */
 export const postCheckOut = asyncHandler(async (req, res) => {
-  const data = checkOutSchema.parse(req.body || {});
+  const parsedPayload = checkOutSchema.safeParse(req.body || {});
+  if (!parsedPayload.success) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Location coordinates are required for check-out. Please enable GPS and try again."
+    );
+  }
+
+  const data = parsedPayload.data;
   const date = getServerDateIST(); // Use server date
 
   // Optional: Log fraud detection
