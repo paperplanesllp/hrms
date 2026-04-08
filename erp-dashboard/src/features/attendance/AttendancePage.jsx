@@ -11,7 +11,19 @@ import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
 import { convertTo12HourFormat } from "./attendanceUtils.js";
-import { Clock, AlertCircle, CheckCircle2, Search, LogIn, LogOut, TrendingUp, Calendar, User, Timer, X, ChevronDown } from "lucide-react";
+import { Clock, AlertCircle, CheckCircle2, Search, LogIn, LogOut, TrendingUp, Calendar, User, Timer, X, ChevronDown, MapPin } from "lucide-react";
+
+/**
+ * Format date from YYYY-MM-DD to DD-MMM-YYYY
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {string} - Formatted date like "07-Apr-2026"
+ */
+function formatDateForDisplay(dateStr) {
+  if (!dateStr) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return `${String(day).padStart(2, "0")}-${months[month - 1]}-${year}`;
+}
 
 export default function AttendancePage() {
   const user = useAuthStore((s) => s.user);
@@ -152,15 +164,17 @@ export default function AttendancePage() {
       const location = await requestGeolocation();
       console.log("✅ Location captured:", location);
       
-      // Get current time from client
+      // Get device time for fraud detection audit (not used for official time)
       const now = new Date();
-      const clientCheckInTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const deviceTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
-      // Send check-in with location data
+      // SECURITY: Send only GPS coordinates and device time for audit
+      // Server generates official check-in time (cannot be manipulated by client)
       const res = await api.post("/attendance/checkin", {
-        checkIn: clientCheckInTime,
         checkInLatitude: location.latitude,
-        checkInLongitude: location.longitude
+        checkInLongitude: location.longitude,
+        checkInAccuracy: location.accuracy,
+        deviceTime: deviceTime  // For fraud detection only, NOT used for official time
       });
       
       console.log("✅ Check-in successful:", res.data);
@@ -172,8 +186,9 @@ export default function AttendancePage() {
       
       // Immediately disable check-in button and start timer from ZERO
       setHasCheckedInToday(true);
-      // Set current time for fresh timer start (not from database balance)
-      setCheckInTime(clientCheckInTime);
+      // Use server-returned time (official source of truth)
+      const serverCheckInTime = res.data.attendance?.checkIn || deviceTime;
+      setCheckInTime(serverCheckInTime);
       // Reset elapsed time to zero
       setElapsedTime({ hours: 0, minutes: 0, seconds: 0 });
       load();
@@ -185,17 +200,31 @@ export default function AttendancePage() {
 
   const checkOut = async () => {
     try {
-      console.log("🔚 Attempting check-out...");
+      console.log("🔚 Attempting check-out with geolocation...");
       
-      // Get current time from client
+      // Capture current GPS location
+      const location = await requestGeolocation();
+      console.log("✅ Check-out location captured:", location);
+      
+      // Get device time for fraud detection audit (not used for official time)
       const now = new Date();
-      const clientCheckOutTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const deviceTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
+      // SECURITY: Send only GPS coordinates and device time for audit
+      // Server generates official check-out time (cannot be manipulated by client)
       const res = await api.post("/attendance/checkout", {
-        checkOut: clientCheckOutTime
+        checkOutLatitude: location.latitude,
+        checkOutLongitude: location.longitude,
+        checkOutAccuracy: location.accuracy,
+        deviceTime: deviceTime  // For fraud detection only, NOT used for official time
       });
+      
       console.log("✅ Check-out successful:", res.data);
-      toast({ title: "Checked out successfully", type: "success" });
+      toast({ 
+        title: "Checked out successfully", 
+        description: `Distance from office: ${res.data.attendance?.checkOutDistanceFromOffice || 0}m`,
+        type: "success" 
+      });
       
       // Disable both buttons - both checked in and checked out for today
       setHasCheckedInToday(true);
@@ -297,6 +326,8 @@ export default function AttendancePage() {
         return { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-700", icon: Clock };
       case "LATE":
         return { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-700", icon: Clock };
+      case "INVALID_LOCATION":
+        return { bg: "bg-red-50", border: "border-red-400", text: "text-red-700", icon: AlertCircle };
       case "ABSENT":
         return { bg: "bg-[#FCE8E6]", border: "border-[#C5221F]", text: "text-[var(--text-error)]", icon: AlertCircle };
       default:
@@ -597,7 +628,15 @@ export default function AttendancePage() {
                             </td>
                           </>
                         )}
-                        <td className="px-6 py-4 font-semibold text-[var(--text-main)]">{record.date}</td>
+                        <td className="px-6 py-4 font-semibold text-[var(--text-main)]">
+                          <div className="text-sm">{formatDateForDisplay(record.date)}</div>
+                          {record.checkInDistanceFromOffice > 50 || record.checkOutDistanceFromOffice > 50 ? (
+                            <div className="flex items-center gap-1 mt-1 text-xs font-semibold text-orange-600">
+                              <MapPin className="w-3 h-3" />
+                              Out of range
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-semibold text-[var(--text-main)]">{record.shiftStart} - {record.shiftEnd}</div>
                           <div className="text-xs text-[var(--text-light)] mt-1 flex items-center gap-1">
@@ -612,6 +651,12 @@ export default function AttendancePage() {
                                 <LogIn className="w-4 h-4 text-green-600" />
                                 {convertTo12HourFormat(record.checkIn)}
                               </p>
+                              {record.checkInDistanceFromOffice !== undefined && record.checkInDistanceFromOffice > 0 && (
+                                <p className="mt-1 text-xs text-slate-500 flex items-center justify-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {Math.round(record.checkInDistanceFromOffice)}m away
+                                </p>
+                              )}
                               {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600">Late</p>}
                             </div>
                           ) : (
@@ -625,6 +670,12 @@ export default function AttendancePage() {
                                 <LogOut className="w-4 h-4 text-orange-600" />
                                 {convertTo12HourFormat(record.checkOut)}
                               </p>
+                              {record.checkOutDistanceFromOffice !== undefined && record.checkOutDistanceFromOffice > 0 && (
+                                <p className="mt-1 text-xs text-slate-500 flex items-center justify-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {Math.round(record.checkOutDistanceFromOffice)}m away
+                                </p>
+                              )}
                               {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600">Early</p>}
                             </div>
                           ) : forgotCheckOut ? (

@@ -4,6 +4,13 @@ import { Event, EVENT_PURPOSE, EVENT_VISIBILITY } from "../calendar/Event.model.
 import { User } from "../users/User.model.js";
 import { env } from "../../config/env.js";
 import { isWithinGeofence } from "../../utils/geofencing.js";
+import { getCurrentDateIST, getCurrentTimeIST } from "../../utils/istDateTime.js";
+import { 
+  getServerTime, 
+  getServerDateIST, 
+  getServerTimeISTPrecision,
+  convertToIST 
+} from "../../utils/serverTime.js";
 import { ROLES } from "../../middleware/roles.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
@@ -181,7 +188,270 @@ async function getPublicHolidayNameForDate(date) {
   return holiday?.title || null;
 }
 
-export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude) {
+/**
+ * SECURE CHECK-IN FUNCTION
+ * 
+ * Uses server-generated time (NEVER trusts frontend time)
+ * Performs all geofence validation server-side
+ * 
+ * @param {string} userId - User ID
+ * @param {string} date - Attendance date (from server)
+ * @param {number} checkInLatitude - Employee GPS latitude
+ * @param {number} checkInLongitude - Employee GPS longitude
+ * @param {number} checkInAccuracy - GPS accuracy in meters (optional)
+ * @param {object} fraudAnalysis - Fraud detection results (optional)
+ * @returns {object} - Attendance record
+ */
+export async function performCheckIn(
+  userId,
+  date,
+  checkInLatitude,
+  checkInLongitude,
+  checkInAccuracy = null,
+  fraudAnalysis = null
+) {
+  try {
+    // SECURITY: Get server time (ONLY source of truth)
+    const serverTime = getServerTime();
+    const checkInTime24 = getServerTimeISTPrecision(); // HH:MM format
+
+    // Verify user exists
+    const user = await User.findById(userId).select("role");
+    if (!user) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+    }
+
+    // Check if user already has active attendance for today
+    const existingAttendance = await Attendance.findOne({ userId, date });
+
+    if (existingAttendance && existingAttendance.checkIn) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "You have already checked in today. Check out first before checking in again."
+      );
+    }
+
+    // Get company location for geofence validation
+    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+
+    if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "Office location not configured. Contact admin."
+      );
+    }
+
+    // SECURITY: Validate geofence server-side
+    const isAdmin = user.role === ROLES.ADMIN;
+    let geofenceCheck = { isWithinGeofence: true, distance: 0 };
+
+    if (!isAdmin) {
+      geofenceCheck = isWithinGeofence(
+        checkInLatitude,
+        checkInLongitude,
+        adminUser.officeLatitude,
+        adminUser.officeLongitude
+      );
+
+      if (!geofenceCheck.isWithinGeofence) {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          `You are ${Math.round(geofenceCheck.distance)}m away from office (${geofenceCheck.radius}m allowed). You must be inside the office location to check in.`
+        );
+      }
+    }
+
+    // Get shift details
+    const { shiftStart, shiftEnd } = await getShiftForDate(date);
+    const holidayName = await getPublicHolidayNameForDate(date);
+
+    // Calculate status
+    const status = holidayName
+      ? "HOLIDAY"
+      : "PRESENT"; // Could be calculated more precisely, but PRESENT for active check-in
+
+    // Update or create attendance record
+    const doc = await Attendance.findOneAndUpdate(
+      { userId, date },
+      {
+        $set: {
+          checkIn: checkInTime24,
+          checkInTimestamp: serverTime,
+          checkInLatitude,
+          checkInLongitude,
+          checkInAccuracy,
+          checkInDistanceFromOffice: geofenceCheck.distance,
+          checkInWithinGeofence: geofenceCheck.isWithinGeofence,
+          status,
+          shiftStart,
+          shiftEnd,
+          shiftName: "Regular Shift",
+          timezone: "Asia/Kolkata",
+          isWithinGeofence: geofenceCheck.isWithinGeofence, // Backward compat
+          distanceFromOffice: geofenceCheck.distance, // Backward compat
+          // Fraud detection: Store if device time differs significantly
+          ...(fraudAnalysis?.isSuspicious && {
+            suspiciousActivity: {
+              type: "TIME_MANIPULATION_SUSPECTED",
+              deviceTime: fraudAnalysis.deviceTime,
+              serverTime: fraudAnalysis.serverTime,
+              differenceMinutes: fraudAnalysis.differenceMinutes,
+              timestamp: new Date()
+            }
+          })
+        }
+      },
+      { upsert: true, returnDocument: "after" }
+    );
+
+    return doc;
+  } catch (error) {
+    console.error("Error during check-in:", error);
+    throw error;
+  }
+}
+
+/**
+ * SECURE CHECK-OUT FUNCTION
+ * 
+ * Uses server-generated time (NEVER trusts frontend time)
+ * Validates active check-in exists
+ * Performs geofence validation server-side
+ * 
+ * @param {string} userId - User ID
+ * @param {string} date - Attendance date (from server)
+ * @param {number} checkOutLatitude - Employee GPS latitude
+ * @param {number} checkOutLongitude - Employee GPS longitude
+ * @param {number} checkOutAccuracy - GPS accuracy in meters (optional)
+ * @param {object} fraudAnalysis - Fraud detection results (optional)
+ * @returns {object} - Updated attendance record
+ */
+export async function performCheckOut(
+  userId,
+  date,
+  checkOutLatitude,
+  checkOutLongitude,
+  checkOutAccuracy = null,
+  fraudAnalysis = null
+) {
+  try {
+    // SECURITY: Get server time (ONLY source of truth)
+    const serverTime = getServerTime();
+    const checkOutTime24 = getServerTimeISTPrecision(); // HH:MM format
+
+    // Verify user exists
+    const user = await User.findById(userId).select("role");
+    if (!user) {
+      throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+    }
+
+    // Check if user has active check-in
+    const existingAttendance = await Attendance.findOne({ userId, date });
+
+    if (!existingAttendance || !existingAttendance.checkIn) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "Check-in required before checkout. You must check in first."
+      );
+    }
+
+    if (existingAttendance.checkOut) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "You have already checked out today."
+      );
+    }
+
+    // Get company location for geofence validation
+    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+
+    if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "Office location not configured. Contact admin."
+      );
+    }
+
+    // SECURITY: Validate geofence server-side
+    const isAdmin = user.role === ROLES.ADMIN;
+    let geofenceCheck = { isWithinGeofence: true, distance: 0 };
+
+    if (!isAdmin) {
+      geofenceCheck = isWithinGeofence(
+        checkOutLatitude,
+        checkOutLongitude,
+        adminUser.officeLatitude,
+        adminUser.officeLongitude
+      );
+
+      if (!geofenceCheck.isWithinGeofence) {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          `You are ${Math.round(geofenceCheck.distance)}m away from office (${geofenceCheck.radius}m allowed). You must be inside the office location to check out.`
+        );
+      }
+    }
+
+    // Calculate total hours worked
+    let totalHours = 0;
+    if (existingAttendance.checkIn && checkOutTime24) {
+      totalHours = calculateTotalHours(existingAttendance.checkIn, checkOutTime24);
+    }
+
+    // Get shift details for status calculation
+    const { shiftStart, shiftEnd } = await getShiftForDate(date);
+    const holidayName = await getPublicHolidayNameForDate(date);
+
+    // Calculate status
+    const status = holidayName
+      ? "HOLIDAY"
+      : calculateAttendanceStatus({
+          date,
+          checkIn: existingAttendance.checkIn,
+          checkOut: checkOutTime24,
+          shiftStart,
+          shiftEnd
+        });
+
+    // Update attendance record
+    const doc = await Attendance.findOneAndUpdate(
+      { userId, date },
+      {
+        $set: {
+          checkOut: checkOutTime24,
+          checkOutTimestamp: serverTime,
+          checkOutLatitude,
+          checkOutLongitude,
+          checkOutAccuracy,
+          checkOutDistanceFromOffice: geofenceCheck.distance,
+          checkOutWithinGeofence: geofenceCheck.isWithinGeofence,
+          totalHours,
+          status,
+          // Fraud detection: Store if device time differs significantly
+          ...(fraudAnalysis?.isSuspicious && {
+            suspiciousCheckOutActivity: {
+              type: "TIME_MANIPULATION_SUSPECTED",
+              deviceTime: fraudAnalysis.deviceTime,
+              serverTime: fraudAnalysis.serverTime,
+              differenceMinutes: fraudAnalysis.differenceMinutes,
+              timestamp: new Date()
+            }
+          })
+        }
+      },
+      { returnDocument: "after" }
+    );
+
+    return doc;
+  } catch (error) {
+    console.error("Error during check-out:", error);
+    throw error;
+  }
+}
+
+export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude, checkOutLatitude, checkOutLongitude, checkInAccuracy = null, checkOutAccuracy = null) {
   try {
     const existing = await Attendance.findOne({ userId, date });
     const { shiftStart, shiftEnd } = await getShiftForDate(date);
@@ -190,35 +460,43 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
     const newCheckIn = checkIn ?? existing?.checkIn ?? "";
     const newCheckOut = checkOut ?? existing?.checkOut ?? "";
 
+    // Get the checking-in user's role — admins are exempt from geofence
+    const checkingUser = await User.findById(userId).select("role");
+    const isAdmin = checkingUser && checkingUser.role === ROLES.ADMIN;
+
+    // Get company location (required for geofence validation)
+    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
+    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+
+    // If office location is not configured, block check-in/checkout for non-admin users
+    if (!isAdmin && (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0)) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "Office location has not been configured yet. Please ask your admin to set the company location in settings."
+      );
+    }
+
     // Initialize geofencing data
     let checkInData = {
       checkIn: newCheckIn,
       checkOut: newCheckOut,
       shiftStart,
       shiftEnd,
-      shiftName: "Regular Shift"
+      shiftName: "Regular Shift",
+      timezone: "Asia/Kolkata"
     };
 
-    // Validate geofencing if checking in with GPS coordinates
+    // ============================================================
+    // VALIDATE CHECK-IN GEOFENCE
+    // ============================================================
     if (newCheckIn && checkInLatitude !== undefined && checkInLongitude !== undefined) {
-      // Get the checking-in user's role — admins are exempt from geofence
-      const checkingUser = await User.findById(userId).select("role");
-      const isAdmin = checkingUser && checkingUser.role === ROLES.ADMIN;
+      // Validate that coordinates are provided
+      if (!checkInLatitude && checkInLatitude !== 0 || !checkInLongitude && checkInLongitude !== 0) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Check-in location coordinates are incomplete");
+      }
 
       if (!isAdmin) {
-        // Get company location from first admin marked as company location
-        const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-        const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
-
-        // If office location is not configured, block check-in for non-admin users
-        if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
-          throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            "Office location has not been configured yet. Please ask your admin to set the company location in settings."
-          );
-        }
-
-        // Validate distance
+        // Non-admin: must be within geofence
         const geofenceCheck = isWithinGeofence(
           checkInLatitude,
           checkInLongitude,
@@ -226,26 +504,85 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
           adminUser.officeLongitude
         );
 
-        // Store geofencing data
+        // Store check-in geofencing data
         checkInData.checkInLatitude = checkInLatitude;
         checkInData.checkInLongitude = checkInLongitude;
-        checkInData.isWithinGeofence = geofenceCheck.isWithinGeofence;
-        checkInData.distanceFromOffice = geofenceCheck.distance;
+        checkInData.checkInAccuracy = checkInAccuracy;
+        checkInData.checkInDistanceFromOffice = geofenceCheck.distance;
+        checkInData.checkInWithinGeofence = geofenceCheck.isWithinGeofence;
+        checkInData.isWithinGeofence = geofenceCheck.isWithinGeofence; // Backward compatibility
+        checkInData.distanceFromOffice = geofenceCheck.distance; // Backward compatibility
 
         // Block check-in if outside geofence
         if (!geofenceCheck.isWithinGeofence) {
           throw new ApiError(
             StatusCodes.BAD_REQUEST,
-            `You are ${geofenceCheck.distance}m away from office (${geofenceCheck.radius}m allowed). Cannot check in.`
+            `You are ${Math.round(geofenceCheck.distance)}m away from office (${geofenceCheck.radius}m allowed). You must be inside the office location to check in.`
           );
         }
       } else {
         // Admin is exempt — just record their location without enforcing geofence
         checkInData.checkInLatitude = checkInLatitude;
         checkInData.checkInLongitude = checkInLongitude;
-        checkInData.isWithinGeofence = true;
-        checkInData.distanceFromOffice = 0;
+        checkInData.checkInAccuracy = checkInAccuracy;
+        checkInData.checkInWithinGeofence = true;
+        checkInData.checkInDistanceFromOffice = 0;
+        checkInData.isWithinGeofence = true; // Backward compatibility
+        checkInData.distanceFromOffice = 0; // Backward compatibility
       }
+
+      // Store ISO timestamp for audit trail
+      checkInData.checkInTimestamp = new Date();
+    }
+
+    // ============================================================
+    // VALIDATE CHECK-OUT GEOFENCE
+    // ============================================================
+    if (newCheckOut && checkOutLatitude !== undefined && checkOutLongitude !== undefined) {
+      // Validate that coordinates are provided
+      if (!checkOutLatitude && checkOutLatitude !== 0 || !checkOutLongitude && checkOutLongitude !== 0) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Check-out location coordinates are incomplete");
+      }
+
+      // Validate that user has checked in before checking out
+      if (!newCheckIn) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Check-in required before checkout");
+      }
+
+      if (!isAdmin) {
+        // Non-admin: must be within geofence for checkout
+        const geofenceCheck = isWithinGeofence(
+          checkOutLatitude,
+          checkOutLongitude,
+          adminUser.officeLatitude,
+          adminUser.officeLongitude
+        );
+
+        // Store check-out geofencing data
+        checkInData.checkOutLatitude = checkOutLatitude;
+        checkInData.checkOutLongitude = checkOutLongitude;
+        checkInData.checkOutAccuracy = checkOutAccuracy;
+        checkInData.checkOutDistanceFromOffice = geofenceCheck.distance;
+        checkInData.checkOutWithinGeofence = geofenceCheck.isWithinGeofence;
+
+        // Block check-out if outside geofence
+        if (!geofenceCheck.isWithinGeofence) {
+          throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            `You are ${Math.round(geofenceCheck.distance)}m away from office (${geofenceCheck.radius}m allowed). You must be inside the office location to check out.`
+          );
+        }
+      } else {
+        // Admin is exempt — just record their location without enforcing geofence
+        checkInData.checkOutLatitude = checkOutLatitude;
+        checkInData.checkOutLongitude = checkOutLongitude;
+        checkInData.checkOutAccuracy = checkOutAccuracy;
+        checkInData.checkOutWithinGeofence = true;
+        checkInData.checkOutDistanceFromOffice = 0;
+      }
+
+      // Store ISO timestamp for audit trail
+      checkInData.checkOutTimestamp = new Date();
     }
 
     // Calculate total worked hours

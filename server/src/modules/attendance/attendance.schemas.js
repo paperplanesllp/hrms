@@ -1,11 +1,39 @@
 import { z } from "zod";
 
+/**
+ * Schema for check-in/check-out requests
+ * 
+ * SECURITY: Time fields (checkIn, checkOut) are IGNORED if sent from frontend.
+ * Time is ALWAYS generated server-side using getCurrentServerTime().
+ * Frontend can only send location data.
+ */
 export const markSchema = z.object({
-  date: z.string().min(10).optional(), // Optional - will default to today if not provided
-  checkIn: z.string().optional(),
-  checkOut: z.string().optional(),
-  checkInLatitude: z.number().optional(), // Employee's GPS latitude at check-in
-  checkInLongitude: z.number().optional() // Employee's GPS longitude at check-in
+  // Geolocation - REQUIRED
+  checkInLatitude: z.number(), // Employee's GPS latitude
+  checkInLongitude: z.number(), // Employee's GPS longitude
+  checkInAccuracy: z.number().optional(), // GPS accuracy in meters
+  
+  // Audit trail only (NOT used for time recording)
+  // deviceTime is sent for fraud detection but NOT stored as official time
+  deviceTime: z.string().optional(), // Client device time (for audit comparison only)
+  
+  // These fields from old implementation - WILL BE IGNORED if sent
+  // checkIn: IGNORED (use server time)
+  // checkOut: IGNORED (use server time)
+  // date: IGNORED if sent
+});
+
+export const checkOutSchema = z.object({
+  // Geolocation - REQUIRED  
+  checkOutLatitude: z.number(), // Employee's GPS latitude at checkout
+  checkOutLongitude: z.number(), // Employee's GPS longitude at checkout
+  checkOutAccuracy: z.number().optional(), // GPS accuracy in meters
+  
+  // Audit trail only
+  deviceTime: z.string().optional(), // Client device time (for audit comparison only)
+  
+  // These fields from old implementation - WILL BE IGNORED if sent
+  // checkOut: IGNORED (use server time)
 });
 
 export const adminEditShiftSchema = z.object({

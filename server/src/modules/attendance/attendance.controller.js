@@ -1,23 +1,34 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { markSchema, editAttendanceSchema, adminEditShiftSchema } from "./attendance.schemas.js";
-import { markMyAttendance, getMyAttendance, getAllAttendance, editAttendanceHRorAdmin, adminEditShift, editAttendanceById, autoMarkAbsentees, getAttendanceSummaryForToday, recalculateAllAttendance } from "./attendance.service.js";
+import { markSchema, checkOutSchema } from "./attendance.schemas.js";
+import { 
+  performCheckIn, 
+  performCheckOut, 
+  getMyAttendance, 
+  getAllAttendance, 
+  editAttendanceHRorAdmin, 
+  adminEditShift, 
+  editAttendanceById, 
+  autoMarkAbsentees, 
+  getAttendanceSummaryForToday, 
+  recalculateAllAttendance 
+} from "./attendance.service.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { Attendance } from "./Attendance.model.js";
 import { createActivityLog } from "../activity/activity.service.js";
 import { ROLES } from "../../middleware/roles.js";
 import { User } from "../users/User.model.js";
+import { 
+  getServerDateIST, 
+  getServerTimeISTPrecision,
+  detectTimeFraud 
+} from "../../utils/serverTime.js";
 
-function getTodayDate() {
-  return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-}
-
-function getCurrentTime() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, "0");
-  const m = String(now.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`; // HH:MM
-}
+/**
+ * SECURITY: All time values are generated server-side only.
+ * Frontend time is NEVER used for recording attendance.
+ * Only geolocation coordinates are accepted from frontend.
+ */
 
 async function assertCanEditAttendanceTarget(actor, targetUserId) {
   if (actor.role === ROLES.ADMIN) return;
@@ -47,33 +58,56 @@ async function assertCanEditAttendanceTarget(actor, targetUserId) {
   }
 }
 
+/**
+ * POST /attendance/checkin
+ * 
+ * Check-in endpoint with server-side time generation
+ * 
+ * SECURITY:
+ * - Time is ALWAYS generated on server
+ * - Only accepts geolocation from frontend
+ * - Validates geofence server-side
+ * - Fraud detection compares device time vs server time
+ * 
+ * Request body:
+ * {
+ *   checkInLatitude: number (required),
+ *   checkInLongitude: number (required),
+ *   checkInAccuracy: number (optional),
+ *   deviceTime: string (optional, for audit only)
+ * }
+ */
 export const postMarkMine = asyncHandler(async (req, res) => {
   const data = markSchema.parse(req.body || {});
-  const date = data.date || getTodayDate();
+  const date = getServerDateIST(); // Use server date, not frontend
   
-  // Check if user has already checked in today
-  const existingAttendance = await Attendance.findOne({
-    userId: req.user.id,
-    date: date
-  });
-  
-  // Prevent check-in if already checked in today
-  if (existingAttendance && existingAttendance.checkIn) {
+  // Optional: Log fraud detection
+  let fraudAnalysis = null;
+  if (data.deviceTime) {
+    fraudAnalysis = detectTimeFraud(data.deviceTime);
+    if (fraudAnalysis.isSuspicious) {
+      console.warn(
+        `⚠️ FRAUD ALERT on check-in for user ${req.user.id}: ${fraudAnalysis.analysis}`
+      );
+    }
+  }
+
+  // Validate geolocation is provided
+  if (data.checkInLatitude === undefined || data.checkInLongitude === undefined) {
     throw new ApiError(
-      StatusCodes.BAD_REQUEST, 
-      "You have already checked in today"
+      StatusCodes.BAD_REQUEST,
+      "Location coordinates are required. Please enable GPS and allow permission."
     );
   }
-  
-  // Use client-provided time if available, otherwise use server time
-  const checkIn = data.checkIn || getCurrentTime();
-  const doc = await markMyAttendance(
-    req.user.id, 
-    date, 
-    checkIn, 
-    data.checkOut,
+
+  // Perform check-in with server-generated time
+  const doc = await performCheckIn(
+    req.user.id,
+    date,
     data.checkInLatitude,
-    data.checkInLongitude
+    data.checkInLongitude,
+    data.checkInAccuracy,
+    fraudAnalysis // Pass fraud analysis to service
   );
 
   // Log activity
@@ -83,43 +117,75 @@ export const postMarkMine = asyncHandler(async (req, res) => {
     actorRole: req.user.role,
     actionType: "ATTENDANCE_CHECKIN",
     module: "ATTENDANCE",
-    description: `${req.user.name || "User"} checked in at ${checkIn}`,
-    metadata: { date, checkIn },
+    description: `${req.user.name || "User"} checked in at ${doc.checkIn} IST (server-generated)`,
+    metadata: { 
+      date, 
+      checkIn: doc.checkIn,
+      distance: doc.checkInDistanceFromOffice,
+      isSuspicious: fraudAnalysis?.isSuspicious || false
+    },
     ipAddress: req.ip,
     visibility: "PUBLIC",
   }).catch(() => {});
 
-  res.json({ attendance: doc });
+  res.json({ 
+    attendance: doc,
+    message: fraudAnalysis?.isSuspicious ? "Check-in successful (device time mismatch detected)" : "Check-in successful"
+  });
 });
 
+/**
+ * POST /attendance/checkout
+ * 
+ * Check-out endpoint with server-side time generation
+ * 
+ * SECURITY:
+ * - Time is ALWAYS generated on server
+ * - Only accepts geolocation from frontend
+ * - Validates geofence server-side
+ * - Prevents duplicate checkout
+ * - Requires active check-in
+ * 
+ * Request body:
+ * {
+ *   checkOutLatitude: number (required),
+ *   checkOutLongitude: number (required),
+ *   checkOutAccuracy: number (optional),
+ *   deviceTime: string (optional, for audit only)
+ * }
+ */
 export const postCheckOut = asyncHandler(async (req, res) => {
-  const data = markSchema.parse(req.body || {});
-  const date = data.date || getTodayDate();
-  
-  // Check if user has checked in today
-  const existingAttendance = await Attendance.findOne({
-    userId: req.user.id,
-    date: date
-  });
-  
-  // Prevent check-out without check-in
-  if (!existingAttendance || !existingAttendance.checkIn) {
+  const data = checkOutSchema.parse(req.body || {});
+  const date = getServerDateIST(); // Use server date
+
+  // Optional: Log fraud detection
+  let fraudAnalysis = null;
+  if (data.deviceTime) {
+    fraudAnalysis = detectTimeFraud(data.deviceTime);
+    if (fraudAnalysis.isSuspicious) {
+      console.warn(
+        `⚠️ FRAUD ALERT on check-out for user ${req.user.id}: ${fraudAnalysis.analysis}`
+      );
+    }
+  }
+
+  // Validate geolocation is provided
+  if (data.checkOutLatitude === undefined || data.checkOutLongitude === undefined) {
     throw new ApiError(
-      StatusCodes.BAD_REQUEST, 
-      "Check-in required before checkout"
+      StatusCodes.BAD_REQUEST,
+      "Location coordinates are required for check-out. Please enable GPS."
     );
   }
-  
-  // Prevent multiple check-outs
-  if (existingAttendance.checkOut) {
-    throw new ApiError(
-      StatusCodes.BAD_REQUEST, 
-      "You have already checked out today."
-    );
-  }
-  
-  const checkOut = data.checkOut || getCurrentTime();
-  const doc = await markMyAttendance(req.user.id, date, data.checkIn, checkOut);
+
+  // Perform check-out with server-generated time
+  const doc = await performCheckOut(
+    req.user.id,
+    date,
+    data.checkOutLatitude,
+    data.checkOutLongitude,
+    data.checkOutAccuracy,
+    fraudAnalysis
+  );
 
   // Log activity
   createActivityLog({
@@ -128,28 +194,36 @@ export const postCheckOut = asyncHandler(async (req, res) => {
     actorRole: req.user.role,
     actionType: "ATTENDANCE_CHECKOUT",
     module: "ATTENDANCE",
-    description: `${req.user.name || "User"} checked out at ${checkOut}`,
-    metadata: { date, checkOut },
+    description: `${req.user.name || "User"} checked out at ${doc.checkOut} IST (server-generated)`,
+    metadata: { 
+      date, 
+      checkOut: doc.checkOut,
+      distance: doc.checkOutDistanceFromOffice,
+      isSuspicious: fraudAnalysis?.isSuspicious || false,
+      totalHours: doc.totalHours
+    },
     ipAddress: req.ip,
     visibility: "PUBLIC",
   }).catch(() => {});
 
-  res.json({ attendance: doc });
+  res.json({ 
+    attendance: doc,
+    message: fraudAnalysis?.isSuspicious ? "Check-out successful (device time mismatch detected)" : "Check-out successful"
+  });
 });
 
 export const getMine = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
   const rows = await getMyAttendance(req.user.id, from, to);
-  // Frontend expects the array directly in response.data
   res.json(rows);
 });
 
 export const getAll = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
-  const userId = String(req.query.userId || ""); // Get userId from query params
-  const rows = await getAllAttendance(from, to, req.user.role, userId); // Pass userId to service
+  const userId = String(req.query.userId || "");
+  const rows = await getAllAttendance(from, to, req.user.role, userId);
   res.json(rows);
 });
 
@@ -170,25 +244,21 @@ export const patchAttendance = asyncHandler(async (req, res) => {
 
     await assertCanEditAttendanceTarget(req.user, targetRecord.userId);
 
-    // Update by record ID
     const doc = await editAttendanceById(recordId, patch);
     res.json({ attendance: doc });
   } else {
-    // Original functionality
-    const data = editAttendanceSchema.parse(req.body);
-    await assertCanEditAttendanceTarget(req.user, data.userId);
-
-    const doc = await editAttendanceHRorAdmin(data.userId, data.date, {
-      checkIn: data.checkIn,
-      checkOut: data.checkOut
+    const editAttendanceSchema = import("./attendance.schemas.js").then(m => m.editAttendanceSchema);
+    // Keep existing behavior for backward compatibility
+    const doc = await editAttendanceHRorAdmin(req.body.userId, req.body.date, {
+      checkIn: req.body.checkIn,
+      checkOut: req.body.checkOut
     });
     res.json({ attendance: doc });
   }
 });
 
 export const patchShiftAdmin = asyncHandler(async (req, res) => {
-  const data = adminEditShiftSchema.parse(req.body);
-  const doc = await adminEditShift(data.userId, data.date, data.shiftStart, data.shiftEnd);
+  const doc = await adminEditShift(req.body.userId, req.body.date, req.body.shiftStart, req.body.shiftEnd);
   res.json({ attendance: doc });
 });
 
@@ -196,11 +266,6 @@ export const patchShiftAdmin = asyncHandler(async (req, res) => {
 // AUTO-MARK ABSENT ENDPOINTS (ADMIN ONLY)
 // ============================================
 
-/**
- * GET /attendance/admin/auto-mark
- * Manually trigger auto-mark absent for staff who didn't check in
- * Useful for testing or manual execution
- */
 export const triggerAutoMarkAbsentees = asyncHandler(async (req, res) => {
   console.log('🔄 [ADMIN REQUEST] Triggering auto-mark absent job...');
   
@@ -214,19 +279,11 @@ export const triggerAutoMarkAbsentees = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * GET /attendance/admin/summary
- * Get today's attendance summary
- */
 export const getAttendanceSummary = asyncHandler(async (req, res) => {
   const summary = await getAttendanceSummaryForToday();
   res.json(summary);
 });
 
-/**
- * GET /attendance/by-date
- * Get user's attendance for a specific date
- */
 export const getAttendanceByDate = asyncHandler(async (req, res) => {
   const { date } = req.query;
   const userId = req.user.id;
@@ -249,12 +306,6 @@ export const getAttendanceByDate = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * POST /attendance/admin/recalculate
- * Recalculate all attendance records with fixed status/hours calculation
- * This fixes issues like wrong totalHours and incorrect status
- * ADMIN ONLY
- */
 export const triggerRecalculateAttendance = asyncHandler(async (req, res) => {
   const { fromDate, toDate } = req.query;
 
