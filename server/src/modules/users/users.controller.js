@@ -8,6 +8,8 @@ import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { createActivityLog } from "../activity/activity.service.js";
 import { sendWelcomeEmail } from "../../utils/emailService.js";
+import { unlink } from "fs/promises";
+import { isCloudinaryConfigured, uploadProfileImageToCloudinary } from "../../utils/cloudinary.js";
 
 export const createUserByAdmin = asyncHandler(async (req, res) => {
   const data = createUserSchema.parse(req.body);
@@ -181,9 +183,22 @@ export const updateMe = asyncHandler(async (req, res) => {
   
   // Handle profile image upload
   if (req.file) {
-    // Generate the image URL path
-    const profileImageUrl = `/uploads/profile-images/${req.file.filename}`;
-    patch.profileImageUrl = profileImageUrl;
+    if (!isCloudinaryConfigured()) {
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in server/.env"
+      );
+    }
+
+    try {
+      const uploadedImage = await uploadProfileImageToCloudinary(req.file.path, req.user.id);
+      patch.profileImageUrl = uploadedImage.secure_url;
+    } catch (error) {
+      console.error("Cloudinary profile upload failed:", error.message);
+      throw new ApiError(StatusCodes.BAD_GATEWAY, "Failed to upload profile image. Please try again.");
+    } finally {
+      await unlink(req.file.path).catch(() => null);
+    }
   }
   
   const user = await updateUser(req.user.id, patch);

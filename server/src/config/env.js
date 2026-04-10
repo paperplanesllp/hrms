@@ -17,6 +17,11 @@ export const env = {
 
   COOKIE_SECURE: String(process.env.COOKIE_SECURE || "false") === "true",
 
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+  CLOUDINARY_PROFILE_FOLDER: process.env.CLOUDINARY_PROFILE_FOLDER || "hrms/profile-images",
+
   DEFAULT_SHIFT_START: "09:30",
   DEFAULT_SHIFT_END: "18:30"
 };
