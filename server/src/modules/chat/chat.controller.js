@@ -1,5 +1,7 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import * as chatService from "./chat.service.js";
+import fs from "fs/promises";
+import { isCloudinaryConfigured, uploadChatMediaToCloudinary } from "../../utils/cloudinary.js";
 
 export const getMyChats = asyncHandler(async (req, res) => {
   const chats = await chatService.getUserChats(req.user.id);
@@ -66,8 +68,21 @@ export const postMessage = asyncHandler(async (req, res) => {
   const file = req.files?.voice?.[0] || req.files?.image?.[0] || req.file;
   
   if (file) {
+    let mediaUrl = `/uploads/${file.filename}`;
+
+    if (isCloudinaryConfigured()) {
+      try {
+        const uploaded = await uploadChatMediaToCloudinary(file.path, req.user.id, file.mimetype);
+        mediaUrl = uploaded.secure_url || uploaded.url;
+      } catch (error) {
+        console.error("Cloudinary chat upload failed, using local file:", error.message);
+      } finally {
+        await fs.unlink(file.path).catch(() => {});
+      }
+    }
+
     fileData = {
-      url: `/uploads/${file.filename}`,
+      url: mediaUrl,
       name: file.originalname,
       type: file.mimetype
     };

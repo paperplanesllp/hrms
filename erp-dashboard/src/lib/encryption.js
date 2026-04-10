@@ -112,10 +112,12 @@ export const decryptMessage = (encryptedContent, chatId) => {
     }
     
     console.warn('All decryption strategies failed for:', encryptedContent.substring(0, 50));
-    return '[Unable to display message]';
+    // Return the original payload instead of a hard failure placeholder.
+    // This prevents valid plain text from being replaced with an error string.
+    return encryptedContent;
   } catch (error) {
     console.error('Decryption error:', error);
-    return '[Unable to display message]';
+    return encryptedContent || '';
   }
 };
 
@@ -139,14 +141,10 @@ export const getEncryptionKey = (chatId) => {
  */
 export const isEncrypted = (content) => {
   if (!content || typeof content !== 'string') return false;
-  
-  // Check for AES encryption header (CryptoJS adds "U2FsdGVkX1" to encrypted strings)
-  // Also check if it looks like base64 encoded encrypted content
-  const hasEncryptionHeader = content.includes('U2FsdGVkX1');
-  const looksLikeBase64 = /^[A-Za-z0-9+/]+=*$/.test(content);
-  const isLongEnough = content.length > 30;
-  
-  return hasEncryptionHeader || (looksLikeBase64 && isLongEnough);
+
+  // CryptoJS/OpenSSL salted payloads always start with this prefix.
+  // Keep this strict to avoid classifying normal long text as encrypted.
+  return content.startsWith('U2FsdGVkX1');
 };
 
 /**

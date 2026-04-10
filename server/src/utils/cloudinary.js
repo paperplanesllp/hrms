@@ -24,3 +24,13 @@ export const uploadProfileImageToCloudinary = async (filePath, userId) => {
     resource_type: "image",
   });
 };
+
+export const uploadChatMediaToCloudinary = async (filePath, userId, mimetype = "application/octet-stream") => {
+  return cloudinary.uploader.upload(filePath, {
+    folder: env.CLOUDINARY_CHAT_FOLDER,
+    public_id: `${userId}_${Date.now()}`,
+    resource_type: "auto",
+    use_filename: false,
+    overwrite: false,
+  });
+};
