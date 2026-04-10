@@ -6,7 +6,7 @@ import { ThemeProvider } from "./components/providers/ThemeProvider.jsx";
 import useGeolocationTracker from "./lib/useGeolocationTracker.js";
 
 export default function App() {
-  // Track user geolocation every 10 seconds for HR and employees
+  // Track user geolocation every 2 seconds for HR and employees
   useGeolocationTracker();
 
   return (

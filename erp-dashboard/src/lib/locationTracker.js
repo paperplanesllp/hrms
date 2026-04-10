@@ -5,7 +5,7 @@ let trackingInterval = null;
 let isTracking = false;
 
 /**
- * Start tracking user location every 10 seconds
+ * Start tracking user location every 2 seconds
  * Sends updates to backend /users/update-current-location endpoint
  */
 export function startLocationTracking() {
@@ -20,10 +20,10 @@ export function startLocationTracking() {
   // Track location immediately on start
   trackLocation();
 
-  // Then track every 10 seconds (10000 ms)
+  // Then track every 2 seconds (2000 ms)
   trackingInterval = setInterval(() => {
     trackLocation();
-  }, 10000);
+  }, 2000);
 }
 
 /**

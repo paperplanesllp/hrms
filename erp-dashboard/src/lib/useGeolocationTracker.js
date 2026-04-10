@@ -4,8 +4,8 @@ import { requestGeolocation, isGeolocationSupported } from './geolocation.js';
 import api from './api.js';
 import { ROLES } from '../app/constants.js';
 
-// Track geolocation every 10 seconds for HR and employees
-const UPDATE_INTERVAL = 10000; // 10 seconds
+// Track geolocation every 2 seconds for HR and employees
+const UPDATE_INTERVAL = 2000; // 2 seconds
 
 export default function useGeolocationTracker() {
   const user = useAuthStore((state) => state.user);
@@ -27,7 +27,7 @@ export default function useGeolocationTracker() {
       return;
     }
 
-    // Function to update location every 10 seconds
+    // Function to update location every 2 seconds
     const updateLocation = async () => {
       if (isTrackingRef.current) return;
       
@@ -35,7 +35,7 @@ export default function useGeolocationTracker() {
         isTrackingRef.current = true;
         const location = await requestGeolocation();
         
-        // Send location update to backend (every 10 seconds)
+        // Send location update to backend (every 2 seconds)
         await api.post('/users/location/update', {
           latitude: location.latitude,
           longitude: location.longitude,
@@ -55,7 +55,7 @@ export default function useGeolocationTracker() {
     // Start tracking - immediate first update
     updateLocation();
 
-    // Set up interval for subsequent updates every 10 seconds
+    // Set up interval for subsequent updates every 2 seconds
     intervalRef.current = setInterval(updateLocation, UPDATE_INTERVAL);
 
     // Cleanup on unmount or user change

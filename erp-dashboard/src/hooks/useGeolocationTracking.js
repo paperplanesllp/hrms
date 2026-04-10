@@ -4,7 +4,7 @@ import api from '../lib/api.js';
 import { toast } from '../store/toastStore.js';
 
 /**
- * Hook to track user geolocation every 10 seconds after login
+ * Hook to track user geolocation every 2 seconds after login
  * Works for both HR and regular users
  */
 export function useGeolocationTracking() {
@@ -48,8 +48,8 @@ export function useGeolocationTracking() {
           ? (now - lastUpdateRef.current) / 1000
           : Infinity;
 
-        // Update every 10 seconds as requested, but API will handle deduplication
-        if (timeSinceLastUpdate >= 10) {
+        // Update every 2 seconds as requested, but API will handle deduplication
+        if (timeSinceLastUpdate >= 2) {
           // Send location update to backend
           await api.post('/users/location/update', {
             latitude: parseFloat(latitude.toFixed(6)),
@@ -78,8 +78,8 @@ export function useGeolocationTracking() {
     // Initial call to get location immediately
     updateGeolocation();
 
-    // Set up interval to update every 10 seconds
-    trackingIntervalRef.current = setInterval(updateGeolocation, 10000);
+    // Set up interval to update every 2 seconds
+    trackingIntervalRef.current = setInterval(updateGeolocation, 2000);
 
     return () => {
       if (trackingIntervalRef.current) {
