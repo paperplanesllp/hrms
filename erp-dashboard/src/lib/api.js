@@ -1,5 +1,6 @@
 import axios from "axios";
-import { getAuth, saveAuth, clearAuth } from "./auth.js";
+import { getAuth } from "./auth.js";
+import { setSession, logout } from "../store/authStore.js";
 
 const normalizeApiBaseUrl = (value) => {
   const candidate = (value || "").trim();
@@ -8,81 +9,134 @@ const normalizeApiBaseUrl = (value) => {
 };
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+const PUBLIC_AUTH_ROUTES = new Set([
+  "/auth/login",
+  "/auth/refresh",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/signup",
+]);
+
+let refreshPromise = null;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // keep true if you use HttpOnly refresh cookies
 });
 
-api.interceptors.request.use((config) => {
+function getPathname(url = "") {
+  try {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return new URL(url).pathname;
+    }
+    return (url.split("?")[0] || "").trim();
+  } catch {
+    return (url.split("?")[0] || "").trim();
+  }
+}
+
+function isPublicAuthRoute(url = "") {
+  const path = getPathname(url);
+  return Array.from(PUBLIC_AUTH_ROUTES).some(
+    (route) => path === route || path.endsWith(route) || path === `/api${route}`
+  );
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(base64);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function isTokenExpired(token, leewaySeconds = 30) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return payload.exp <= now + leewaySeconds;
+}
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = axios
+    .post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true })
+    .then((response) => {
+      const accessToken = response.data?.accessToken;
+      if (!accessToken) {
+        throw new Error("Refresh response missing access token");
+      }
+
+      const existing = getAuth() || {};
+      const next = {
+        ...existing,
+        accessToken,
+        user: response.data?.user || existing.user,
+      };
+
+      setSession(next);
+      return accessToken;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
+api.interceptors.request.use(async (config) => {
   const auth = getAuth();
-  const isPublicAuthRoute = [
-    "/auth/login",
-    "/auth/refresh",
-    "/auth/forgot-password",
-    "/auth/reset-password",
-    "/auth/signup",
-  ].includes(config.url);
-  
-  console.log('🔐 [API Request] URL:', config.url);
-  console.log('🔐 [API Request] Method:', config.method);
-  console.log('🔐 [API Request] Has token:', !!auth?.accessToken);
-  
-  if (auth?.accessToken) {
-    config.headers.Authorization = `Bearer ${auth.accessToken}`;
-    console.log('🔐 [API Request] Auth header added');
-  } else if (!isPublicAuthRoute) {
-    console.warn('⚠️ [API Request] No access token found!');
+  const publicRoute = isPublicAuthRoute(config.url || "");
+
+  if (auth?.accessToken && !publicRoute) {
+    let token = auth.accessToken;
+
+    if (isTokenExpired(token)) {
+      token = await refreshAccessToken();
+    }
+
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
   }
-  
+
   // For FormData, let axios set Content-Type automatically
-  if (config.data instanceof FormData) {
-    delete config.headers['Content-Type'];
+  if (config.data instanceof FormData && config.headers) {
+    delete config.headers["Content-Type"];
   }
-  
+
   return config;
 });
 
 api.interceptors.response.use(
-  (res) => {
-    console.log('✅ [API Response] URL:', res.config.url);
-    console.log('✅ [API Response] Status:', res.status);
-    console.log('✅ [API Response] Data:', res.data);
-    return res;
-  },
+  (res) => res,
   async (err) => {
-    console.error('❌ [API Error] URL:', err.config?.url);
-    console.error('❌ [API Error] Status:', err.response?.status);
-    console.error('❌ [API Error] Data:', err.response?.data);
-    console.error('❌ [API Error] Message:', err.message);
-    
     const original = err.config;
-    if (err?.response?.status === 401 && !original?._retry) {
-      original._retry = true;
-      try {
-        console.log("🔄 Attempting token refresh...");
-        const r = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        console.log("✅ Token refreshed successfully");
-        const auth = getAuth() || {};
-        const next = { 
-          ...auth, 
-          accessToken: r.data?.accessToken,
-          user: r.data?.user || auth.user
-        };
-        saveAuth(next);
 
-        original.headers.Authorization = `Bearer ${r.data?.accessToken}`;
+    if (
+      err?.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !isPublicAuthRoute(original.url || "")
+    ) {
+      original._retry = true;
+
+      try {
+        const accessToken = await refreshAccessToken();
+        original.headers = original.headers || {};
+        original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
-      } catch (refreshErr) {
-        console.error("❌ Token refresh failed:", refreshErr?.response?.data?.message || refreshErr.message);
-        clearAuth();
+      } catch {
+        logout();
         window.location.href = "/login";
       }
     }
+
     return Promise.reject(err);
   }
 );
