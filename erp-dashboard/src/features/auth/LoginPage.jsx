@@ -176,9 +176,9 @@ export default function LoginPage() {
       <div className="absolute rounded-full pointer-events-none -top-20 -left-20 h-72 w-72 bg-cyan-500/20 blur-3xl" />
       <div className="absolute bottom-0 right-0 rounded-full pointer-events-none h-96 w-96 bg-emerald-500/10 blur-3xl" />
 
-      <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="min-h-screen lg:pl-[50%]">
         {/* Left Side - Premium Video Section */}
-        <div className="relative hidden overflow-hidden lg:flex">
+        <div className="relative hidden overflow-hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-1/2">
           <video
             autoPlay
             loop
@@ -228,7 +228,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="relative flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
+        <div className="relative z-10 flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
           <div className="w-full max-w-md">
             {/* Mobile top header */}
             <div className="mb-8 lg:hidden">
@@ -268,7 +268,10 @@ export default function LoginPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAuthMode("temporary")}
+                  onClick={() => {
+                    setAuthMode("temporary");
+                    setShowTempRegister(false);
+                  }}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
                     authMode === "temporary"
                       ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
@@ -330,99 +333,154 @@ export default function LoginPage() {
                   </Button>
                 </form>
               ) : (
-                <div className="space-y-5">
-                  <form onSubmit={tempOtpSent ? handleVerifyTempOtp : handleRequestTempOtp} className="space-y-4">
-                    <Input
-                      label="Associate Email"
-                      type="email"
-                      value={tempEmail}
-                      onChange={(e) => setTempEmail(e.target.value)}
-                      placeholder="associate.user@example.com"
-                      required
-                    />
-
-                    {tempOtpSent && (
-                      <Input
-                        label="OTP Password"
-                        type="password"
-                        value={tempOtp}
-                        onChange={(e) => setTempOtp(e.target.value)}
-                        placeholder="Enter 6-digit OTP"
-                        maxLength={6}
-                        required
-                      />
-                    )}
-
-                    {tempDebugOtp ? (
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        Dev OTP: {tempDebugOtp}
-                      </p>
-                    ) : null}
-
-                    <Button
-                      disabled={tempLoading}
-                      className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTempRegister(false);
+                      }}
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        !showTempRegister
+                          ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 dark:text-slate-300"
+                      }`}
                     >
-                      {tempLoading
-                        ? "Please wait..."
-                        : tempOtpSent
-                        ? "Verify OTP & Sign In"
-                        : "Send OTP"}
-                    </Button>
-                  </form>
+                      OTP Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTempRegister(true);
+                        setTempOtpSent(false);
+                        setTempOtp("");
+                        setTempDebugOtp("");
+                      }}
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        showTempRegister
+                          ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      Register
+                    </button>
+                  </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        New associate?
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setShowTempRegister((prev) => !prev)}
-                        className="text-sm font-semibold text-emerald-700 hover:text-emerald-600 dark:text-emerald-400"
-                      >
-                        {showTempRegister ? "Hide" : "Register"}
-                      </button>
+                  {showTempRegister ? (
+                    <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 via-white to-cyan-50/80 p-4 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-slate-900/30 dark:to-cyan-950/20">
+                      <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-200/60 blur-2xl dark:bg-emerald-500/20" />
+                      <div className="pointer-events-none absolute -bottom-10 -left-10 h-24 w-24 rounded-full bg-cyan-200/60 blur-2xl dark:bg-cyan-500/20" />
+
+                      <div className="relative">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+                          Associate Onboarding
+                        </p>
+                        <h4 className="mt-1 text-base font-bold text-slate-900 dark:text-white">
+                          Submit your access request
+                        </h4>
+                        <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                          Fill this once, HR will review it, and then you can sign in with OTP.
+                        </p>
+
+                        <form onSubmit={handleTemporaryRegistration} className="mt-4 space-y-3 rounded-xl border border-emerald-100 bg-white/85 p-4 dark:border-emerald-900/40 dark:bg-slate-900/60">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Input
+                              label="Full Name"
+                              value={tempRegisterForm.name}
+                              onChange={(e) =>
+                                setTempRegisterForm((prev) => ({ ...prev, name: e.target.value }))
+                              }
+                              placeholder="Your full name"
+                              autoComplete="name"
+                              required
+                            />
+                            <Input
+                              label="Phone (optional)"
+                              value={tempRegisterForm.phone}
+                              onChange={(e) =>
+                                setTempRegisterForm((prev) => ({ ...prev, phone: e.target.value }))
+                              }
+                              placeholder="+91XXXXXXXXXX"
+                              autoComplete="tel"
+                            />
+                          </div>
+
+                          <Input
+                            label="Email"
+                            type="email"
+                            value={tempRegisterForm.email}
+                            onChange={(e) =>
+                              setTempRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                            }
+                            placeholder="your.email@example.com"
+                            autoComplete="email"
+                            required
+                          />
+
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Approval usually takes a few minutes during office hours.
+                          </p>
+
+                          <Button
+                            disabled={tempRegisterLoading}
+                            className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-sm font-semibold text-white shadow-md shadow-emerald-900/20 hover:from-emerald-500 hover:to-teal-600"
+                          >
+                            {tempRegisterLoading ? "Submitting Request..." : "Submit for HR Approval"}
+                          </Button>
+                        </form>
+                      </div>
                     </div>
-
-                    {showTempRegister ? (
-                      <form onSubmit={handleTemporaryRegistration} className="mt-4 space-y-3">
+                  ) : (
+                    <div className="space-y-4">
+                      <form onSubmit={tempOtpSent ? handleVerifyTempOtp : handleRequestTempOtp} className="space-y-4">
                         <Input
-                          label="Full Name"
-                          value={tempRegisterForm.name}
-                          onChange={(e) =>
-                            setTempRegisterForm((prev) => ({ ...prev, name: e.target.value }))
-                          }
-                          placeholder="Your full name"
-                          required
-                        />
-                        <Input
-                          label="Email"
+                          label="Associate Email"
                           type="email"
-                          value={tempRegisterForm.email}
-                          onChange={(e) =>
-                            setTempRegisterForm((prev) => ({ ...prev, email: e.target.value }))
-                          }
-                          placeholder="your.email@example.com"
+                          value={tempEmail}
+                          onChange={(e) => setTempEmail(e.target.value)}
+                          placeholder="associate.user@example.com"
                           required
                         />
-                        <Input
-                          label="Phone (optional)"
-                          value={tempRegisterForm.phone}
-                          onChange={(e) =>
-                            setTempRegisterForm((prev) => ({ ...prev, phone: e.target.value }))
-                          }
-                          placeholder="+91XXXXXXXXXX"
-                        />
+
+                        {tempOtpSent && (
+                          <Input
+                            label="OTP Password"
+                            type="password"
+                            value={tempOtp}
+                            onChange={(e) => setTempOtp(e.target.value)}
+                            placeholder="Enter 6-digit OTP"
+                            maxLength={6}
+                            required
+                          />
+                        )}
+
+                        {tempDebugOtp ? (
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            Dev OTP: {tempDebugOtp}
+                          </p>
+                        ) : null}
+
                         <Button
-                          disabled={tempRegisterLoading}
-                          className="h-11 w-full rounded-xl bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                          disabled={tempLoading}
+                          className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
                         >
-                          {tempRegisterLoading ? "Submitting..." : "Submit for HR Approval"}
+                          {tempLoading
+                            ? "Please wait..."
+                            : tempOtpSent
+                            ? "Verify OTP & Sign In"
+                            : "Send OTP"}
                         </Button>
                       </form>
-                    ) : null}
-                  </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowTempRegister(true)}
+                        className="w-full rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+                      >
+                        New associate? Register instead
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
