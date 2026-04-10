@@ -171,14 +171,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-100 dark:bg-[#061014]">
+    <div className="relative min-h-screen overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable] bg-slate-100 dark:bg-[#061014]">
       {/* Background blobs */}
       <div className="absolute rounded-full pointer-events-none -top-20 -left-20 h-72 w-72 bg-cyan-500/20 blur-3xl" />
       <div className="absolute bottom-0 right-0 rounded-full pointer-events-none h-96 w-96 bg-emerald-500/10 blur-3xl" />
 
-      <div className="min-h-screen lg:pl-[50%]">
+      <div className="min-h-screen lg:pl-[50vw]">
         {/* Left Side - Premium Video Section */}
-        <div className="relative hidden overflow-hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-1/2">
+        <div className="relative hidden overflow-hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-[50vw]">
           <video
             autoPlay
             loop
@@ -228,7 +228,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="relative z-10 flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
+        <div className="relative z-10 flex min-h-screen items-start justify-center px-5 py-10 sm:px-8 lg:px-10">
           <div className="w-full max-w-md">
             {/* Mobile top header */}
             <div className="mb-8 lg:hidden">
@@ -282,7 +282,8 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {authMode === "employee" ? (
+              <div className={authMode === "temporary" && showTempRegister ? "md:min-h-[540px]" : ""}>
+                {authMode === "employee" ? (
                 <form onSubmit={submit} className="space-y-5">
                   <div className="space-y-4">
                     <Input
@@ -483,6 +484,7 @@ export default function LoginPage() {
                   )}
                 </div>
               )}
+              </div>
 
               <div className="pt-5 mt-6 border-t border-slate-200 dark:border-white/10">
                 <p className="text-xs leading-5 text-center text-slate-500 dark:text-slate-400">
