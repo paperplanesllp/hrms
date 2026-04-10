@@ -34,7 +34,13 @@ export async function createUser(data) {
 export async function listUsers(requestingUserRole = null, currentUserId = null, departmentId = null) {
   // Exclude terminated users and ADMIN accounts from shared lists.
   // HR can see all active staff (USER + HR) so they can assign tasks to themselves and peers.
-  const query = { role: { $nin: ["TERMINATED", "ADMIN"] } };
+  const query = {
+    role: { $nin: ["TERMINATED", "ADMIN"] },
+    $or: [
+      { accountType: { $ne: "TEMPORARY" } },
+      { accountType: "TEMPORARY", approvalStatus: "APPROVED" },
+    ],
+  };
   
   // Filter by department if provided (for task reassignment to department members)
   if (departmentId) {
@@ -76,4 +82,94 @@ export async function changePassword(userId, currentPassword, newPassword) {
 
   user.passwordHash = await bcrypt.hash(newPassword, 10);
   await user.save();
+}
+
+export async function listPendingTemporaryUsers() {
+  return User.find({
+    accountType: "TEMPORARY",
+    approvalStatus: "PENDING",
+  })
+    .select("name email phone createdAt approvalStatus accountType")
+    .sort({ createdAt: -1 });
+}
+
+export async function approveTemporaryUser(
+  userId,
+  approverId,
+  approvalNote = "",
+  officeLatitude = null,
+  officeLongitude = null
+) {
+  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
+
+  user.approvalStatus = "APPROVED";
+  user.approvedBy = approverId;
+  user.approvedAt = new Date();
+  user.approvalNote = approvalNote || "Approved by HR";
+
+  if (typeof officeLatitude === "number" && typeof officeLongitude === "number") {
+    user.officeLatitude = officeLatitude;
+    user.officeLongitude = officeLongitude;
+  }
+
+  await user.save();
+  return user;
+}
+
+export async function rejectTemporaryUser(userId, approverId, approvalNote = "") {
+  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
+
+  user.approvalStatus = "REJECTED";
+  user.approvedBy = approverId;
+  user.approvedAt = new Date();
+  user.approvalNote = approvalNote || "Rejected by HR";
+  await user.save();
+  return user;
+}
+
+export async function convertTemporaryToPermanent(userId, converterId, payload) {
+  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
+  }
+
+  if (user.approvalStatus !== "APPROVED") {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Only approved temporary users can be converted to permanent"
+    );
+  }
+
+  const existingEmployeeId = await User.findOne({
+    employeeId: payload.employeeId,
+    _id: { $ne: userId },
+  });
+
+  if (existingEmployeeId) {
+    throw new ApiError(StatusCodes.CONFLICT, "Employee ID already exists");
+  }
+
+  user.employeeId = payload.employeeId;
+  user.departmentId = payload.departmentId || null;
+  user.designationId = payload.designationId || null;
+  user.salaryBand = payload.salaryBand;
+  user.joiningDate = payload.joiningDate ? new Date(payload.joiningDate) : null;
+
+  user.accountType = "EMPLOYEE";
+  user.role = "USER";
+
+  user.temporaryRecord = {
+    wasTemporary: true,
+    registeredAt: user.createdAt,
+    approvedAt: user.approvedAt,
+    approvedBy: user.approvedBy,
+    approvalNote: user.approvalNote || "",
+    convertedAt: new Date(),
+    convertedBy: converterId,
+  };
+
+  await user.save();
+  return user;
 }

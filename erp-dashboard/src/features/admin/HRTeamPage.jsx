@@ -1032,7 +1032,7 @@ function CreateHRModal({
                     <option value="">Select Employee Type</option>
                     <option value="Permanent">Permanent</option>
                     <option value="Contract">Contract</option>
-                    <option value="Temporary">Temporary</option>
+                    <option value="Temporary">Associate</option>
                     <option value="Intern">Intern</option>
                   </select>
                 </FormField>

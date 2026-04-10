@@ -1,6 +1,24 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { loginSchema, signupSchema, forgotPasswordSchema, resetPasswordSchema } from "./auth.schemas.js";
-import { login, refresh, logout, signup, forgotPassword, resetPassword } from "./auth.service.js";
+import {
+  loginSchema,
+  signupSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  temporaryRegisterSchema,
+  temporaryOtpRequestSchema,
+  temporaryOtpVerifySchema,
+} from "./auth.schemas.js";
+import {
+  login,
+  refresh,
+  logout,
+  signup,
+  forgotPassword,
+  resetPassword,
+  registerTemporaryUser,
+  requestTemporaryOtp,
+  verifyTemporaryOtp,
+} from "./auth.service.js";
 import { env } from "../../config/env.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
@@ -79,4 +97,28 @@ export const postResetPassword = asyncHandler(async (req, res) => {
   const data = resetPasswordSchema.parse(req.body);
   const result = await resetPassword(data.token, data.password);
   res.json(result);
+});
+
+export const postTemporaryRegister = asyncHandler(async (req, res) => {
+  const data = temporaryRegisterSchema.parse(req.body);
+  const result = await registerTemporaryUser(data);
+  res.status(201).json(result);
+});
+
+export const postTemporaryRequestOtp = asyncHandler(async (req, res) => {
+  const data = temporaryOtpRequestSchema.parse(req.body);
+  const result = await requestTemporaryOtp(data.email);
+  res.json(result);
+});
+
+export const postTemporaryVerifyOtp = asyncHandler(async (req, res) => {
+  const data = temporaryOtpVerifySchema.parse(req.body);
+  const result = await verifyTemporaryOtp(data.email, data.otp);
+
+  res.cookie("refreshToken", result.refreshToken, {
+    ...cookieBase,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  res.json({ accessToken: result.accessToken, user: result.user });
 });

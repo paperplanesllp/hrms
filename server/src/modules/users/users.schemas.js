@@ -29,6 +29,8 @@ export const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
+  salaryBand: z.string().optional(),
+  joiningDate: z.string().optional(),
   profileImageUrl: z.string().optional(),
   role: z.enum([ROLES.ADMIN, ROLES.HR, ROLES.USER]).optional(),
   officeLatitude: z.number().optional(),
@@ -50,4 +52,12 @@ export const updateMyProfileSchema = z.object({
   email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   profileImageUrl: z.string().optional()
+});
+
+export const convertTemporaryToPermanentSchema = z.object({
+  employeeId: z.string().min(2, "Employee ID is required"),
+  departmentId: z.string().min(1, "Department is required"),
+  designationId: z.string().min(1, "Designation is required"),
+  salaryBand: z.string().min(1, "Salary band is required"),
+  joiningDate: z.string().min(1, "Joining date is required"),
 });

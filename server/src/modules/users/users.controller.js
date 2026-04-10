@@ -1,6 +1,21 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import { createUserSchema, updateUserSchema, updateMyProfileSchema } from "./users.schemas.js";
-import { createUser, listUsers, getUserById, updateUser, changePassword } from "./users.service.js";
+import {
+  createUserSchema,
+  updateUserSchema,
+  updateMyProfileSchema,
+  convertTemporaryToPermanentSchema,
+} from "./users.schemas.js";
+import {
+  createUser,
+  listUsers,
+  getUserById,
+  updateUser,
+  changePassword,
+  listPendingTemporaryUsers,
+  approveTemporaryUser,
+  rejectTemporaryUser,
+  convertTemporaryToPermanent,
+} from "./users.service.js";
 import { User } from "./User.model.js";
 import { AuditLog } from "../audit/AuditLog.model.js";
 import { ROLES } from "../../middleware/roles.js";
@@ -72,6 +87,108 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   const { department } = req.query;
   const users = await listUsers(req.user.role, req.user.id, department);
   res.json(users);
+});
+
+export const getPendingTemporaryUsers = asyncHandler(async (req, res) => {
+  const users = await listPendingTemporaryUsers();
+  res.json(users);
+});
+
+export const approveTemporaryRegistration = asyncHandler(async (req, res) => {
+  const note = String(req.body?.note || "").trim();
+  const officeLatitude = Number(req.body?.officeLatitude);
+  const officeLongitude = Number(req.body?.officeLongitude);
+
+  if (!Number.isFinite(officeLatitude) || !Number.isFinite(officeLongitude)) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "officeLatitude and officeLongitude are required for approval"
+    );
+  }
+
+  const user = await approveTemporaryUser(
+    req.params.id,
+    req.user.id,
+    note,
+    officeLatitude,
+    officeLongitude
+  );
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "TEMP_APPROVAL",
+      module: "Users",
+      description: `Approved temporary user: ${user.name} (${user.email})`,
+      targetUserId: user._id,
+      targetUserName: user.name,
+      metadata: {
+        email: user.email,
+        note: user.approvalNote,
+        officeLatitude,
+        officeLongitude,
+      },
+    });
+  } catch (logError) {
+    console.error("Failed to log temp approval activity:", logError.message);
+  }
+
+  res.json({ user });
+});
+
+export const rejectTemporaryRegistration = asyncHandler(async (req, res) => {
+  const note = String(req.body?.note || "").trim();
+  const user = await rejectTemporaryUser(req.params.id, req.user.id, note);
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "TEMP_REJECTION",
+      module: "Users",
+      description: `Rejected temporary user: ${user.name} (${user.email})`,
+      targetUserId: user._id,
+      targetUserName: user.name,
+      metadata: { email: user.email, note: user.approvalNote },
+    });
+  } catch (logError) {
+    console.error("Failed to log temp rejection activity:", logError.message);
+  }
+
+  res.json({ user });
+});
+
+export const convertTemporaryUserToPermanent = asyncHandler(async (req, res) => {
+  const data = convertTemporaryToPermanentSchema.parse(req.body);
+
+  const user = await convertTemporaryToPermanent(req.params.id, req.user.id, data);
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "TEMP_CONVERT_PERMANENT",
+      module: "Users",
+      description: `Converted temporary user to permanent: ${user.name} (${user.email})`,
+      targetUserId: user._id,
+      targetUserName: user.name,
+      metadata: {
+        employeeId: user.employeeId,
+        departmentId: user.departmentId,
+        designationId: user.designationId,
+        salaryBand: user.salaryBand,
+        joiningDate: user.joiningDate,
+      },
+    });
+  } catch (logError) {
+    console.error("Failed to log temporary conversion activity:", logError.message);
+  }
+
+  res.json({ user });
 });
 
 export const changeUserPassword = asyncHandler(async (req, res) => {

@@ -110,6 +110,22 @@ export default function UsersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [pendingTemporaryUsers, setPendingTemporaryUsers] = useState([]);
+  const [pendingActionId, setPendingActionId] = useState("");
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertLoading, setConvertLoading] = useState(false);
+  const [convertDesignations, setConvertDesignations] = useState([]);
+  const [convertLoadingDesignations, setConvertLoadingDesignations] = useState(false);
+  const [convertForm, setConvertForm] = useState({
+    employeeId: "",
+    departmentId: "",
+    designationId: "",
+    salaryBand: "",
+    joiningDate: "",
+  });
+  const [showApproveLocationModal, setShowApproveLocationModal] = useState(false);
+  const [approvingTempUser, setApprovingTempUser] = useState(null);
+  const [approvalLocation, setApprovalLocation] = useState({ latitude: 0, longitude: 0 });
   const [editDesignations, setEditDesignations] = useState([]);
   const [editLoadingDesignations, setEditLoadingDesignations] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -212,13 +228,17 @@ export default function UsersPage() {
   const loadCompanyLocation = async () => {
     try {
       const res = await api.get("/admin/company-location");
-      setCompanyLocation({
+      const nextLocation = {
         latitude: res.data.latitude || 0,
         longitude: res.data.longitude || 0
-      });
+      };
+      setCompanyLocation(nextLocation);
+      return nextLocation;
     } catch (err) {
       console.error("Error loading company location:", err);
-      setCompanyLocation({ latitude: 0, longitude: 0 });
+      const fallback = { latitude: 0, longitude: 0 };
+      setCompanyLocation(fallback);
+      return fallback;
     }
   };
 
@@ -251,8 +271,17 @@ export default function UsersPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/users");
-      setItems(res.data || []);
+      const canManageTemporaryApprovals =
+        currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.HR;
+
+      const requests = [api.get("/users")];
+      if (canManageTemporaryApprovals) {
+        requests.push(api.get("/users/temporary/pending"));
+      }
+
+      const [usersRes, pendingRes] = await Promise.all(requests);
+      setItems(usersRes?.data || []);
+      setPendingTemporaryUsers(pendingRes?.data || []);
     } catch (err) {
       console.error("Error loading users:", err);
       const message = err.response?.status === 403 
@@ -263,6 +292,131 @@ export default function UsersPage() {
       toast({ title: message, type: "error" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTemporaryApprovalAction = async (userId, action) => {
+    setPendingActionId(`${action}:${userId}`);
+    try {
+      await api.patch(`/users/temporary/${userId}/${action}`);
+      toast({
+        title: action === "approve" ? "Associate approved" : "Associate rejected",
+        type: "success",
+      });
+      await load();
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || `Failed to ${action} associate`,
+        type: "error",
+      });
+    } finally {
+      setPendingActionId("");
+    }
+  };
+
+  const openApproveLocationModal = async (user) => {
+    const location = await loadCompanyLocation();
+    setApprovingTempUser(user);
+    setApprovalLocation(location);
+    setShowApproveLocationModal(true);
+  };
+
+  const handleApproveWithLocation = async () => {
+    if (!approvingTempUser?._id) return;
+
+    setPendingActionId(`approve:${approvingTempUser._id}`);
+    try {
+      await api.patch(`/users/temporary/${approvingTempUser._id}/approve`, {
+        officeLatitude: approvalLocation.latitude,
+        officeLongitude: approvalLocation.longitude,
+      });
+
+      toast({ title: "Associate approved with office location", type: "success" });
+      setShowApproveLocationModal(false);
+      setApprovingTempUser(null);
+      await load();
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || "Failed to approve associate",
+        type: "error",
+      });
+    } finally {
+      setPendingActionId("");
+    }
+  };
+
+  const loadConvertDesignations = async (departmentId) => {
+    if (!departmentId) {
+      setConvertDesignations([]);
+      return;
+    }
+
+    try {
+      setConvertLoadingDesignations(true);
+      const res = await api.get(`/department/designation/department/${departmentId}`);
+      setConvertDesignations(res.data || []);
+    } catch (err) {
+      console.error("Error loading conversion designations:", err);
+      setConvertDesignations([]);
+    } finally {
+      setConvertLoadingDesignations(false);
+    }
+  };
+
+  const openConvertModal = async (user) => {
+    if (!departments.length) {
+      await loadDepartments();
+    }
+
+    const nextForm = {
+      employeeId: user.employeeId || "",
+      departmentId: user.departmentId?.toString?.() || user.departmentId || "",
+      designationId: user.designationId?.toString?.() || user.designationId || "",
+      salaryBand: user.salaryBand || "",
+      joiningDate: user.joiningDate ? new Date(user.joiningDate).toISOString().split("T")[0] : "",
+    };
+
+    setConvertForm(nextForm);
+    if (nextForm.departmentId) {
+      await loadConvertDesignations(nextForm.departmentId);
+    } else {
+      setConvertDesignations([]);
+    }
+
+    setShowConvertModal(true);
+  };
+
+  const handleConvertToPermanent = async (e) => {
+    e.preventDefault();
+    if (!selectedUser?._id) return;
+
+    setConvertLoading(true);
+    try {
+      await api.patch(`/users/temporary/${selectedUser._id}/convert-permanent`, {
+        employeeId: convertForm.employeeId,
+        departmentId: convertForm.departmentId,
+        designationId: convertForm.designationId,
+        salaryBand: convertForm.salaryBand,
+        joiningDate: convertForm.joiningDate,
+      });
+
+      toast({
+        title: "Converted to permanent staff",
+        message: `${selectedUser.name} is now a permanent employee`,
+        type: "success",
+      });
+
+      setShowConvertModal(false);
+      setShowProfileModal(false);
+      setSelectedUser(null);
+      await load();
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || "Failed to convert user to permanent",
+        type: "error",
+      });
+    } finally {
+      setConvertLoading(false);
     }
   };
 
@@ -468,6 +622,72 @@ export default function UsersPage() {
         )}
       </div>
 
+      {(currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.HR) && (
+        <Card className="p-6 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0A1931]">Associate Registrations</h3>
+              <p className="text-sm text-[#70757A]">Pending self-registrations waiting for HR approval</p>
+            </div>
+            <Badge className="bg-amber-100 text-amber-700 border border-amber-300">
+              Pending: {pendingTemporaryUsers.length}
+            </Badge>
+          </div>
+
+          {pendingTemporaryUsers.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[#B3CFE5] px-4 py-6 text-sm text-[#70757A]">
+              No pending associate registrations.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-[#B3CFE5]">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F6FAFD] text-[#0A1931]">
+                    <th className="px-4 py-3 text-left font-semibold">Name</th>
+                    <th className="px-4 py-3 text-left font-semibold">Phone</th>
+                    <th className="px-4 py-3 text-left font-semibold">Email</th>
+                    <th className="px-4 py-3 text-left font-semibold">Registered</th>
+                    <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingTemporaryUsers.map((user) => (
+                    <tr key={user._id} className="border-t border-[#E3EEF8]">
+                      <td className="px-4 py-3 font-medium text-[#0A1931]">{user.name}</td>
+                      <td className="px-4 py-3 text-[#1A3D63]">{user.phone || "-"}</td>
+                      <td className="px-4 py-3 text-[#1A3D63]">{user.email || "-"}</td>
+                      <td className="px-4 py-3 text-[#70757A]">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleString() : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => openApproveLocationModal(user)}
+                            disabled={pendingActionId.length > 0}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            {pendingActionId === `approve:${user._id}` ? "Approving..." : "Approve + Set Location"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleTemporaryApprovalAction(user._id, "reject")}
+                            disabled={pendingActionId.length > 0}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            {pendingActionId === `reject:${user._id}` ? "Rejecting..." : "Reject"}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Search & Filter Controls */}
       <Card className="p-6 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
         <div className="grid gap-4 md:grid-cols-3">
@@ -643,6 +863,91 @@ export default function UsersPage() {
           </table>
         </div>
       </Card>
+
+      {/* Approve Associate with Location Modal */}
+      {showApproveLocationModal && approvingTempUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-3xl max-h-[90vh] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-slate-200/80">
+            <div className="relative p-6 overflow-hidden bg-gradient-to-br from-green-700 via-green-600 to-emerald-700">
+              <div className="absolute top-0 right-0 w-32 h-32 -mt-16 -mr-16 rounded-full bg-white/20 blur-2xl" />
+              <div className="relative z-10 flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-11 h-11 border rounded-xl bg-white/20 border-white/40">
+                    <MapPin className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">Approve Associate</h3>
+                    <p className="text-sm text-emerald-100/90">
+                      Select office location for {approvingTempUser.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowApproveLocationModal(false);
+                    setApprovingTempUser(null);
+                  }}
+                  className="p-2 transition rounded-lg text-white/90 hover:bg-white/20"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <p className="text-sm text-slate-600">
+                HR must choose office latitude and longitude before approving this associate.
+              </p>
+
+              <GoogleMapSelector
+                latitude={approvalLocation.latitude}
+                longitude={approvalLocation.longitude}
+                onLocationSelect={(location) => {
+                  setApprovalLocation({
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                  });
+                }}
+                markerLabel={`Office location for ${approvingTempUser.name}`}
+              />
+
+              <div className="p-3 border rounded-lg bg-green-50 border-green-200">
+                <p className="text-sm font-semibold text-green-900">Selected Coordinates</p>
+                <p className="text-sm text-green-800 mt-1">
+                  Latitude: {approvalLocation.latitude || 0}
+                </p>
+                <p className="text-sm text-green-800">
+                  Longitude: {approvalLocation.longitude || 0}
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setShowApproveLocationModal(false);
+                    setApprovingTempUser(null);
+                  }}
+                  className="flex-1 border rounded-xl border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleApproveWithLocation}
+                  disabled={pendingActionId === `approve:${approvingTempUser._id}`}
+                  className="flex-1 rounded-xl bg-green-600 text-white hover:bg-green-700"
+                >
+                  {pendingActionId === `approve:${approvingTempUser._id}`
+                    ? "Approving..."
+                    : "Approve with Location"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create User Modal - Premium Design */}
       {showCreateModal && (
@@ -1142,6 +1447,34 @@ export default function UsersPage() {
                       );
                     })()}
                   </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Account Type</p>
+                    <Badge
+                      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border mt-1 ${
+                        selectedUser.accountType === "TEMPORARY"
+                          ? "bg-amber-50 border-amber-300 text-amber-700"
+                          : "bg-emerald-50 border-emerald-300 text-emerald-700"
+                      }`}
+                    >
+                      {selectedUser.accountType === "TEMPORARY" ? "ASSOCIATE" : selectedUser.accountType || "EMPLOYEE"}
+                    </Badge>
+                  </div>
+                  {selectedUser.accountType === "TEMPORARY" && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Associate Approval</p>
+                      <Badge
+                        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border mt-1 ${
+                          selectedUser.approvalStatus === "APPROVED"
+                            ? "bg-green-50 border-green-300 text-green-700"
+                            : selectedUser.approvalStatus === "REJECTED"
+                            ? "bg-red-50 border-red-300 text-red-700"
+                            : "bg-amber-50 border-amber-300 text-amber-700"
+                        }`}
+                      >
+                        {selectedUser.approvalStatus || "PENDING"}
+                      </Badge>
+                    </div>
+                  )}
                   {selectedUser.department && (
                     <div>
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Department</p>
@@ -1191,6 +1524,34 @@ export default function UsersPage() {
 
             {/* Modal Footer */}
             <div className="sticky bottom-0 flex gap-3 p-6 bg-white border-t border-slate-200">
+              {(currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.HR) && (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (selectedUser?.accountType === "TEMPORARY" && selectedUser?.approvalStatus === "APPROVED") {
+                      openConvertModal(selectedUser);
+                    }
+                  }}
+                  disabled={
+                    selectedUser?.accountType !== "TEMPORARY" ||
+                    selectedUser?.approvalStatus !== "APPROVED"
+                  }
+                  title={
+                    selectedUser?.accountType !== "TEMPORARY"
+                      ? "This user is already permanent"
+                      : selectedUser?.approvalStatus !== "APPROVED"
+                      ? "Approve associate registration first"
+                      : "Convert this associate to permanent"
+                  }
+                  className="flex-1 px-6 py-3 font-semibold text-white transition-all duration-200 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {selectedUser?.accountType !== "TEMPORARY"
+                    ? "Already Permanent"
+                    : selectedUser?.approvalStatus !== "APPROVED"
+                    ? "Approve Associate First"
+                    : "Convert to Permanent"}
+                </Button>
+              )}
               <Button
                 onClick={() => setShowProfileModal(false)}
                 className="flex-1 px-6 py-3 font-semibold transition-all duration-200 border rounded-xl bg-slate-100/80 hover:bg-slate-200 text-slate-700 border-slate-200"
@@ -1459,6 +1820,121 @@ export default function UsersPage() {
                       Save Changes
                     </>
                   )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Convert Associate to Permanent Modal */}
+      {showConvertModal && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[90vh] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-slate-200/80">
+            <div className="relative p-6 overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-700">
+              <div className="absolute top-0 right-0 w-32 h-32 -mt-16 -mr-16 rounded-full bg-white/20 blur-2xl" />
+              <div className="relative z-10 flex items-start justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-white">Convert to Permanent Staff</h3>
+                  <p className="text-sm text-blue-100/90 mt-1">
+                    Complete required fields for {selectedUser.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConvertModal(false)}
+                  className="p-2 transition rounded-lg text-white/90 hover:bg-white/20"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleConvertToPermanent} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <Input
+                label="Employee ID"
+                placeholder="EMP-1001"
+                value={convertForm.employeeId}
+                onChange={(e) => setConvertForm({ ...convertForm, employeeId: e.target.value })}
+                required
+              />
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Department</label>
+                <select
+                  value={convertForm.departmentId}
+                  onChange={async (e) => {
+                    const deptId = e.target.value;
+                    setConvertForm({ ...convertForm, departmentId: deptId, designationId: "" });
+                    await loadConvertDesignations(deptId);
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none bg-white text-slate-900"
+                  required
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id} value={dept._id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Designation</label>
+                <select
+                  value={convertForm.designationId}
+                  onChange={(e) => setConvertForm({ ...convertForm, designationId: e.target.value })}
+                  disabled={!convertForm.departmentId || convertLoadingDesignations}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none bg-white text-slate-900 disabled:bg-slate-100"
+                  required
+                >
+                  <option value="">
+                    {convertLoadingDesignations
+                      ? "Loading designations..."
+                      : !convertForm.departmentId
+                      ? "Select department first"
+                      : "Select Designation"}
+                  </option>
+                  {convertDesignations.map((desig) => (
+                    <option key={desig._id} value={desig._id}>
+                      {desig.name} ({desig.level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Input
+                label="Salary Band"
+                placeholder="Band-2"
+                value={convertForm.salaryBand}
+                onChange={(e) => setConvertForm({ ...convertForm, salaryBand: e.target.value })}
+                required
+              />
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Joining Date</label>
+                <input
+                  type="date"
+                  value={convertForm.joiningDate}
+                  onChange={(e) => setConvertForm({ ...convertForm, joiningDate: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none bg-white text-slate-900"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => setShowConvertModal(false)}
+                  className="flex-1 border rounded-xl border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={convertLoading}
+                  className="flex-1 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {convertLoading ? "Converting..." : "Confirm Conversion"}
                 </Button>
               </div>
             </form>

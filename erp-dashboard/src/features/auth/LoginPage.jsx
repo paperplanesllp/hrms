@@ -13,6 +13,7 @@ export default function LoginPage() {
   const authed = isAuthed();
   const navigate = useNavigate();
 
+  const [authMode, setAuthMode] = useState("employee");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +21,18 @@ export default function LoginPage() {
   const [showForgot, setShowForgot] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  const [tempEmail, setTempEmail] = useState("");
+  const [tempOtp, setTempOtp] = useState("");
+  const [tempOtpSent, setTempOtpSent] = useState(false);
+  const [tempDebugOtp, setTempDebugOtp] = useState("");
+  const [tempLoading, setTempLoading] = useState(false);
+  const [showTempRegister, setShowTempRegister] = useState(false);
+  const [tempRegisterLoading, setTempRegisterLoading] = useState(false);
+  const [tempRegisterForm, setTempRegisterForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
 
   if (authed) return <Navigate to="/" replace />;
 
@@ -75,6 +88,85 @@ export default function LoginPage() {
       });
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const handleRequestTempOtp = async (e) => {
+    e.preventDefault();
+    setTempLoading(true);
+
+    try {
+      const res = await api.post("/auth/temporary/request-otp", {
+        email: tempEmail,
+      });
+
+      setTempOtpSent(true);
+      setTempDebugOtp(res?.data?.debugOtp || "");
+      toast({
+        title: "OTP sent",
+        message: "Enter the OTP sent to your email",
+        type: "success",
+      });
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || "Failed to send OTP",
+        type: "error",
+      });
+    } finally {
+      setTempLoading(false);
+    }
+  };
+
+  const handleVerifyTempOtp = async (e) => {
+    e.preventDefault();
+    setTempLoading(true);
+
+    try {
+      const res = await api.post("/auth/temporary/verify-otp", {
+        email: tempEmail,
+        otp: tempOtp,
+      });
+
+      setSession(res.data);
+      toast({
+        title: `Welcome, ${res.data?.user?.name || "User"}!`,
+        type: "success",
+      });
+      navigate("/");
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || "OTP verification failed",
+        type: "error",
+      });
+    } finally {
+      setTempLoading(false);
+    }
+  };
+
+  const handleTemporaryRegistration = async (e) => {
+    e.preventDefault();
+    setTempRegisterLoading(true);
+
+    try {
+      await api.post("/auth/temporary/register", tempRegisterForm);
+      toast({
+        title: "Registration submitted",
+        message: "HR approval is required before associate OTP login",
+        type: "success",
+      });
+      setShowTempRegister(false);
+      setTempEmail(tempRegisterForm.email);
+      setTempRegisterForm({ name: "", email: "", phone: "" });
+      setTempOtpSent(false);
+      setTempOtp("");
+      setTempDebugOtp("");
+    } catch (err) {
+      toast({
+        title: err?.response?.data?.message || "Registration failed",
+        type: "error",
+      });
+    } finally {
+      setTempRegisterLoading(false);
     }
   };
 
@@ -159,55 +251,180 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <form onSubmit={submit} className="space-y-5">
-                <div className="space-y-4">
-                  <Input
-                    label="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    autoComplete="email"
-                    required
-                  />
+              <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("employee");
+                    setShowTempRegister(false);
+                  }}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    authMode === "employee"
+                      ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
+                      : "text-slate-600 dark:text-slate-300"
+                  }`}
+                >
+                  Employee Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("temporary")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    authMode === "temporary"
+                      ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
+                      : "text-slate-600 dark:text-slate-300"
+                  }`}
+                >
+                  Associate Login
+                </button>
+              </div>
 
-                  <div>
+              {authMode === "employee" ? (
+                <form onSubmit={submit} className="space-y-5">
+                  <div className="space-y-4">
                     <Input
-                      label="Password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
+                      label="Email Address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@company.com"
+                      autoComplete="email"
                       required
                     />
 
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="text-sm font-medium transition text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
-                      >
-                        {showPassword ? "Hide password" : "Show password"}
-                      </button>
+                    <div>
+                      <Input
+                        label="Password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        required
+                      />
 
-                      <button
-                        type="button"
-                        onClick={() => setShowForgot(true)}
-                        className="text-sm font-medium transition text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
-                      >
-                        Forgot password?
-                      </button>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="text-sm font-medium transition text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
+                        >
+                          {showPassword ? "Hide password" : "Show password"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowForgot(true)}
+                          className="text-sm font-medium transition text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <Button
-                  disabled={loading}
-                  className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
-                >
-                  {loading ? "Signing in..." : "Sign In"}
-                </Button>
-              </form>
+                  <Button
+                    disabled={loading}
+                    className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
+                  >
+                    {loading ? "Signing in..." : "Sign In"}
+                  </Button>
+                </form>
+              ) : (
+                <div className="space-y-5">
+                  <form onSubmit={tempOtpSent ? handleVerifyTempOtp : handleRequestTempOtp} className="space-y-4">
+                    <Input
+                      label="Associate Email"
+                      type="email"
+                      value={tempEmail}
+                      onChange={(e) => setTempEmail(e.target.value)}
+                      placeholder="associate.user@example.com"
+                      required
+                    />
+
+                    {tempOtpSent && (
+                      <Input
+                        label="OTP Password"
+                        type="password"
+                        value={tempOtp}
+                        onChange={(e) => setTempOtp(e.target.value)}
+                        placeholder="Enter 6-digit OTP"
+                        maxLength={6}
+                        required
+                      />
+                    )}
+
+                    {tempDebugOtp ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Dev OTP: {tempDebugOtp}
+                      </p>
+                    ) : null}
+
+                    <Button
+                      disabled={tempLoading}
+                      className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
+                    >
+                      {tempLoading
+                        ? "Please wait..."
+                        : tempOtpSent
+                        ? "Verify OTP & Sign In"
+                        : "Send OTP"}
+                    </Button>
+                  </form>
+
+                  <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        New associate?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowTempRegister((prev) => !prev)}
+                        className="text-sm font-semibold text-emerald-700 hover:text-emerald-600 dark:text-emerald-400"
+                      >
+                        {showTempRegister ? "Hide" : "Register"}
+                      </button>
+                    </div>
+
+                    {showTempRegister ? (
+                      <form onSubmit={handleTemporaryRegistration} className="mt-4 space-y-3">
+                        <Input
+                          label="Full Name"
+                          value={tempRegisterForm.name}
+                          onChange={(e) =>
+                            setTempRegisterForm((prev) => ({ ...prev, name: e.target.value }))
+                          }
+                          placeholder="Your full name"
+                          required
+                        />
+                        <Input
+                          label="Email"
+                          type="email"
+                          value={tempRegisterForm.email}
+                          onChange={(e) =>
+                            setTempRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                          }
+                          placeholder="your.email@example.com"
+                          required
+                        />
+                        <Input
+                          label="Phone (optional)"
+                          value={tempRegisterForm.phone}
+                          onChange={(e) =>
+                            setTempRegisterForm((prev) => ({ ...prev, phone: e.target.value }))
+                          }
+                          placeholder="+91XXXXXXXXXX"
+                        />
+                        <Button
+                          disabled={tempRegisterLoading}
+                          className="h-11 w-full rounded-xl bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                        >
+                          {tempRegisterLoading ? "Submitting..." : "Submit for HR Approval"}
+                        </Button>
+                      </form>
+                    ) : null}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-5 mt-6 border-t border-slate-200 dark:border-white/10">
                 <p className="text-xs leading-5 text-center text-slate-500 dark:text-slate-400">

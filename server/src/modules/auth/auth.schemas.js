@@ -23,3 +23,18 @@ export const resetPasswordSchema = z.object({
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
            "Password must contain uppercase, lowercase, number and special character"),
 });
+
+export const temporaryRegisterSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.string().email("Valid email required"),
+  phone: z.string().optional().or(z.literal("")),
+});
+
+export const temporaryOtpRequestSchema = z.object({
+  email: z.string().email("Valid email required"),
+});
+
+export const temporaryOtpVerifySchema = z.object({
+  email: z.string().email("Valid email required"),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+});

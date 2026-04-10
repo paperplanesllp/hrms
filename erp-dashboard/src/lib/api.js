@@ -15,6 +15,9 @@ const PUBLIC_AUTH_ROUTES = new Set([
   "/auth/forgot-password",
   "/auth/reset-password",
   "/auth/signup",
+  "/auth/temporary/register",
+  "/auth/temporary/request-otp",
+  "/auth/temporary/verify-otp",
 ]);
 
 let refreshPromise = null;

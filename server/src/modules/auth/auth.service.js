@@ -10,6 +10,24 @@ import {
   verifyRefreshToken,
 } from "../../utils/tokens.js";
 import { createActivityLog } from "../activity/activity.service.js";
+import { sendTemporaryOtpEmail } from "../../utils/otpEmailService.js";
+import { env } from "../../config/env.js";
+
+function normalizePhone(phone = "") {
+  const raw = String(phone || "").trim();
+  if (!raw) return "";
+  const hasPlus = raw.startsWith("+");
+  const digits = raw.replace(/\D/g, "");
+  return hasPlus ? `+${digits}` : digits;
+}
+
+function generateOtpCode() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+function hashOtp(code) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
 
 export async function signup({ name, email, phone, password }) {
   console.log("🔄 SIGNUP SERVICE STARTED with:", { name, email, phone });
@@ -37,6 +55,8 @@ export async function signup({ name, email, phone, password }) {
       phone: phone || "",
       passwordHash,
       role: ROLES.USER,
+      accountType: "EMPLOYEE",
+      approvalStatus: "APPROVED",
     });
     console.log("✅ User created:", user._id);
 
@@ -70,8 +90,15 @@ export async function signup({ name, email, phone, password }) {
 }
 
 export async function login(email, password) {
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
   if (!user) throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
+
+  if (user.accountType === "TEMPORARY") {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Temporary account must sign in with email OTP"
+    );
+  }
 
   // Check if account is locked
   if (user.accountLocked && user.lockUntil && user.lockUntil > new Date()) {
@@ -229,4 +256,193 @@ export async function resetPassword(token, newPassword) {
   await user.save();
 
   return { message: "Password reset successful" };
+}
+
+export async function registerTemporaryUser({ name, email, phone = "" }) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+  }
+
+  const normalizedPhone = normalizePhone(phone);
+
+  const existingEmail = await User.findOne({ email: normalizedEmail });
+  if (existingEmail) {
+    throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
+  }
+
+  if (normalizedPhone) {
+    const existingPhone = await User.findOne({ phone: normalizedPhone });
+    if (existingPhone) {
+      throw new ApiError(
+        StatusCodes.CONFLICT,
+        "This phone number is already registered"
+      );
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+
+  const user = await User.create({
+    name,
+    email: normalizedEmail,
+    phone: normalizedPhone,
+    role: ROLES.USER,
+    passwordHash,
+    accountType: "TEMPORARY",
+    approvalStatus: "PENDING",
+  });
+
+  try {
+    await createActivityLog({
+      actorId: user._id,
+      actorName: user.name,
+      actorRole: user.role,
+      actionType: "TEMP_REGISTRATION",
+      module: "AUTH",
+      description: `Temporary user ${user.name} registered and is awaiting HR approval`,
+      metadata: { phone: user.phone, email: user.email },
+    });
+  } catch (logError) {
+    console.error("Failed to log temp registration activity:", logError.message);
+  }
+
+  return {
+    message: "Registration submitted. HR approval is required before login.",
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      approvalStatus: user.approvalStatus,
+      accountType: user.accountType,
+    },
+  };
+}
+
+export async function requestTemporaryOtp(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required");
+  }
+
+  const user = await User.findOne({ email: normalizedEmail, accountType: "TEMPORARY" });
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Temporary account not found");
+  }
+
+  if (user.approvalStatus === "PENDING") {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Your registration is pending HR approval"
+    );
+  }
+
+  if (user.approvalStatus === "REJECTED") {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "Your registration was rejected. Please contact HR"
+    );
+  }
+
+  if (user.otpLastSentAt && Date.now() - new Date(user.otpLastSentAt).getTime() < 30_000) {
+    throw new ApiError(
+      StatusCodes.TOO_MANY_REQUESTS,
+      "Please wait 30 seconds before requesting another OTP"
+    );
+  }
+
+  const otp = generateOtpCode();
+  user.otpCodeHash = hashOtp(otp);
+  user.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  user.otpAttempts = 0;
+  user.otpLastSentAt = new Date();
+  await user.save();
+
+  const emailResult = await sendTemporaryOtpEmail({
+    toEmail: user.email,
+    otp,
+    name: user.name,
+  });
+
+  const payload = {
+    message: "OTP sent successfully",
+    expiresInSeconds: 300,
+    provider: emailResult.provider,
+    delivered: emailResult.delivered,
+  };
+
+  if (env.NODE_ENV !== "production") {
+    payload.debugOtp = otp;
+  }
+
+  return payload;
+}
+
+export async function verifyTemporaryOtp(email, otp) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const user = await User.findOne({
+    email: normalizedEmail,
+    accountType: "TEMPORARY",
+    approvalStatus: "APPROVED",
+  });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid login request");
+  }
+
+  if (!user.otpCodeHash || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+    user.otpCodeHash = "";
+    user.otpExpiresAt = null;
+    user.otpAttempts = 0;
+    await user.save();
+    throw new ApiError(StatusCodes.BAD_REQUEST, "OTP expired. Please request a new OTP");
+  }
+
+  if ((user.otpAttempts || 0) >= 5) {
+    throw new ApiError(StatusCodes.LOCKED, "Too many invalid OTP attempts. Request a new OTP");
+  }
+
+  const submittedHash = hashOtp(otp);
+  if (submittedHash !== user.otpCodeHash) {
+    user.otpAttempts = (user.otpAttempts || 0) + 1;
+    await user.save();
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid OTP");
+  }
+
+  user.otpCodeHash = "";
+  user.otpExpiresAt = null;
+  user.otpAttempts = 0;
+  user.isActive = true;
+
+  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  await user.save();
+
+  await createActivityLog({
+    actorId: user._id,
+    actorName: user.name,
+    actorRole: user.role,
+    actionType: "LOGIN",
+    module: "AUTH",
+    description: `${user.name} logged in with email OTP`,
+    metadata: { email: user.email, method: "OTP" },
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: String(user._id),
+      name: user.name,
+      role: user.role,
+      email: user.email,
+      phone: user.phone,
+      accountType: user.accountType,
+      profileImageUrl: user.profileImageUrl,
+    },
+  };
 }
