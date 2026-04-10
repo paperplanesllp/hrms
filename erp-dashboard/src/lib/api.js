@@ -1,13 +1,28 @@
 import axios from "axios";
 import { getAuth, saveAuth, clearAuth } from "./auth.js";
 
+const normalizeApiBaseUrl = (value) => {
+  const candidate = (value || "").trim();
+  const base = candidate || `${window.location.origin}/api`;
+  return base.endsWith("/api") ? base : `${base.replace(/\/$/, "")}/api`;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true, // keep true if you use HttpOnly refresh cookies
 });
 
 api.interceptors.request.use((config) => {
   const auth = getAuth();
+  const isPublicAuthRoute = [
+    "/auth/login",
+    "/auth/refresh",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/auth/signup",
+  ].includes(config.url);
   
   console.log('🔐 [API Request] URL:', config.url);
   console.log('🔐 [API Request] Method:', config.method);
@@ -16,7 +31,7 @@ api.interceptors.request.use((config) => {
   if (auth?.accessToken) {
     config.headers.Authorization = `Bearer ${auth.accessToken}`;
     console.log('🔐 [API Request] Auth header added');
-  } else {
+  } else if (!isPublicAuthRoute) {
     console.warn('⚠️ [API Request] No access token found!');
   }
   
@@ -47,7 +62,7 @@ api.interceptors.response.use(
       try {
         console.log("🔄 Attempting token refresh...");
         const r = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
+          `${API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
