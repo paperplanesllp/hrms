@@ -1,15 +1,44 @@
 import React, { useCallback, useEffect, useState } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
-import Button from "../../components/ui/Button.jsx";
-import Input from "../../components/ui/Input.jsx";
 import Spinner from "../../components/ui/Spinner.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
-import { Search, Edit2, AlertCircle, CheckCircle, Clock, Calendar, User, ChevronDown, X } from "lucide-react";
+import { Search, Edit2, AlertCircle, CheckCircle, Clock, Calendar, User, X, ChevronLeft, ChevronRight } from "lucide-react";
+
+function formatISODate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseISODate(dateStr) {
+  const [year, month, day] = String(dateStr || "").split("-").map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
+}
+
+function getMonthRange(monthDate) {
+  const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const end = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  return { from: formatISODate(start), to: formatISODate(end) };
+}
+
+function getCalendarDays(monthDate) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const startOffset = firstDay.getDay();
+  const gridStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1 - startOffset);
+
+  return Array.from({ length: 42 }, (_, idx) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + idx);
+    return d;
+  });
+}
 
 export default function HRAttendanceManagementPage() {
   const currentUser = useAuthStore((s) => s.user);
@@ -19,7 +48,11 @@ export default function HRAttendanceManagementPage() {
   const [loading, setLoading] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(formatISODate(new Date()));
+  const [activeMonth, setActiveMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [editingRecord, setEditingRecord] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", checkInPeriod: "AM", checkOutPeriod: "PM" });
@@ -32,9 +65,13 @@ export default function HRAttendanceManagementPage() {
       setLoading(true);
       const res = await api.get("/users?role=USER&limit=1000");
       const allUsers = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      const employeeOnly = allUsers.filter(
-        (emp) => emp?.role === ROLES.USER && String(emp?._id || "") !== currentUserId
-      );
+      const employeeOnly = allUsers
+        .filter((emp) => emp?.role === ROLES.USER && String(emp?._id || "") !== currentUserId)
+        .sort((a, b) => {
+          const nameA = String(a?.name || "").trim().toLowerCase();
+          const nameB = String(b?.name || "").trim().toLowerCase();
+          return nameA.localeCompare(nameB, "en", { sensitivity: "base" });
+        });
 
       setEmployees(employeeOnly);
       
@@ -60,13 +97,12 @@ export default function HRAttendanceManagementPage() {
     loadEmployees();
   }, [loadEmployees]);
 
-  const loadAttendanceRecords = async (employee, date) => {
+  const loadAttendanceRecords = async (employee, monthDate) => {
     if (!employee?._id) return;
 
     try {
       setRecordsLoading(true);
-      const fromDate = date;
-      const toDate = date;
+      const { from: fromDate, to: toDate } = getMonthRange(monthDate);
 
       const res = await api.get("/attendance", {
         params: {
@@ -91,9 +127,9 @@ export default function HRAttendanceManagementPage() {
   // Load attendance when employee/date changes
   useEffect(() => {
     if (selectedEmployee) {
-      loadAttendanceRecords(selectedEmployee, selectedDate);
+      loadAttendanceRecords(selectedEmployee, activeMonth);
     }
-  }, [selectedEmployee, selectedDate]);
+  }, [selectedEmployee, activeMonth]);
 
   const handleEditRecord = (record) => {
     const targetUserId = String(record?.userId || "");
@@ -192,7 +228,7 @@ export default function HRAttendanceManagementPage() {
 
       // Always reload canonical attendance rows so computed fields/date formatting stay correct.
       if (selectedEmployee?._id) {
-        await loadAttendanceRecords(selectedEmployee, selectedDate);
+        await loadAttendanceRecords(selectedEmployee, activeMonth);
       }
     } catch (e) {
       toast({ 
@@ -257,6 +293,34 @@ export default function HRAttendanceManagementPage() {
     emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const attendanceByDate = attendanceRecords.reduce((acc, record) => {
+    acc[record.date] = record;
+    return acc;
+  }, {});
+
+  const selectedDateRecords = attendanceRecords.filter((record) => record.date === selectedDate);
+  const calendarDays = getCalendarDays(activeMonth);
+  const todayISO = formatISODate(new Date());
+
+  const statusColorMap = {
+    PRESENT: "bg-green-500",
+    ABSENT: "bg-red-500",
+    HOLIDAY: "bg-sky-500",
+    SHORT_HOURS: "bg-yellow-500",
+    HALF_DAY: "bg-indigo-500",
+    LATE: "bg-orange-500",
+    INVALID_LOCATION: "bg-rose-500"
+  };
+
+  const changeActiveMonth = (offset) => {
+    const nextMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + offset, 1);
+    setActiveMonth(nextMonth);
+    setSelectedDate(formatISODate(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1)));
+  };
+
+  const getStatusLabel = (status) => (status ? status.replace(/_/g, " ") : "No Record");
+  const equalPanelHeightClass = "h-[560px] md:h-[620px] xl:h-[calc(100vh-180px)]";
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Page Header */}
@@ -270,9 +334,9 @@ export default function HRAttendanceManagementPage() {
           <Spinner />
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-4">
+        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
           {/* Left Sidebar - Employee List */}
-          <Card elevated className="lg:col-span-1 h-fit">
+          <Card elevated className={`xl:sticky xl:top-24 ${equalPanelHeightClass} flex flex-col overflow-hidden`}>
             <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0A1931] dark:text-white mb-3">Employees</h3>
               
@@ -290,7 +354,7 @@ export default function HRAttendanceManagementPage() {
             </div>
 
             {/* Employee List */}
-            <div className="divide-y divide-[#B3CFE5] dark:divide-slate-700 max-h-96 overflow-y-auto">
+            <div className="divide-y divide-[#B3CFE5] dark:divide-slate-700 overflow-y-auto flex-1">
               {filteredEmployees.length > 0 ? (
                 filteredEmployees.map((emp) => (
                   <button
@@ -326,7 +390,7 @@ export default function HRAttendanceManagementPage() {
           </Card>
 
           {/* Main Content - Attendance Records */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className="space-y-4">
             {/* Filter Controls */}
             <Card elevated className="p-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -346,86 +410,178 @@ export default function HRAttendanceManagementPage() {
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setSelectedDate(nextDate);
+                      const parsed = parseISODate(nextDate);
+                      setActiveMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+                    }}
                     className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
             </Card>
 
-            {/* Attendance Records Table */}
-            <Card elevated>
-              <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
-                <h3 className="text-lg font-bold text-[#0A1931] dark:text-white flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Attendance Records (Daily - {selectedDate})
-                </h3>
-              </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1.4fr)_360px] items-start">
+              <Card elevated className={`p-4 ${equalPanelHeightClass} flex flex-col overflow-hidden`}>
+                <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-lg font-bold text-[#0A1931] dark:text-white flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Monthly Attendance
+                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => changeActiveMonth(-1)}
+                      className="p-2 rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors"
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-[#4A7FA7]" />
+                    </button>
+                    <div className="px-3 py-2 rounded-lg bg-[#F6FAFD] dark:bg-slate-800 text-sm font-semibold text-[#0A1931] dark:text-white min-w-[126px] text-center">
+                      {activeMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const now = new Date();
+                        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                        setActiveMonth(monthStart);
+                        setSelectedDate(formatISODate(now));
+                      }}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors text-[#0A1931] dark:text-white"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => changeActiveMonth(1)}
+                      className="p-2 rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors"
+                      aria-label="Next month"
+                    >
+                      <ChevronRight className="w-4 h-4 text-[#4A7FA7]" />
+                    </button>
+                  </div>
+                </div>
 
-              {recordsLoading ? (
-                <div className="p-8 flex items-center justify-center">
-                  <Spinner />
-                </div>
-              ) : attendanceRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[#B3CFE5] dark:border-slate-700 bg-[#F6FAFD] dark:bg-slate-800">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Date</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Check-In</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Check-Out</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Status</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attendanceRecords.map((record) => (
-                        <tr
-                          key={record._id}
-                          className="border-b border-[#B3CFE5] dark:border-slate-700 hover:bg-[#F6FAFD] dark:hover:bg-slate-800 transition-colors"
+                <div className="flex-1 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-7 gap-1 mb-1">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                      <div key={day} className="text-[11px] font-semibold uppercase text-center text-[#4A7FA7] dark:text-slate-400 py-1">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarDays.map((day) => {
+                      const isoDate = formatISODate(day);
+                      const dayRecord = attendanceByDate[isoDate];
+                      const status = dayRecord?.status;
+                      const isCurrentMonth = day.getMonth() === activeMonth.getMonth();
+                      const isSelected = isoDate === selectedDate;
+                      const isToday = isoDate === todayISO;
+
+                      return (
+                        <button
+                          key={isoDate}
+                          onClick={() => {
+                            setSelectedDate(isoDate);
+                            if (!isCurrentMonth) {
+                              setActiveMonth(new Date(day.getFullYear(), day.getMonth(), 1));
+                            }
+                          }}
+                          title={`${formatDisplayDate(isoDate, true)} - ${getStatusLabel(status)}`}
+                          className={`relative h-10 sm:h-11 rounded-lg border transition-all ${
+                            isSelected
+                              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                              : "border-[#D9E7F3] dark:border-slate-700 hover:bg-[#F6FAFD] dark:hover:bg-slate-800"
+                          } ${!isCurrentMonth ? "opacity-35" : "opacity-100"}`}
                         >
-                          <td className="px-4 py-3 text-sm font-medium text-[#0A1931] dark:text-white">
-                            {formatDisplayDate(record.date)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
-                            {record.checkIn ? convertTo12HourFormat(record.checkIn) : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
-                            {record.checkOut ? convertTo12HourFormat(record.checkOut) : "-"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(record.status)}
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
-                                {record.status}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId ? (
-                              <button
-                                onClick={() => handleEditRecord(record)}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-semibold transition-colors"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                                Edit
-                              </button>
+                          <div className={`text-sm font-semibold ${isToday ? "text-blue-700 dark:text-blue-300" : "text-[#0A1931] dark:text-white"}`}>
+                            {day.getDate()}
+                          </div>
+                          <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
+                            {status ? (
+                              <span className={`block w-2 h-2 rounded-full ${statusColorMap[status] || "bg-gray-400"}`} />
                             ) : (
-                              <span className="text-xs font-semibold text-[#4A7FA7] dark:text-slate-400">Restricted</span>
+                              <span className="block w-2 h-2 rounded-full bg-gray-300 dark:bg-slate-600" />
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-1 text-[11px]">
+                    {Object.entries(statusColorMap).map(([status, colorClass]) => (
+                      <div key={status} className="flex items-center gap-1 whitespace-nowrap">
+                        <span className={`w-2 h-2 rounded-full ${colorClass}`} />
+                        <span className="text-[#4A7FA7] dark:text-slate-400 font-semibold tracking-tight">{getStatusLabel(status)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <AlertCircle className="w-12 h-12 text-[#4A7FA7] dark:text-slate-400 mx-auto mb-2" />
-                  <p className="text-[#4A7FA7] dark:text-slate-400">No attendance records for selected date</p>
+              </Card>
+
+              <Card elevated className="p-4 xl:sticky xl:top-24">
+                <div className="border-b border-[#B3CFE5] dark:border-slate-700 pb-3 mb-3">
+                  <h3 className="text-base font-bold text-[#0A1931] dark:text-white">
+                    Attendance Records (Daily - {selectedDate})
+                  </h3>
+                  <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">
+                    {formatDisplayDate(selectedDate, true)}
+                  </p>
                 </div>
-              )}
-            </Card>
+
+                {recordsLoading ? (
+                  <div className="py-8 flex items-center justify-center">
+                    <Spinner />
+                  </div>
+                ) : selectedDateRecords.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedDateRecords.map((record) => (
+                      <div key={record._id} className="rounded-xl border border-[#B3CFE5] dark:border-slate-700 p-3 bg-[#F9FCFD] dark:bg-slate-800/60">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(record.status)}
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
+                              {record.status}
+                            </span>
+                          </div>
+                          {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId ? (
+                            <button
+                              onClick={() => handleEditRecord(record)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                          <div className="rounded-lg bg-white dark:bg-slate-900/40 p-2 border border-[#E1ECF6] dark:border-slate-700">
+                            <p className="text-[#4A7FA7] dark:text-slate-400">Check-In</p>
+                            <p className="font-semibold text-[#0A1931] dark:text-white mt-0.5">
+                              {record.checkIn ? convertTo12HourFormat(record.checkIn) : "-"}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-white dark:bg-slate-900/40 p-2 border border-[#E1ECF6] dark:border-slate-700">
+                            <p className="text-[#4A7FA7] dark:text-slate-400">Check-Out</p>
+                            <p className="font-semibold text-[#0A1931] dark:text-white mt-0.5">
+                              {record.checkOut ? convertTo12HourFormat(record.checkOut) : "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-10 h-10 text-[#4A7FA7] dark:text-slate-400 mx-auto mb-2" />
+                    <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No attendance record for this date</p>
+                  </div>
+                )}
+              </Card>
+            </div>
           </div>
         </div>
       )}
