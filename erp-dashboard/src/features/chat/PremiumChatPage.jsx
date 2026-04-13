@@ -14,10 +14,16 @@ import GroupCreationModal from "./GroupCreationModal.jsx";
 import GroupManagementModal from "./GroupManagementModal.jsx";
 import ClearChatConfirmationModal from "./ClearChatConfirmationModal.jsx";
 import DeleteConversationModal from "./DeleteConversationModal.jsx";
+import CallProvider from "./CallProvider.jsx";
+import { useCallActions } from "./hooks/useCallActions.js";
+import { useCallStore } from "./store/callStore.js";
 
 export default function PremiumChatPage() {
   const user = useAuthStore((s) => s.user);
   const socket = getSocket();
+  const { initiateCall } = useCallActions();
+  const callStatus = useCallStore((s) => s.callStatus);
+  const callBusy = callStatus !== "idle";
   
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -414,8 +420,32 @@ export default function PremiumChatPage() {
     document.documentElement.classList.toggle('dark');
   };
 
+  const startCall = (callType) => {
+    if (!activeChat || activeChat.isGroupChat) {
+      return;
+    }
+
+    const targetUser = activeChat.participants?.find((p) => p._id !== user.id);
+    if (!targetUser?._id) {
+      toast({ title: "Unable to start call", message: "Recipient not found.", type: "error" });
+      return;
+    }
+
+    const result = initiateCall(targetUser, activeChat._id, callType);
+    if (!result?.ok) {
+      if (result.reason === "offline") {
+        toast({ title: "Call unavailable", message: "You are offline. Reconnect and try again.", type: "info" });
+      } else if (result.reason === "busy") {
+        toast({ title: "Call already active", message: "Finish the current call first.", type: "info" });
+      } else {
+        toast({ title: "Failed to start call", type: "error" });
+      }
+    }
+  };
+
   return (
-    <div className={`h-[calc(100vh-120px)] flex ${isDarkMode ? 'dark' : ''}`}>
+    <CallProvider>
+      <div className={`h-[calc(100vh-120px)] flex ${isDarkMode ? 'dark' : ''}`}>
       {/* Security Badge */}
       <div className="fixed z-50 flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white transform -translate-x-1/2 bg-green-500 rounded-full shadow-lg top-4 left-1/2">
         <Lock className="w-4 h-4" />
@@ -678,16 +708,18 @@ export default function PremiumChatPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => toast({ title: "Voice call feature coming soon", type: "info" })}
-                    className="p-3 text-white transition-all bg-blue-500 rounded-full shadow-lg hover:bg-blue-600 hover:scale-110"
-                    title="Voice Call"
+                    onClick={() => startCall("voice")}
+                    disabled={callBusy || activeChat.isGroupChat}
+                    className="p-3 text-white transition-all bg-blue-500 rounded-full shadow-lg hover:bg-blue-600 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    title={activeChat.isGroupChat ? "Group voice calls are not supported" : callBusy ? "Already in a call" : "Voice Call"}
                   >
                     <Phone className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => toast({ title: "Video call feature coming soon", type: "info" })}
-                    className="p-3 text-white transition-all bg-green-500 rounded-full shadow-lg hover:bg-green-600 hover:scale-110"
-                    title="Video Call"
+                    onClick={() => startCall("video")}
+                    disabled={callBusy || activeChat.isGroupChat}
+                    className="p-3 text-white transition-all bg-green-500 rounded-full shadow-lg hover:bg-green-600 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    title={activeChat.isGroupChat ? "Group video calls are not supported" : callBusy ? "Already in a call" : "Video Call"}
                   >
                     <Video className="w-5 h-5" />
                   </button>
@@ -959,6 +991,7 @@ export default function PremiumChatPage() {
           currentUserId={user.id}
         />
       )}
-    </div>
+      </div>
+    </CallProvider>
   );
 }
