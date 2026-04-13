@@ -334,9 +334,40 @@ export default function HRAttendanceManagementPage() {
           <Spinner />
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <Card elevated className="p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                {selectedEmployee ? (
+                  <div>
+                    <p className="text-sm text-[#4A7FA7] dark:text-slate-400">Selected Employee</p>
+                    <p className="text-lg font-bold text-[#0A1931] dark:text-white">{selectedEmployee.name}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No employee selected</p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-[#4A7FA7] dark:text-slate-400">Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setSelectedDate(nextDate);
+                    const parsed = parseISODate(nextDate);
+                    setActiveMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+                  }}
+                  className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
           {/* Left Sidebar - Employee List */}
-          <Card elevated className={`xl:sticky xl:top-24 ${equalPanelHeightClass} flex flex-col overflow-hidden`}>
+          <Card elevated className={`${equalPanelHeightClass} flex flex-col overflow-hidden`}>
             <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
               <h3 className="text-lg font-bold text-[#0A1931] dark:text-white mb-3">Employees</h3>
               
@@ -391,37 +422,6 @@ export default function HRAttendanceManagementPage() {
 
           {/* Main Content - Attendance Records */}
           <div className="space-y-4">
-            {/* Filter Controls */}
-            <Card elevated className="p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  {selectedEmployee ? (
-                    <div>
-                      <p className="text-sm text-[#4A7FA7] dark:text-slate-400">Selected Employee</p>
-                      <p className="text-lg font-bold text-[#0A1931] dark:text-white">{selectedEmployee.name}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No employee selected</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-[#4A7FA7] dark:text-slate-400">Date</label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => {
-                      const nextDate = e.target.value;
-                      setSelectedDate(nextDate);
-                      const parsed = parseISODate(nextDate);
-                      setActiveMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
-                    }}
-                    className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            </Card>
-
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1.4fr)_360px] items-start">
               <Card elevated className={`p-4 ${equalPanelHeightClass} flex flex-col overflow-hidden`}>
                 <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
@@ -583,6 +583,7 @@ export default function HRAttendanceManagementPage() {
               </Card>
             </div>
           </div>
+        </div>
         </div>
       )}
 
