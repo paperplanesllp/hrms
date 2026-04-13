@@ -1,13 +1,55 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
-import Button from "../../components/ui/Button.jsx";
-import Input from "../../components/ui/Input.jsx";
 import Spinner from "../../components/ui/Spinner.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
-import { Search, Edit2, AlertCircle, CheckCircle, Clock, Calendar, User, ChevronDown, X, Filter } from "lucide-react";
+import {
+  Search,
+  Edit2,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Calendar,
+  User,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  MapPin,
+} from "lucide-react";
+
+function formatISODate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseISODate(dateStr) {
+  const [year, month, day] = String(dateStr || "").split("-").map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
+}
+
+function getMonthRange(monthDate) {
+  const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const end = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  return { from: formatISODate(start), to: formatISODate(end) };
+}
+
+function getCalendarDays(monthDate) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const startOffset = firstDay.getDay();
+  const gridStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1 - startOffset);
+
+  return Array.from({ length: 42 }, (_, idx) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + idx);
+    return d;
+  });
+}
 
 export default function AdminAttendanceManagementPage() {
   const [employees, setEmployees] = useState([]);
@@ -18,106 +60,124 @@ export default function AdminAttendanceManagementPage() {
   const [loading, setLoading] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(formatISODate(new Date()));
+  const [activeMonth, setActiveMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [editingRecord, setEditingRecord] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", checkInPeriod: "AM", checkOutPeriod: "PM" });
+  const [editForm, setEditForm] = useState({
+    checkIn: "",
+    checkOut: "",
+    checkInPeriod: "AM",
+    checkOutPeriod: "PM",
+  });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Load all employees and departments on mount
   useEffect(() => {
     loadEmployeesAndDepartments();
   }, []);
 
-  // Load attendance when employee/date changes
-  useEffect(() => {
-    if (selectedEmployee) {
-      loadAttendanceRecords(selectedEmployee, selectedDate);
-    }
-  }, [selectedEmployee, selectedDate]);
-
-  // Filter employees when department changes
-  useEffect(() => {
-    if (selectedDepartment === "all") {
-      // Keep all employees, auto-select first
-      if (employees.length > 0) {
-        setSelectedEmployee(employees[0]);
-      }
-    } else {
-      // Filter by department
-      const filtered = employees.filter(emp => emp.departmentId === selectedDepartment);
-      if (filtered.length > 0) {
-        setSelectedEmployee(filtered[0]);
-      }
-    }
-  }, [selectedDepartment, employees]);
-
   const loadEmployeesAndDepartments = async () => {
     try {
       setLoading(true);
-      
-      // Load all users (not just USER role, employees could have different roles)
+
       const empRes = await api.get("/users?limit=1000");
-      const allEmployees = Array.isArray(empRes.data) ? empRes.data : empRes.data?.data || [];
+      const allEmployeesRaw = Array.isArray(empRes.data) ? empRes.data : empRes.data?.data || [];
+      const allEmployees = allEmployeesRaw
+        .slice()
+        .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""), "en", { sensitivity: "base" }));
       setEmployees(allEmployees);
 
-      // Load departments if available
       try {
         const deptRes = await api.get("/departments?limit=100");
         const allDepts = Array.isArray(deptRes.data) ? deptRes.data : deptRes.data?.data || [];
         setDepartments(allDepts);
       } catch {
-        // Departments endpoint might not exist, skip error
-        console.log("Departments endpoint not available");
         setDepartments([]);
       }
 
-      // Auto-select first employee
       if (allEmployees.length > 0) {
         setSelectedEmployee(allEmployees[0]);
+      } else {
+        setSelectedEmployee(null);
       }
     } catch (e) {
-      toast({ 
-        title: "Failed to load employees", 
-        type: "error" 
-      });
+      toast({ title: "Failed to load employees", type: "error" });
       console.error("Error loading employees:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAttendanceRecords = async (employee, date) => {
+  const displayedEmployees = useMemo(() => {
+    let result = employees;
+
+    if (selectedDepartment !== "all") {
+      result = result.filter((emp) => String(emp.departmentId || "") === selectedDepartment);
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      result = result.filter(
+        (emp) =>
+          String(emp.name || "").toLowerCase().includes(q) ||
+          String(emp.email || "").toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [employees, selectedDepartment, searchTerm]);
+
+  useEffect(() => {
+    if (!displayedEmployees.length) {
+      setSelectedEmployee(null);
+      return;
+    }
+
+    const selectedStillVisible = displayedEmployees.some(
+      (emp) => String(emp._id) === String(selectedEmployee?._id)
+    );
+
+    if (!selectedStillVisible) {
+      setSelectedEmployee(displayedEmployees[0]);
+    }
+  }, [displayedEmployees, selectedEmployee?._id]);
+
+  const loadAttendanceRecords = async (employee, monthDate) => {
     if (!employee?._id) return;
 
     try {
       setRecordsLoading(true);
-      const fromDate = date;
-      const toDate = date;
+      const { from, to } = getMonthRange(monthDate);
 
       const res = await api.get("/attendance", {
         params: {
           userId: employee._id,
-          from: fromDate,
-          to: toDate
-        }
+          from,
+          to,
+        },
       });
 
       setAttendanceRecords(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      toast({ 
-        title: "Failed to load attendance records", 
-        type: "error" 
-      });
+      toast({ title: "Failed to load attendance records", type: "error" });
       console.error("Error loading attendance:", error);
     } finally {
       setRecordsLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (selectedEmployee?._id) {
+      loadAttendanceRecords(selectedEmployee, activeMonth);
+    }
+  }, [selectedEmployee, activeMonth]);
+
   const handleEditRecord = (record) => {
     setEditingRecord(record);
-    // Convert 24h HH:MM to 12h for display
+
     const to12h = (time24) => {
       if (!time24) return { time: "", period: "AM" };
       const [hStr, mStr] = time24.split(":");
@@ -127,13 +187,14 @@ export default function AdminAttendanceManagementPage() {
       else if (h > 12) h -= 12;
       return { time: `${h}:${mStr}`, period };
     };
+
     const ci = to12h(record.checkIn);
     const co = to12h(record.checkOut);
     setEditForm({
       checkIn: ci.time,
       checkInPeriod: ci.period,
       checkOut: co.time,
-      checkOutPeriod: co.period
+      checkOutPeriod: co.period,
     });
     setShowEditModal(true);
   };
@@ -144,7 +205,6 @@ export default function AdminAttendanceManagementPage() {
     try {
       setEditSubmitting(true);
 
-      // Convert 12h to 24h HH:MM for backend
       const to24h = (time12, period) => {
         if (!time12) return "";
         const match = time12.match(/^(\d{1,2}):(\d{2})$/);
@@ -152,25 +212,21 @@ export default function AdminAttendanceManagementPage() {
         let h = parseInt(match[1], 10);
         const m = match[2];
         if (h < 1 || h > 12 || parseInt(m, 10) > 59) return null;
-        if (period === "AM") { if (h === 12) h = 0; }
-        else { if (h !== 12) h += 12; }
+        if (period === "AM") {
+          if (h === 12) h = 0;
+        } else if (h !== 12) {
+          h += 12;
+        }
         return `${String(h).padStart(2, "0")}:${m}`;
       };
 
-      // Validate time format (H:MM or HH:MM)
       const timeRegex = /^\d{1,2}:\d{2}$/;
       if (editForm.checkIn && !timeRegex.test(editForm.checkIn)) {
-        toast({ 
-          title: "Invalid check-in time format. Use H:MM (e.g. 9:30)", 
-          type: "error" 
-        });
+        toast({ title: "Invalid check-in time format. Use H:MM (e.g. 9:30)", type: "error" });
         return;
       }
       if (editForm.checkOut && !timeRegex.test(editForm.checkOut)) {
-        toast({ 
-          title: "Invalid check-out time format. Use H:MM (e.g. 5:30)", 
-          type: "error" 
-        });
+        toast({ title: "Invalid check-out time format. Use H:MM (e.g. 5:30)", type: "error" });
         return;
       }
 
@@ -188,25 +244,21 @@ export default function AdminAttendanceManagementPage() {
 
       await api.put(`/attendance/${editingRecord._id}`, {
         checkIn: checkIn24 || "",
-        checkOut: checkOut24 || ""
+        checkOut: checkOut24 || "",
       });
 
-      toast({ 
-        title: "✅ Attendance record updated successfully", 
-        type: "success" 
-      });
+      toast({ title: "Attendance record updated successfully", type: "success" });
 
       setShowEditModal(false);
       setEditingRecord(null);
 
-      // Always reload canonical attendance rows so computed fields/date formatting stay correct.
       if (selectedEmployee?._id) {
-        await loadAttendanceRecords(selectedEmployee, selectedDate);
+        await loadAttendanceRecords(selectedEmployee, activeMonth);
       }
     } catch (e) {
-      toast({ 
-        title: "Failed to update: " + (e?.response?.data?.message || e.message), 
-        type: "error" 
+      toast({
+        title: "Failed to update: " + (e?.response?.data?.message || e.message),
+        type: "error",
       });
     } finally {
       setEditSubmitting(false);
@@ -255,34 +307,44 @@ export default function AdminAttendanceManagementPage() {
     const parsed = new Date(`${dateValue}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) return "-";
 
-    return parsed.toLocaleDateString("en-US", longFormat
-      ? { weekday: "long", year: "numeric", month: "long", day: "numeric" }
-      : { weekday: "short", month: "short", day: "numeric" }
+    return parsed.toLocaleDateString(
+      "en-US",
+      longFormat
+        ? { weekday: "long", year: "numeric", month: "long", day: "numeric" }
+        : { weekday: "short", month: "short", day: "numeric" }
     );
   };
 
-  const getDisplayedEmployees = () => {
-    let result = employees;
+  const attendanceByDate = attendanceRecords.reduce((acc, record) => {
+    acc[record.date] = record;
+    return acc;
+  }, {});
 
-    // Filter by department if selected
-    if (selectedDepartment !== "all") {
-      result = result.filter(emp => emp.departmentId === selectedDepartment);
-    }
+  const selectedDateRecords = attendanceRecords.filter((record) => record.date === selectedDate);
+  const calendarDays = getCalendarDays(activeMonth);
+  const todayISO = formatISODate(new Date());
 
-    // Filter by search term
-    result = result.filter(emp =>
-      emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    return result;
+  const statusColorMap = {
+    PRESENT: "bg-green-500",
+    ABSENT: "bg-red-500",
+    HOLIDAY: "bg-sky-500",
+    SHORT_HOURS: "bg-yellow-500",
+    HALF_DAY: "bg-indigo-500",
+    LATE: "bg-orange-500",
+    INVALID_LOCATION: "bg-rose-500",
   };
 
-  const displayedEmployees = getDisplayedEmployees();
+  const changeActiveMonth = (offset) => {
+    const nextMonth = new Date(activeMonth.getFullYear(), activeMonth.getMonth() + offset, 1);
+    setActiveMonth(nextMonth);
+    setSelectedDate(formatISODate(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1)));
+  };
+
+  const getStatusLabel = (status) => (status ? status.replace(/_/g, " ") : "No Record");
+  const equalPanelHeightClass = "h-[560px] md:h-[620px] xl:h-[calc(100vh-180px)]";
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Page Header */}
       <PageTitle
         title="Attendance Management (Admin)"
         subtitle="View and manually edit all employee attendance records. Admin-level access for system issue corrections."
@@ -293,188 +355,270 @@ export default function AdminAttendanceManagementPage() {
           <Spinner />
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* Left Sidebar - Employee List with Filters */}
-          <Card elevated className="lg:col-span-1 h-fit max-h-[calc(100vh-200px)] flex flex-col">
-            <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
-              <h3 className="text-lg font-bold text-[#0A1931] dark:text-white mb-3">Employees</h3>
+        <div className="space-y-4">
+          <Card elevated className="p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                {selectedEmployee ? (
+                  <div>
+                    <p className="text-sm text-[#4A7FA7] dark:text-slate-400">Selected Employee</p>
+                    <p className="text-lg font-bold text-[#0A1931] dark:text-white">{selectedEmployee.name}</p>
+                    <p className="text-xs text-[#4A7FA7] dark:text-slate-400">{selectedEmployee.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No employee selected</p>
+                )}
+              </div>
 
-              {/* Department Filter */}
-              {departments.length > 0 && (
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-[#4A7FA7] dark:text-slate-400 mb-2">
-                    <Filter className="w-3 h-3 inline mr-1" />
-                    Department
-                  </label>
-                  <select
-                    value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Departments</option>
-                    {departments.map(dept => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Search Input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-[#4A7FA7]" />
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-[#4A7FA7] dark:text-slate-400">Date</label>
                 <input
-                  type="text"
-                  placeholder="Search name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white placeholder-[#4A7FA7] dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setSelectedDate(nextDate);
+                    const parsed = parseISODate(nextDate);
+                    setActiveMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+                  }}
+                  className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
-
-            {/* Employee List */}
-            <div className="divide-y divide-[#B3CFE5] dark:divide-slate-700 overflow-y-auto flex-1">
-              {displayedEmployees.length > 0 ? (
-                displayedEmployees.map((emp) => (
-                  <button
-                    key={emp._id}
-                    onClick={() => setSelectedEmployee(emp)}
-                    className={`w-full px-4 py-3 text-left transition-colors ${
-                      selectedEmployee?._id === emp._id
-                        ? "bg-blue-100 dark:bg-blue-900/30 border-l-4 border-blue-600"
-                        : "hover:bg-[#F6FAFD] dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-[#4A7FA7] flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#0A1931] dark:text-white truncate">
-                          {emp.name}
-                        </p>
-                        <p className="text-xs text-[#4A7FA7] dark:text-slate-400 truncate">
-                          {emp.email}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="p-4 text-center text-sm text-[#4A7FA7] dark:text-slate-400">
-                  No employees found
-                </div>
-              )}
-            </div>
           </Card>
 
-          {/* Main Content - Attendance Records */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Filter Controls */}
-            <Card elevated className="p-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  {selectedEmployee ? (
-                    <div>
-                      <p className="text-sm text-[#4A7FA7] dark:text-slate-400">Selected Employee</p>
-                      <p className="text-lg font-bold text-[#0A1931] dark:text-white">{selectedEmployee.name}</p>
-                      <p className="text-xs text-[#4A7FA7] dark:text-slate-400">{selectedEmployee.email}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No employee selected</p>
-                  )}
-                </div>
+          <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
+            <Card elevated className={`${equalPanelHeightClass} flex flex-col overflow-hidden`}>
+              <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
+                <h3 className="text-lg font-bold text-[#0A1931] dark:text-white mb-3">Employees</h3>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-semibold text-[#4A7FA7] dark:text-slate-400">Date</label>
+                {departments.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-semibold text-[#4A7FA7] dark:text-slate-400 mb-2">
+                      <Filter className="w-3 h-3 inline mr-1" />
+                      Department
+                    </label>
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Departments</option>
+                      {departments.map((dept) => (
+                        <option key={dept._id} value={dept._id}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-[#4A7FA7]" />
                   <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="px-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    type="text"
+                    placeholder="Search name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 text-sm border rounded-lg border-[#B3CFE5] dark:border-slate-600 bg-white dark:bg-slate-800 text-[#0A1931] dark:text-white placeholder-[#4A7FA7] dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
+
+              <div className="divide-y divide-[#B3CFE5] dark:divide-slate-700 overflow-y-auto flex-1">
+                {displayedEmployees.length > 0 ? (
+                  displayedEmployees.map((emp) => (
+                    <button
+                      key={emp._id}
+                      onClick={() => setSelectedEmployee(emp)}
+                      className={`w-full px-4 py-3 text-left transition-colors ${
+                        selectedEmployee?._id === emp._id
+                          ? "bg-blue-100 dark:bg-blue-900/30 border-l-4 border-blue-600"
+                          : "hover:bg-[#F6FAFD] dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-[#4A7FA7] flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-[#0A1931] dark:text-white truncate">{emp.name}</p>
+                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400 truncate">{emp.email}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-sm text-[#4A7FA7] dark:text-slate-400">No employees found</div>
+                )}
+              </div>
             </Card>
 
-            {/* Attendance Records Table */}
-            <Card elevated>
-              <div className="p-4 border-b border-[#B3CFE5] dark:border-slate-700">
-                <h3 className="text-lg font-bold text-[#0A1931] dark:text-white flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Attendance Records (Daily - {selectedDate})
-                </h3>
-              </div>
+            <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1.4fr)_360px] items-start">
+                <Card elevated className={`p-4 ${equalPanelHeightClass} flex flex-col overflow-hidden`}>
+                  <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="text-lg font-bold text-[#0A1931] dark:text-white flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Monthly Attendance
+                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => changeActiveMonth(-1)}
+                        className="p-2 rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors"
+                        aria-label="Previous month"
+                      >
+                        <ChevronLeft className="w-4 h-4 text-[#4A7FA7]" />
+                      </button>
+                      <div className="px-3 py-2 rounded-lg bg-[#F6FAFD] dark:bg-slate-800 text-sm font-semibold text-[#0A1931] dark:text-white min-w-[126px] text-center">
+                        {activeMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const now = new Date();
+                          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                          setActiveMonth(monthStart);
+                          setSelectedDate(formatISODate(now));
+                        }}
+                        className="px-3 py-2 text-xs font-semibold rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors text-[#0A1931] dark:text-white"
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={() => changeActiveMonth(1)}
+                        className="p-2 rounded-lg border border-[#B3CFE5] hover:bg-[#F6FAFD] dark:border-slate-600 dark:hover:bg-slate-800 transition-colors"
+                        aria-label="Next month"
+                      >
+                        <ChevronRight className="w-4 h-4 text-[#4A7FA7]" />
+                      </button>
+                    </div>
+                  </div>
 
-              {recordsLoading ? (
-                <div className="p-8 flex items-center justify-center">
-                  <Spinner />
-                </div>
-              ) : attendanceRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[#B3CFE5] dark:border-slate-700 bg-[#F6FAFD] dark:bg-slate-800">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Date</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Check-In</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Check-Out</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Status</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Distance</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#0A1931] dark:text-white">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attendanceRecords.map((record) => (
-                        <tr
-                          key={record._id}
-                          className="border-b border-[#B3CFE5] dark:border-slate-700 hover:bg-[#F6FAFD] dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-sm font-medium text-[#0A1931] dark:text-white">
-                            {formatDisplayDate(record.date)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
-                            {record.checkIn ? convertTo12HourFormat(record.checkIn) : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
-                            {record.checkOut ? convertTo12HourFormat(record.checkOut) : "-"}
-                          </td>
-                          <td className="px-4 py-3">
+                  <div className="flex-1 overflow-y-auto pr-1">
+                    <div className="grid grid-cols-7 gap-1 mb-1">
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                        <div key={day} className="text-[11px] font-semibold uppercase text-center text-[#4A7FA7] dark:text-slate-400 py-1">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarDays.map((day) => {
+                        const isoDate = formatISODate(day);
+                        const dayRecord = attendanceByDate[isoDate];
+                        const status = dayRecord?.status;
+                        const isCurrentMonth = day.getMonth() === activeMonth.getMonth();
+                        const isSelected = isoDate === selectedDate;
+                        const isToday = isoDate === todayISO;
+
+                        return (
+                          <button
+                            key={isoDate}
+                            onClick={() => {
+                              setSelectedDate(isoDate);
+                              if (!isCurrentMonth) {
+                                setActiveMonth(new Date(day.getFullYear(), day.getMonth(), 1));
+                              }
+                            }}
+                            title={`${formatDisplayDate(isoDate, true)} - ${getStatusLabel(status)}`}
+                            className={`relative h-10 sm:h-11 rounded-lg border transition-all ${
+                              isSelected
+                                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                                : "border-[#D9E7F3] dark:border-slate-700 hover:bg-[#F6FAFD] dark:hover:bg-slate-800"
+                            } ${!isCurrentMonth ? "opacity-35" : "opacity-100"}`}
+                          >
+                            <div className={`text-sm font-semibold ${isToday ? "text-blue-700 dark:text-blue-300" : "text-[#0A1931] dark:text-white"}`}>
+                              {day.getDate()}
+                            </div>
+                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
+                              {status ? (
+                                <span className={`block w-2 h-2 rounded-full ${statusColorMap[status] || "bg-gray-400"}`} />
+                              ) : (
+                                <span className="block w-2 h-2 rounded-full bg-gray-300 dark:bg-slate-600" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-1 text-[11px]">
+                      {Object.entries(statusColorMap).map(([status, colorClass]) => (
+                        <div key={status} className="flex items-center gap-1 whitespace-nowrap">
+                          <span className={`w-2 h-2 rounded-full ${colorClass}`} />
+                          <span className="text-[#4A7FA7] dark:text-slate-400 font-semibold tracking-tight">{getStatusLabel(status)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card elevated className="p-4 xl:sticky xl:top-24">
+                  <div className="border-b border-[#B3CFE5] dark:border-slate-700 pb-3 mb-3">
+                    <h3 className="text-base font-bold text-[#0A1931] dark:text-white">
+                      Attendance Records (Daily - {selectedDate})
+                    </h3>
+                    <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">{formatDisplayDate(selectedDate, true)}</p>
+                  </div>
+
+                  {recordsLoading ? (
+                    <div className="py-8 flex items-center justify-center">
+                      <Spinner />
+                    </div>
+                  ) : selectedDateRecords.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedDateRecords.map((record) => (
+                        <div key={record._id} className="rounded-xl border border-[#B3CFE5] dark:border-slate-700 p-3 bg-[#F9FCFD] dark:bg-slate-800/60">
+                          <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               {getStatusIcon(record.status)}
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
                                 {record.status}
                               </span>
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#4A7FA7] dark:text-slate-300">
-                            {record.distanceFromOffice ? `${record.distanceFromOffice}m` : "-"}
-                          </td>
-                          <td className="px-4 py-3">
                             <button
                               onClick={() => handleEditRecord(record)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-semibold transition-colors"
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Edit2 className="w-3.5 h-3.5" />
                               Edit
                             </button>
-                          </td>
-                        </tr>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                            <div className="rounded-lg bg-white dark:bg-slate-900/40 p-2 border border-[#E1ECF6] dark:border-slate-700">
+                              <p className="text-[#4A7FA7] dark:text-slate-400">Check-In</p>
+                              <p className="font-semibold text-[#0A1931] dark:text-white mt-0.5">
+                                {record.checkIn ? convertTo12HourFormat(record.checkIn) : "-"}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-white dark:bg-slate-900/40 p-2 border border-[#E1ECF6] dark:border-slate-700">
+                              <p className="text-[#4A7FA7] dark:text-slate-400">Check-Out</p>
+                              <p className="font-semibold text-[#0A1931] dark:text-white mt-0.5">
+                                {record.checkOut ? convertTo12HourFormat(record.checkOut) : "-"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 text-[11px] text-[#4A7FA7] dark:text-slate-400 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {record.distanceFromOffice ? `${record.distanceFromOffice}m from office` : "Distance not available"}
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <AlertCircle className="w-12 h-12 text-[#4A7FA7] dark:text-slate-400 mx-auto mb-2" />
-                  <p className="text-[#4A7FA7] dark:text-slate-400">No attendance records for selected date</p>
-                </div>
-              )}
-            </Card>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <AlertCircle className="w-10 h-10 text-[#4A7FA7] dark:text-slate-400 mx-auto mb-2" />
+                      <p className="text-sm text-[#4A7FA7] dark:text-slate-400">No attendance record for this date</p>
+                    </div>
+                  )}
+                </Card>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
       {showEditModal && editingRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 p-4">
           <Card elevated className="w-full max-w-md">
@@ -492,11 +636,8 @@ export default function AdminAttendanceManagementPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Date Display */}
               <div>
-                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Date
-                </label>
+                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">Date</label>
                 <input
                   type="text"
                   disabled
@@ -505,11 +646,8 @@ export default function AdminAttendanceManagementPage() {
                 />
               </div>
 
-              {/* Check-In Time */}
               <div>
-                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Check-In Time
-                </label>
+                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">Check-In Time</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -530,11 +668,8 @@ export default function AdminAttendanceManagementPage() {
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">e.g. 9:30 AM — Leave empty if no check-in</p>
               </div>
 
-              {/* Check-Out Time */}
               <div>
-                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">
-                  Check-Out Time
-                </label>
+                <label className="block text-sm font-semibold text-[#0A1931] dark:text-white mb-2">Check-Out Time</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -562,7 +697,6 @@ export default function AdminAttendanceManagementPage() {
                 </p>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => {
