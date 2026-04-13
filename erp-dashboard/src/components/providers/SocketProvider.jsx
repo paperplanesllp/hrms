@@ -8,13 +8,12 @@ import { startLocationTracking, stopLocationTracking } from "../../lib/locationT
 import api from "../../lib/api.js";
 
 export default function SocketProvider({ children }) {
-  const user = useAuthStore((s) => s.user);
-  const { initializeRealTime, fetchNotifications } = useNotificationStore();
+  const userId = useAuthStore((s) => s.user?._id || s.user?.id || null);
   const presenceInitialized = useRef(false);
 
   // Bridge socket presence events to Zustand presenceStore
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       disconnectSocket();
       stopLocationTracking();
       usePresenceStore.getState().clearPresence();
@@ -29,6 +28,7 @@ export default function SocketProvider({ children }) {
     if (!socket) return;
 
     // Initialize realtime notifications
+    const { initializeRealTime, fetchNotifications } = useNotificationStore.getState();
     initializeRealTime();
     fetchNotifications();
 
@@ -83,7 +83,7 @@ export default function SocketProvider({ children }) {
       disconnectSocket();
       stopLocationTracking();
     };
-  }, [user, initializeRealTime, fetchNotifications]);
+  }, [userId]);
 
   return <>{children}</>;
 }

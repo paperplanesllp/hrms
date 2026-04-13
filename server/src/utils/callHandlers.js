@@ -98,6 +98,14 @@ export const registerCallHandlers = (io, socket) => {
         return;
       }
 
+      // Reject early when receiver has no active socket connection.
+      const targetRoom = io?.sockets?.adapter?.rooms?.get(`user_${targetUserId}`);
+      const isTargetConnected = Boolean(targetRoom && targetRoom.size > 0);
+      if (!isTargetConnected) {
+        socket.emit("call:error", { message: "User is offline or not reachable." });
+        return;
+      }
+
       // Check if target is in another call
       if (activeCalls.has(targetUserId)) {
         socket.emit("call:busy", { message: "User is busy on another call." });
