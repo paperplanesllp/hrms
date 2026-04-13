@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { corsOptions } from "../config/cors.js";
 import { User } from "../modules/users/User.model.js";
 import presenceManager from "./presenceManager.js";
 
@@ -9,9 +10,9 @@ let io;
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? false : ["http://localhost:5173", "http://localhost:5174"],
+      origin: corsOptions.origin,
       credentials: true,
-      methods: ["GET", "POST"]
+      methods: ["GET", "POST", "OPTIONS"]
     },
     transports: ['websocket', 'polling'],
     allowEIO3: true,
@@ -108,6 +109,10 @@ export const initializeSocket = (server) => {
       if (socket.userRole === "HR" || socket.userRole === "ADMIN") {
         socket.join("hr_management");
       }
+
+      // Register voice/video call signaling handlers for this connected socket.
+      const { registerCallHandlers } = await import("./callHandlers.js");
+      registerCallHandlers(io, socket);
 
       // ============ HEARTBEAT EVENT ============
       socket.on("heartbeat", async () => {

@@ -420,7 +420,7 @@ export default function PremiumChatPage() {
     document.documentElement.classList.toggle('dark');
   };
 
-  const startCall = (callType) => {
+  const startCall = async (callType) => {
     if (!activeChat || activeChat.isGroupChat) {
       return;
     }
@@ -431,10 +431,10 @@ export default function PremiumChatPage() {
       return;
     }
 
-    const result = initiateCall(targetUser, activeChat._id, callType);
+    const result = await initiateCall(targetUser, activeChat._id, callType);
     if (!result?.ok) {
       if (result.reason === "offline") {
-        toast({ title: "Call unavailable", message: "You are offline. Reconnect and try again.", type: "info" });
+        toast({ title: "Call unavailable", message: "Could not connect to realtime server. Please check connection and try again.", type: "info" });
       } else if (result.reason === "busy") {
         toast({ title: "Call already active", message: "Finish the current call first.", type: "info" });
       } else {

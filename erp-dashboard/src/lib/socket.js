@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 import { getAuth } from "./auth.js";
 import { toast } from "../store/toastStore.js";
+import { SERVER_BASE_URL } from "./url.js";
 
 let socket = null;
 let connectionAttempts = 0;
@@ -39,8 +40,7 @@ export const initializeSocket = () => {
     return socket;
   }
 
-  const apiUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
-  const serverUrl = apiUrl.replace('/api', '');
+  const serverUrl = SERVER_BASE_URL;
   
   console.log("🔌 Initializing socket connection...");
   

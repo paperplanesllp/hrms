@@ -1,11 +1,29 @@
 import { useRef, useCallback } from "react";
 import { callActions, getCallState } from "../store/callStore.js";
 
-const ICE_CONFIG = {
-  iceServers: [
+const buildIceServers = () => {
+  const servers = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-  ],
+  ];
+
+  const turnUrl = (import.meta.env.VITE_TURN_URL || "").trim();
+  const turnUsername = (import.meta.env.VITE_TURN_USERNAME || "").trim();
+  const turnCredential = (import.meta.env.VITE_TURN_CREDENTIAL || "").trim();
+
+  if (turnUrl && turnUsername && turnCredential) {
+    servers.push({
+      urls: turnUrl,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  }
+
+  return servers;
+};
+
+const ICE_CONFIG = {
+  iceServers: buildIceServers(),
 };
 
 /**

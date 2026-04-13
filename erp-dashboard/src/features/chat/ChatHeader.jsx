@@ -105,17 +105,17 @@ export default function ChatHeader({
     };
   }, [showMenu]);
 
-  const handleVoiceCall = () => {
+  const handleVoiceCall = async () => {
     if (callBusy || !other || chat.isGroupChat) return;
-    const result = initiateCall(other, chat._id, "voice");
+    const result = await initiateCall(other, chat._id, "voice");
     if (!result?.ok && result?.reason === "offline") {
       toast({ title: "Voice calling is not available right now", type: "info" });
     }
   };
 
-  const handleVideoCall = () => {
+  const handleVideoCall = async () => {
     if (callBusy || !other || chat.isGroupChat) return;
-    const result = initiateCall(other, chat._id, "video");
+    const result = await initiateCall(other, chat._id, "video");
     if (!result?.ok && result?.reason === "offline") {
       toast({ title: "Video calling is not available right now", type: "info" });
     }
