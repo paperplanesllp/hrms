@@ -23,6 +23,8 @@ export const env = {
   CLOUDINARY_PROFILE_FOLDER: process.env.CLOUDINARY_PROFILE_FOLDER || "hrms/profile-images",
   CLOUDINARY_CHAT_FOLDER: process.env.CLOUDINARY_CHAT_FOLDER || "hrms/chat-media",
 
+  SOCKET_IO_PATH: process.env.SOCKET_IO_PATH || "/socket.io",
+
   DEFAULT_SHIFT_START: "09:30",
   DEFAULT_SHIFT_END: "18:30"
 };

@@ -7,6 +7,12 @@ import presenceManager from "./presenceManager.js";
 
 let io;
 
+const normalizeSocketPath = (value) => {
+  const raw = (value || "").trim();
+  if (!raw) return "/socket.io";
+  return raw.startsWith("/") ? raw : `/${raw}`;
+};
+
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
@@ -17,7 +23,8 @@ export const initializeSocket = (server) => {
     transports: ['websocket', 'polling'],
     allowEIO3: true,
     pingInterval: 25000,
-    pingTimeout: 60000
+    pingTimeout: 60000,
+    path: normalizeSocketPath(env.SOCKET_IO_PATH)
   });
 
   // Socket authentication middleware

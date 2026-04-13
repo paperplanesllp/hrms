@@ -101,7 +101,7 @@ const callLogSchema = new mongoose.Schema(
   }
 );
 
-callLogSchema.pre("validate", function syncLegacyAndCanonicalFields(next) {
+callLogSchema.pre("validate", function syncLegacyAndCanonicalFields() {
   const mapToCanonical = {
     no_answer: "missed",
     rejected: "declined",
@@ -142,7 +142,6 @@ callLogSchema.pre("validate", function syncLegacyAndCanonicalFields(next) {
     this.duration = this.durationSeconds;
   }
 
-  next();
 });
 
 export const CallLog = mongoose.model("CallLog", callLogSchema);

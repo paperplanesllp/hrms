@@ -12,6 +12,13 @@ let cachedOnlineUsers = [];
 const HEARTBEAT_INTERVAL = 25000; // 25 seconds
 const ACTIVITY_THROTTLE = 10000; // 10 seconds
 
+const normalizeSocketPath = (value) => {
+  const raw = (value || "").trim();
+  if (!raw) return "/socket.io/";
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
+};
+
 export const initializeSocket = () => {
   const auth = getAuth();
   
@@ -40,22 +47,24 @@ export const initializeSocket = () => {
     return socket;
   }
 
-  const serverUrl = SERVER_BASE_URL;
+  const socketBaseUrl = (import.meta.env.VITE_SOCKET_URL || "").trim() || SERVER_BASE_URL;
+  const socketPath = normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH);
   
-  console.log("🔌 Initializing socket connection...");
+  console.log("🔌 Initializing socket connection...", { socketBaseUrl, socketPath });
   
-  socket = io(serverUrl, {
+  socket = io(socketBaseUrl, {
     auth: {
       token: auth.accessToken
     },
     autoConnect: true,
-    transports: ['websocket', 'polling'],
+    // Polling-first is more tolerant on hosted proxies; then it upgrades to websocket.
+    transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionDelay: 2000,
     reconnectionDelayMax: 10000,
     reconnectionAttempts: 5,
     timeout: 20000,
-    path: "/socket.io/",
+    path: socketPath,
     withCredentials: true
   });
 
