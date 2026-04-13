@@ -25,6 +25,46 @@ function formatDateForDisplay(dateStr) {
   return `${String(day).padStart(2, "0")}-${months[month - 1]}-${year}`;
 }
 
+const IST_TIMEZONE = "Asia/Kolkata";
+
+function getTodayDateIST() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: IST_TIMEZONE }).format(new Date());
+}
+
+function toMinutes(hhmm) {
+  if (!hhmm || typeof hhmm !== "string" || !hhmm.includes(":")) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function calculateWorkedHours(checkIn, checkOut) {
+  const inMinutes = toMinutes(checkIn);
+  const outMinutes = toMinutes(checkOut);
+  if (inMinutes === null || outMinutes === null) return null;
+
+  let diffMinutes = outMinutes - inMinutes;
+  if (diffMinutes < 0) diffMinutes += 24 * 60;
+
+  return Math.round((Math.max(0, diffMinutes) / 60) * 100) / 100;
+}
+
+function getCurrentISTParts() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: IST_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const second = Number(parts.find((p) => p.type === "second")?.value ?? "0");
+
+  return { hour, minute, second };
+}
+
 export default function AttendancePage() {
   const user = useAuthStore((s) => s.user);
   const isEditor = user?.role === ROLES.ADMIN;
@@ -48,24 +88,28 @@ export default function AttendancePage() {
   const [checkInTime, setCheckInTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const timerRef = useRef(null);
+  const todayDateIST = getTodayDateIST();
+  const todayRecord = rows.find((r) => r.date === todayDateIST);
+  const todayWorkedHours =
+    todayRecord?.checkIn && todayRecord?.checkOut
+      ? calculateWorkedHours(todayRecord.checkIn, todayRecord.checkOut)
+      : null;
 
   // Calculate elapsed time from check-in
   const calculateElapsedTime = (checkIn) => {
-    if (!checkIn) return { hours: 0, minutes: 0, seconds: 0 };
-    
-    const now = new Date();
-    const [checkInHours, checkInMinutes] = checkIn.split(':').map(Number);
-    
-    const checkInDate = new Date();
-    checkInDate.setHours(checkInHours, checkInMinutes, 0, 0);
-    
-    const diff = now - checkInDate;
-    if (diff < 0) return { hours: 0, minutes: 0, seconds: 0 };
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
+    const checkInMinutes = toMinutes(checkIn);
+    if (checkInMinutes === null) return { hours: 0, minutes: 0, seconds: 0 };
+
+    const { hour, minute, second } = getCurrentISTParts();
+    const nowMinutes = hour * 60 + minute;
+
+    let diffMinutes = nowMinutes - checkInMinutes;
+    if (diffMinutes < 0) diffMinutes += 24 * 60;
+
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+    const seconds = Math.max(0, second);
+
     return { hours, minutes, seconds };
   };
 
@@ -106,7 +150,7 @@ export default function AttendancePage() {
     setLoading(true);
     try {
       const today = new Date();
-      const todayDate = today.toISOString().split("T")[0];
+      const todayDate = getTodayDateIST();
 
       let fromDate = todayDate;
       let toDate = todayDate;
@@ -381,13 +425,13 @@ export default function AttendancePage() {
               <div className="p-4 bg-white border-l-4 dark:bg-slate-800 rounded-xl border-l-green-500">
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 font-semibold uppercase">Check In</p>
                 <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">
-                  {convertTo12HourFormat(rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkIn) || "—"}
+                  {convertTo12HourFormat(todayRecord?.checkIn) || "—"}
                 </p>
               </div>
               <div className="p-4 bg-white border-l-4 dark:bg-slate-800 rounded-xl border-l-orange-500">
                 <p className="text-xs text-[#4A7FA7] dark:text-slate-400 font-semibold uppercase">Check Out</p>
                 <p className="mt-1 text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {convertTo12HourFormat(rows.find(r => r.date === new Date().toISOString().split('T')[0])?.checkOut) || "—"}
+                  {convertTo12HourFormat(todayRecord?.checkOut) || "—"}
                 </p>
               </div>
               {/* Real-time Timer Display */}
@@ -398,7 +442,7 @@ export default function AttendancePage() {
                 </div>
                 <p className="mt-1 font-mono text-3xl font-bold text-purple-600 dark:text-purple-400">
                   {hasCheckedInToday && !hasCheckedOutToday ? formatTime(elapsedTime) : 
-                   hasCheckedOutToday ? (rows.find(r => r.date === new Date().toISOString().split('T')[0])?.totalHours ? `${rows.find(r => r.date === new Date().toISOString().split('T')[0])?.totalHours}h` : "—") : 
+                   hasCheckedOutToday ? (todayWorkedHours !== null ? `${todayWorkedHours}h` : "—") : 
                    "00:00:00"}
                 </p>
               </div>
@@ -691,7 +735,9 @@ export default function AttendancePage() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-center font-bold text-[#4A7FA7]">
-                          {record.totalHours ? `${record.totalHours}h` : "—"}
+                          {record.checkIn && record.checkOut
+                            ? `${calculateWorkedHours(record.checkIn, record.checkOut)}h`
+                            : "—"}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {forgotCheckOut ? (
