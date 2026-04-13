@@ -812,9 +812,157 @@ function isWorkingDay(date) {
  * @returns {boolean} - true if current time is after shift end
  */
 function isAfterShiftEnd(shiftEnd) {
-  const now = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const currentTime = getCurrentTimeIST();
   return compareTime(currentTime, shiftEnd) >= 0;
+}
+
+async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize = false } = {}) {
+  const holidayName = await getPublicHolidayNameForDate(targetDate);
+
+  if (holidayName) {
+    const { shiftStart, shiftEnd } = await getShiftForDate(targetDate);
+
+    for (const staff of staffUsers) {
+      await Attendance.findOneAndUpdate(
+        { userId: staff._id, date: targetDate },
+        {
+          $set: {
+            shiftStart,
+            shiftEnd,
+            shiftName: holidayName,
+            status: "HOLIDAY",
+            totalHours: 0
+          }
+        },
+        { upsert: true, returnDocument: "after" }
+      );
+    }
+
+    return {
+      date: targetDate,
+      total: staffUsers.length,
+      marked: staffUsers.length,
+      errors: 0,
+      holiday: holidayName,
+      skipped: false,
+      message: `${targetDate} marked as HOLIDAY for all staff (${holidayName})`
+    };
+  }
+
+  if (!isWorkingDay(targetDate)) {
+    console.log(`🗓️ Skipping auto-mark: ${targetDate} is not a working day`);
+    return {
+      date: targetDate,
+      total: staffUsers.length,
+      marked: 0,
+      errors: 0,
+      skipped: true,
+      message: "Not a working day"
+    };
+  }
+
+  const { shiftStart, shiftEnd } = await getShiftForDate(targetDate);
+  const shouldFinalizeMissingCheckout = forceFinalize || targetDate < getCurrentDateIST() || isAfterShiftEnd(shiftEnd);
+
+  console.log(`📋 Auto-marking attendance for ${staffUsers.length} staff members (Date: ${targetDate})`);
+
+  let markedCount = 0;
+  let errorCount = 0;
+
+  for (const staff of staffUsers) {
+    try {
+      const existingRecord = await Attendance.findOne({
+        userId: staff._id,
+        date: targetDate
+      });
+
+      if (!existingRecord) {
+        await Attendance.create({
+          userId: staff._id,
+          date: targetDate,
+          checkIn: "",
+          checkOut: "",
+          shiftStart,
+          shiftEnd,
+          shiftName: "Regular Shift",
+          totalHours: 0,
+          status: "ABSENT",
+          isWithinGeofence: false,
+          distanceFromOffice: 0
+        });
+
+        console.log(`  ❌ ${staff.name} - ABSENT (No check-in record created)`);
+        markedCount++;
+        continue;
+      }
+
+      if (!existingRecord.checkIn) {
+        await Attendance.findByIdAndUpdate(existingRecord._id, {
+          $set: {
+            status: "ABSENT",
+            totalHours: 0,
+            checkOut: ""
+          }
+        });
+
+        console.log(`  ❌ ${staff.name} - ABSENT (No check-in recorded)`);
+        markedCount++;
+        continue;
+      }
+
+      if (existingRecord.checkIn && !existingRecord.checkOut && shouldFinalizeMissingCheckout) {
+        await Attendance.findByIdAndUpdate(existingRecord._id, {
+          $set: {
+            status: "ABSENT",
+            totalHours: 0,
+            checkOut: ""
+          }
+        });
+
+        console.log(`  ⚠️ ${staff.name} - ABSENT (Forgot to check out - Checked in at ${existingRecord.checkIn})`);
+        markedCount++;
+        continue;
+      }
+
+      const totalHours = calculateTotalHours(existingRecord.checkIn, existingRecord.checkOut);
+      const effectiveShiftStart = existingRecord.shiftStart || shiftStart;
+      const effectiveShiftEnd = existingRecord.shiftEnd || shiftEnd;
+      const status = calculateAttendanceStatus({
+        date: existingRecord.date,
+        checkIn: existingRecord.checkIn,
+        checkOut: existingRecord.checkOut,
+        shiftStart: effectiveShiftStart,
+        shiftEnd: effectiveShiftEnd
+      });
+
+      if (existingRecord.status !== status || existingRecord.totalHours !== totalHours) {
+        await Attendance.findByIdAndUpdate(existingRecord._id, {
+          $set: {
+            status,
+            totalHours
+          }
+        });
+
+        console.log(`  ✓ ${staff.name} - ${status}`);
+      }
+    } catch (error) {
+      console.error(
+        `  ⚠️ Error marking ${staff.name} on ${targetDate}:`,
+        error.message
+      );
+      errorCount++;
+    }
+  }
+
+  return {
+    date: targetDate,
+    total: staffUsers.length,
+    marked: markedCount,
+    present: staffUsers.length - markedCount - errorCount,
+    errors: errorCount,
+    skipped: false,
+    message: `Marked ${markedCount} as ABSENT out of ${staffUsers.length} staff`
+  };
 }
 
 /**
@@ -832,8 +980,7 @@ function isAfterShiftEnd(shiftEnd) {
  */
 export async function autoMarkAbsentees() {
   try {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const todayHolidayName = await getPublicHolidayNameForDate(today);
+    const today = getCurrentDateIST();
 
     // Get all staff users (non-admin)
     const staffUsers = await User.find({
@@ -841,147 +988,8 @@ export async function autoMarkAbsentees() {
       isActive: true
     }).select("_id name email");
 
-    // If today is a public holiday, all staff are marked as HOLIDAY.
-    if (todayHolidayName) {
-      const { shiftStart, shiftEnd } = await getShiftForDate(today);
-
-      for (const staff of staffUsers) {
-        await Attendance.findOneAndUpdate(
-          { userId: staff._id, date: today },
-          {
-            $set: {
-              shiftStart,
-              shiftEnd,
-              shiftName: todayHolidayName,
-              status: "HOLIDAY",
-              totalHours: 0
-            }
-          },
-          { upsert: true, returnDocument: "after" }
-        );
-      }
-
-      return {
-        date: today,
-        total: staffUsers.length,
-        marked: staffUsers.length,
-        present: 0,
-        errors: 0,
-        holiday: todayHolidayName,
-        message: `${today} marked as HOLIDAY for all staff (${todayHolidayName})`
-      };
-    }
-    
-    // Skip if not a working day
-    if (!isWorkingDay(today)) {
-      console.log(`🗓️ Skipping auto-mark: ${today} is not a working day`);
-      return { total: 0, marked: 0, errors: 0, message: "Not a working day" };
-    }
-
-    // Get shift times for today
-    const { shiftStart, shiftEnd } = await getShiftForDate(today);
-
-    console.log(`📋 Auto-marking attendance for ${staffUsers.length} staff members (Date: ${today})`);
-
-    let markedCount = 0;
-    let errorCount = 0;
-
-    for (const staff of staffUsers) {
-      try {
-        // Check if attendance record exists for today
-        const existingRecord = await Attendance.findOne({ 
-          userId: staff._id, 
-          date: today 
-        });
-
-        if (!existingRecord) {
-          // No record exists → Create ABSENT record
-          await Attendance.create({
-            userId: staff._id,
-            date: today,
-            checkIn: "",
-            checkOut: "",
-            shiftStart,
-            shiftEnd,
-            shiftName: "Regular Shift",
-            totalHours: 0,
-            status: "ABSENT",
-            isWithinGeofence: false,
-            distanceFromOffice: 0
-          });
-
-          console.log(`  ❌ ${staff.name} - ABSENT (No check-in record created)`);
-          markedCount++;
-        } else if (!existingRecord.checkIn) {
-          // Record exists but no check-in → Update to ABSENT
-          await Attendance.findByIdAndUpdate(existingRecord._id, {
-            $set: {
-              status: "ABSENT",
-              totalHours: 0,
-              checkOut: ""
-            }
-          });
-
-          console.log(`  ❌ ${staff.name} - ABSENT (No check-in recorded)`);
-          markedCount++;
-        } else {
-          // Check-in exists, verify status
-          // Check if they forgot to check out
-          if (existingRecord.checkIn && !existingRecord.checkOut && isAfterShiftEnd(shiftEnd)) {
-            // Checked in but forgot to check out after shift end
-            await Attendance.findByIdAndUpdate(existingRecord._id, {
-              $set: {
-                status: "ABSENT",
-                totalHours: 0,
-                checkOut: "" // Keep empty to indicate forgot to check out
-              }
-            });
-
-            console.log(`  ⚠️ ${staff.name} - ABSENT (Forgot to check out - Checked in at ${existingRecord.checkIn})`);
-            markedCount++;
-          } else {
-            // Status should already be set from check-in, but verify it.
-            const totalHours = calculateTotalHours(existingRecord.checkIn, existingRecord.checkOut);
-            const effectiveShiftStart = existingRecord.shiftStart || shiftStart;
-            const effectiveShiftEnd = existingRecord.shiftEnd || shiftEnd;
-            const status = calculateAttendanceStatus({
-              date: existingRecord.date,
-              checkIn: existingRecord.checkIn,
-              checkOut: existingRecord.checkOut,
-              shiftStart: effectiveShiftStart,
-              shiftEnd: effectiveShiftEnd
-            });
-
-            // Update status if different
-            if (existingRecord.status !== status) {
-              await Attendance.findByIdAndUpdate(existingRecord._id, {
-                $set: {
-                  status,
-                  totalHours
-                }
-              });
-
-              console.log(`  ✓ ${staff.name} - ${status}`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error(
-          `  ⚠️ Error marking ${staff.name} as absent:`,
-          error.message
-        );
-        errorCount++;
-      }
-    }
-
-    const result = {
-      date: today,
-      total: staffUsers.length,
-      marked: markedCount,
-      present: staffUsers.length - markedCount - errorCount,
-      errors: errorCount,
-      message: `Marked ${markedCount} as ABSENT out of ${staffUsers.length} staff`
-    };
+    // Same-day policy: auto-mark only for today.
+    const result = await autoMarkAbsenteesForDate(today, staffUsers, { forceFinalize: false });
 
     console.log(`\n✅ Auto-mark attendance completed:`, result);
     return result;
@@ -1002,7 +1010,7 @@ export async function autoMarkAbsentees() {
  */
 export async function getAttendanceSummaryForToday() {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getCurrentDateIST();
 
     const summary = await Attendance.aggregate([
       { $match: { date: today } },
