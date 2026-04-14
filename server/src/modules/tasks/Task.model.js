@@ -84,10 +84,23 @@ const taskSchema = new mongoose.Schema(
       default: 0
     },
 
+    pausedDurationMs: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
     pausedDurationMinutes: {
       type: Number,
       min: 0,
       default: 0
+    },
+
+    timingState: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'paused', 'completed', 'overdue'],
+      default: 'not_started',
+      index: true
     },
 
     actualHours: {

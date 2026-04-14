@@ -24,6 +24,9 @@ router.get('/my/dashboard', tasksController.getDashboardTasks);
 // Tasks assigned by me routes
 router.get('/assigned', tasksController.getMyAssignedTasks);
 
+// Task detail route
+router.get('/:id', tasksController.getTaskById);
+
 // Extension approval workflow routes
 router.post('/request-extension', tasksController.requestTaskExtension);
 router.post('/approve-extension', tasksController.approveTaskExtension);

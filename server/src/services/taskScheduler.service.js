@@ -1,7 +1,12 @@
 import cron from "node-cron";
 import { Task } from "../modules/tasks/Task.model.js";
 import { createNotificationsForUsers } from "../utils/notificationHelper.js";
-import { calculateRemainingTime } from "../modules/tasks/taskDeadline.utils.js";
+import {
+  TASK_TIMING_STATE,
+  normalizeTaskTiming,
+  shouldSendReminder,
+  syncTaskTimingFields,
+} from "../modules/tasks/taskDeadline.utils.js";
 
 let schedulerActive = false;
 
@@ -91,41 +96,54 @@ async function checkTaskDeadlines() {
       estimatedMinutes: { $gt: 0 },
       status: { $nin: ["completed", "cancelled", "rejected"] },
     }).select(
-      "_id title assignedTo startedAt estimatedMinutes pausedDurationMinutes dueAt dueDate status isPaused thirtyMinReminderSent fifteenMinReminderSent dueNowReminderSent overdueReminderSent taskExtended"
+      "_id title assignedTo startedAt estimatedMinutes pausedDurationMs pausedDurationMinutes totalPausedTimeInSeconds dueAt dueDate status isPaused thirtyMinReminderSent fifteenMinReminderSent dueNowReminderSent overdueReminderSent taskExtended"
     );
 
     for (const task of tasks) {
       if (task.isPaused) continue;
 
-      const time = calculateRemainingTime(task, now);
-      if (!time.shouldTrackDeadline || !time.effectiveDueAt) continue;
+      syncTaskTimingFields(task, now);
+      const normalized = normalizeTaskTiming(task, now);
+      if (!normalized.shouldTrackDeadline || !normalized.dueAt) continue;
 
-      const patch = { dueAt: time.effectiveDueAt, dueDate: time.effectiveDueAt };
+      const patch = {
+        dueAt: normalized.dueAt,
+        dueDate: normalized.dueAt,
+        timingState: normalized.isOverdue ? TASK_TIMING_STATE.OVERDUE : TASK_TIMING_STATE.IN_PROGRESS,
+      };
 
-      if (!task.thirtyMinReminderSent && time.remainingMinutes <= 30 && time.remainingMinutes > 15) {
+      if (shouldSendReminder(task, "30m", now)) {
         await notifyAssignees(task, "30m");
         patch.thirtyMinReminderSent = true;
         patch.status = task.status === "in-progress" ? "due-soon" : task.status;
       }
 
-      if (!task.fifteenMinReminderSent && time.remainingMinutes <= 15 && time.remainingMinutes > 0) {
+      if (shouldSendReminder(task, "15m", now)) {
         await notifyAssignees(task, "15m");
         patch.fifteenMinReminderSent = true;
         patch.status = "due-soon";
       }
 
-      if (!task.dueNowReminderSent && time.isDueNow) {
+      if (shouldSendReminder(task, "due-now", now)) {
         await notifyAssignees(task, "due-now");
         patch.dueNowReminderSent = true;
       }
 
-      if (!task.overdueReminderSent && time.isOverdue) {
+      if (shouldSendReminder(task, "overdue", now)) {
         await notifyAssignees(task, "overdue");
         patch.overdueReminderSent = true;
         patch.isOverdueNotified = true;
         if (task.status !== "extension_requested") {
           patch.status = "overdue";
         }
+      }
+
+      if (patch.status && patch.status !== task.status) {
+        console.log("[TaskScheduler] status transition", {
+          taskId: task._id.toString(),
+          from: task.status,
+          to: patch.status,
+        });
       }
 
       await Task.updateOne({ _id: task._id }, { $set: patch });

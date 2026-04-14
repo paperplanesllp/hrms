@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Task } from './Task.model.js';
 import { User } from '../users/User.model.js';
 import { Department } from '../department/Department.model.js';
-import { evaluateEmployeePerformance } from './taskDeadline.utils.js';
+import { TASK_TIMING_STATE, evaluateEmployeePerformance, syncTaskTimingFields } from './taskDeadline.utils.js';
 
 export const tasksService = {
   // Get my tasks (assigned to current user)
@@ -264,14 +264,17 @@ export const tasksService = {
       assignedBy: new mongoose.Types.ObjectId(assignedById),
       department: data.department ? new mongoose.Types.ObjectId(data.department) : null,
       dueDate,
-      dueAt: dueDate,
+      dueAt: null,
       priority: data.priority || 'MEDIUM',
       status: data.status || 'pending',
+      timingState: 'not_started',
       tags: data.tags || [],
       progress: data.progress || 0,
       isRecurring: data.isRecurring || false,
       estimatedHours: Number(data.estimatedHours) || 0,
-      estimatedMinutes
+      estimatedMinutes,
+      pausedDurationMs: 0,
+      pausedDurationMinutes: 0
     };
     
     const task = await Task.create(taskData);
@@ -431,9 +434,13 @@ export const tasksService = {
     return {
       byStatus: {
         pending: statusStats.find(s => s._id === 'pending')?.count || 0,
-        'in-progress': statusStats.find(s => s._id === 'in-progress')?.count || 0,
+        'in-progress':
+          (statusStats.find(s => s._id === 'in-progress')?.count || 0) +
+          (statusStats.find(s => s._id === 'due-soon')?.count || 0),
         completed: statusStats.find(s => s._id === 'completed')?.count || 0,
-        'on-hold': statusStats.find(s => s._id === 'on-hold')?.count || 0,
+        'on-hold':
+          (statusStats.find(s => s._id === 'on-hold')?.count || 0) +
+          (statusStats.find(s => s._id === 'paused')?.count || 0),
         cancelled: statusStats.find(s => s._id === 'cancelled')?.count || 0,
         total: statusStats.reduce((sum, s) => sum + s.count, 0)
       },
@@ -455,11 +462,11 @@ export const tasksService = {
     return await Task.find({ 
       assignedTo: new mongoose.Types.ObjectId(userId),
       isDeleted: false,
-      status: { $in: ['pending', 'in-progress'] } 
+      status: { $in: ['pending', 'in-progress', 'due-soon', 'paused'] } 
     })
       .populate('assignedBy', 'name avatar')
       .populate('department', 'name')
-      .sort({ priority: -1, dueDate: 1 })
+      .sort({ priority: -1, dueAt: 1, dueDate: 1 })
       .limit(limit);
   },
 
@@ -927,11 +934,14 @@ export const tasksService = {
         lastPause.resumedAt = now;
         lastPause.pausedDurationInSeconds = pausedSeconds;
         task.totalPausedTimeInSeconds += pausedSeconds;
+        task.pausedDurationMs += pausedSeconds * 1000;
       }
     }
     
     task.isPaused = false;
     task.currentSessionStartTime = null;
+    task.timingState = TASK_TIMING_STATE.PAUSED;
+    syncTaskTimingFields(task, new Date());
 
     await task.save();
     await task.populate([
@@ -966,7 +976,10 @@ export const tasksService = {
     task.status = 'in-progress';
     task.holdReason = null;
     task.isRunning = true;
+    task.isPaused = false;
+    task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
     task.currentSessionStartTime = new Date();
+    syncTaskTimingFields(task, new Date());
 
     await task.save();
     await task.populate([
@@ -1152,11 +1165,12 @@ export const tasksService = {
     const overdueTasks = await Task.updateMany(
       {
         isDeleted: false,
-        status: { $ne: 'completed' },
-        dueDate: { $lt: now }
+        startedAt: { $ne: null },
+        status: { $nin: ['completed', 'rejected', 'cancelled', 'extension_requested'] },
+        dueAt: { $ne: null, $lt: now }
       },
       {
-        $set: { status: 'overdue' }
+        $set: { status: 'overdue', timingState: 'overdue' }
       }
     );
 

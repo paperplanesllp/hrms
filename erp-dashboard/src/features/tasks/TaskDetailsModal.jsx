@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
@@ -6,6 +6,9 @@ import { taskService } from './taskService.js';
 import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
 import { getAuth } from '../../lib/auth.js';
+import TimerChip from './components/TimerChip.jsx';
+import { useTaskCountdown } from './hooks/useTaskTimer.js';
+import { calculateRemainingTime, formatToIST } from './utils/taskDeadlineUtils.js';
 import {
   getPriorityStyles,
   getStatusStyles,
@@ -34,6 +37,8 @@ export default function TaskDetailsModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const countdown = useTaskCountdown(task || {});
+  const remaining = calculateRemainingTime(task || {});
 
   // Fetch users when reassign modal opens
   useEffect(() => {
@@ -75,9 +80,10 @@ export default function TaskDetailsModal({
 
   if (!task) return null;
 
+  const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
-  const isOverdue = isTaskOverdue(task.dueDate, task.status);
+  const isOverdue = countdown.shouldTrack ? countdown.isOverdue : isTaskOverdue(task.dueDate, task.status);
 
   // Helper function to get file type
   const getFileType = (fileName) => {
@@ -303,6 +309,13 @@ export default function TaskDetailsModal({
                 </span>
               )}
             </div>
+            <div className="mt-3">
+              <TimerChip
+                countdown={countdown}
+                isPaused={task.isPaused}
+                dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`}
+              />
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -347,26 +360,11 @@ export default function TaskDetailsModal({
                 {isOverdue ? 'OVERDUE' : 'Due Date & Time'}
               </p>
               <p className={`text-sm font-medium ${isOverdue ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-white'}`}>
-                {(() => {
-                  const date = new Date(task.dueDate);
-                  const dateStr = date.toLocaleString('en-IN', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    timeZone: 'Asia/Kolkata'
-                  });
-                  const timeStr = date.toLocaleString('en-IN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                    timeZone: 'Asia/Kolkata'
-                  });
-                  return `${dateStr}, ${timeStr}`;
-                })()}
+                {formatToIST(effectiveDueAt)}
               </p>
               {isOverdue && (
                 <p className="text-xs font-semibold text-red-600 dark:text-red-300 mt-1">
-                  Overdue for {Math.abs(getDaysUntilDue(task.dueDate))} days
+                  {countdown.shouldTrack ? countdown.display : `Overdue for ${Math.abs(getDaysUntilDue(task.dueDate))} days`}
                 </p>
               )}
             </div>

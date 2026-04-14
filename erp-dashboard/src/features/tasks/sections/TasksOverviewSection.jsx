@@ -5,6 +5,9 @@ import { Loader } from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
 import { getSocket } from '../../../lib/socket.js';
+import TimerChip from '../components/TimerChip.jsx';
+import { useCountdownTimer } from '../hooks/useTaskTimer.js';
+import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -23,6 +26,45 @@ import {
   ArrowDownRight,
   Sparkles
 } from 'lucide-react';
+
+function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel }) {
+  const countdown = useCountdownTimer(activity || {});
+  const remaining = calculateRemainingTime(activity || {});
+  const effectiveDueAt = remaining.effectiveDueAt || activity?.dueAt || activity?.dueDate;
+
+  return (
+    <div
+      className="flex items-start gap-4 p-4 transition-colors rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 group"
+    >
+      <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 text-lg transition-transform rounded-full bg-slate-200 dark:bg-slate-700 group-hover:scale-110">
+        {activity.avatar || '🗂️'}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div>
+            <p className="font-medium truncate text-slate-900 dark:text-white">
+              {activity.title}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {activity.person || activity.assignedBy?.name || 'Task update'}
+            </p>
+          </div>
+          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getActivityColor(activity.type)}`}>
+            {getActivityLabel(activity.type)}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-slate-500 dark:text-slate-500">
+            {activity.time || 'Live'}
+          </p>
+          <TimerChip countdown={countdown} isPaused={activity.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) {
   const [stats, setStats] = useState({
@@ -55,8 +97,12 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
 
   // Fetch stats and recent tasks on mount
   useEffect(() => {
-    fetchStats();
-    fetchRecentTasks();
+    const timerId = setTimeout(() => {
+      fetchStats();
+      fetchRecentTasks();
+    }, 0);
+
+    return () => clearTimeout(timerId);
   }, [fetchStats, fetchRecentTasks]);
 
   // Setup real-time socket listeners for task updates
@@ -70,7 +116,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
     }
 
     // Handle task events - refresh stats and recent tasks
-    const handleTaskEventWithRefresh = (data) => {
+    const handleTaskEventWithRefresh = () => {
       console.log('📡 [Overview] Task event received, refreshing stats');
       // Refresh stats and recent tasks after a short delay to ensure backend has updated
       setTimeout(() => {
@@ -318,35 +364,12 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
 
             <div className="space-y-3">
               {recentTasks.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-4 p-4 transition-colors rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 group"
-                >
-                  {/* Avatar */}
-                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 text-lg transition-transform rounded-full bg-slate-200 dark:bg-slate-700 group-hover:scale-110">
-                    {activity.avatar}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div>
-                        <p className="font-medium truncate text-slate-900 dark:text-white">
-                          {activity.title}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          {activity.person}
-                        </p>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getActivityColor(activity.type)}`}>
-                        {getActivityLabel(activity.type)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
+                <RecentTaskActivityRow
+                  key={activity.id || activity._id}
+                  activity={activity}
+                  getActivityColor={getActivityColor}
+                  getActivityLabel={getActivityLabel}
+                />
               ))}
             </div>
           </Card>

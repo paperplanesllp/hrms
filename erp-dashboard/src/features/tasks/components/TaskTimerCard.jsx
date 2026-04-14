@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, RotateCcw, CheckCircle2, Eye, BarChart3,
-  ChevronDown, ChevronUp, Calendar, AlertTriangle, Timer, Users, UserCheck,
+  ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck,
 } from 'lucide-react';
-import { useTaskTimer } from '../hooks/useTaskTimer.js';
+import { useTaskCountdown } from '../hooks/useTaskTimer.js';
+import TimerChip from './TimerChip.jsx';
 import TaskAnalysisPanel from './TaskAnalysisPanel.jsx';
 import { calcPausedSeconds, formatSecondsHuman, getTimerState } from '../utils/taskTimerUtils.js';
 import { useAuthStore } from '../../../store/authStore.js';
@@ -55,13 +56,6 @@ const LEFT_BORDER = {
   pending:   'border-l-[3px] border-l-slate-300 dark:border-l-slate-600',
 };
 
-const TIMER_STYLE = {
-  running:   'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-700',
-  paused:    'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 ring-1 ring-orange-200 dark:ring-orange-700',
-  completed: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300',
-  pending:   'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500',
-};
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function TaskTimerCard({
@@ -75,7 +69,7 @@ export default function TaskTimerCard({
   loadingAction,
 }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const { display } = useTaskTimer(task);
+  const countdown = useTaskCountdown(task);
   const timerState = getTimerState(task);
   const pausedSeconds = calcPausedSeconds(task);
   const isLoading = loadingAction === task._id;
@@ -105,13 +99,8 @@ export default function TaskTimerCard({
   const dueSoon = !isOverdue && remaining.remainingMinutes !== null && remaining.remainingMinutes <= 30;
 
   const formatRemaining = () => {
-    if (task.isPaused) return 'Paused';
-    if (!remaining.shouldTrackDeadline || remaining.remainingMs === null) return '-';
-    if (remaining.isOverdue) {
-      return `${formatSecondsHuman(Math.abs(Math.floor(remaining.remainingMs / 1000)))} overdue`;
-    }
-
-    return formatSecondsHuman(Math.floor(remaining.remainingMs / 1000));
+    if (!countdown.shouldTrack) return countdown.state || 'Not started';
+    return countdown.display;
   };
 
   return (
@@ -156,19 +145,7 @@ export default function TaskTimerCard({
           </div>
 
           {/* Live digital timer */}
-          <div
-            className={`flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${
-              TIMER_STYLE[timerState] || TIMER_STYLE.pending
-            }`}
-          >
-            {timerState === 'running' && (
-              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            )}
-            {timerState === 'paused' && <Pause className="w-3 h-3" />}
-            {timerState === 'completed' && <CheckCircle2 className="w-3 h-3" />}
-            {timerState === 'pending' && <Timer className="w-3 h-3" />}
-            {display}
-          </div>
+          <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
         </div>
 
         {/* ── Title ── */}

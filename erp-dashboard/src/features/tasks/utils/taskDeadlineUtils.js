@@ -17,38 +17,62 @@ export function calculateDueTime(startedAt, estimatedMinutes, pausedDurationMinu
   const estimated = toMinutes(estimatedMinutes);
   if (!start || estimated <= 0) return null;
 
-  return new Date(start.getTime() + (estimated + toMinutes(pausedDurationMinutes)) * 60000);
+  const pausedMs = Math.max(0, Math.round(Number(pausedDurationMinutes) || 0));
+  const normalizedPausedMs = pausedMs > 1000 ? pausedMs : toMinutes(pausedDurationMinutes) * 60000;
+  return new Date(start.getTime() + estimated * 60000 + normalizedPausedMs);
 }
 
 export function calculateRemainingTime(task, now = new Date()) {
   const current = toDate(now) || new Date();
   const effectiveDueAt =
-    calculateDueTime(task?.startedAt, task?.estimatedMinutes, task?.pausedDurationMinutes) ||
+    calculateDueTime(task?.startedAt, task?.estimatedMinutes, task?.pausedDurationMs ?? task?.pausedDurationMinutes) ||
     toDate(task?.dueAt) ||
     toDate(task?.dueDate);
 
   const shouldTrackDeadline = Boolean(task?.startedAt) && toMinutes(task?.estimatedMinutes) > 0;
 
   if (!effectiveDueAt || !shouldTrackDeadline) {
+    const state = !task?.startedAt ? 'Not started' : 'No estimate set';
     return {
       shouldTrackDeadline,
       effectiveDueAt,
+      state,
       remainingMs: null,
       remainingMinutes: null,
+      remainingSeconds: null,
       isOverdue: false,
       isDueNow: false,
     };
   }
 
   const remainingMs = effectiveDueAt.getTime() - current.getTime();
+  const remainingSeconds = Math.floor(remainingMs / 1000);
+  const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
+
   return {
     shouldTrackDeadline,
     effectiveDueAt,
+    state: remainingSeconds < 0 ? `Overdue by ${overdueByMinutes} min` : 'In progress',
     remainingMs,
     remainingMinutes: remainingMs / 60000,
-    isDueNow: remainingMs <= 0 && remainingMs > -60000,
-    isOverdue: remainingMs <= -60000,
+    remainingSeconds,
+    overdueByMinutes,
+    isDueNow: remainingSeconds === 0,
+    isOverdue: remainingSeconds < 0,
   };
+}
+
+export function formatTime(totalSeconds, includeSeconds = true) {
+  const absSeconds = Math.max(0, Math.floor(Math.abs(Number(totalSeconds) || 0)));
+  const hours = Math.floor(absSeconds / 3600);
+  const minutes = Math.floor((absSeconds % 3600) / 60);
+  const seconds = absSeconds % 60;
+
+  if (!includeSeconds) {
+    return `${hours}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 export function extendTaskTime(task, additionalMinutes) {

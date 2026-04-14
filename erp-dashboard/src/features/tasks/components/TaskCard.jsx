@@ -3,6 +3,9 @@ import { MoreVertical, Eye, CheckCircle, AlertCircle } from 'lucide-react';
 import PriorityBadge from './PriorityBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { formatDistanceToNow } from 'date-fns';
+import TimerChip from './TimerChip.jsx';
+import { useCountdownTimer } from '../hooks/useTaskTimer.js';
+import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 
 
 export default function TaskCard({
@@ -15,6 +18,9 @@ export default function TaskCard({
   isCompact = false
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const countdown = useCountdownTimer(task || {});
+  const remaining = calculateRemainingTime(task || {});
+  const effectiveDueAt = remaining.effectiveDueAt || task?.dueAt || task?.dueDate;
 
   const isOverdue = task.status !== 'completed' && new Date(task.dueDate) < new Date();
 
@@ -116,8 +122,11 @@ export default function TaskCard({
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
-          <div className="text-xs text-gray-600 dark:text-gray-400">
-            <span className="font-semibold">Due:</span> {formatDistanceToNow(new Date(task.dueDate), { addSuffix: true })}
+          <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+            <div>
+              <span className="font-semibold">Due:</span> {formatDistanceToNow(new Date(task.dueDate), { addSuffix: true })}
+            </div>
+            <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
           </div>
 
           {/* Quick action button */}

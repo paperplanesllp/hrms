@@ -10,11 +10,16 @@ import {
 import { createActivityLog } from '../activity/activity.service.js';
 import { createTaskNotification } from '../../utils/notificationHelper.js';
 import {
+  TASK_TIMING_STATE,
   calculateDueTime,
+  calculateRemainingTime,
   extendTaskTime,
+  logTaskTimingSnapshot,
   markTaskRejected,
   formatToIST,
+  syncTaskTimingFields,
 } from './taskDeadline.utils.js';
+import { formatTaskCollection, formatTaskResponse } from './taskResponseFormatter.js';
 
 export const tasksController = {
   // Get my tasks
@@ -44,7 +49,7 @@ export const tasksController = {
       
       const tasks = await tasksService.getMyTasks(userId, filters);
       console.log('📦 [Controller] Returning', tasks.length, 'tasks');
-      sendSuccess(res, tasks, 'Tasks fetched successfully');
+      sendSuccess(res, formatTaskCollection(tasks), 'Tasks fetched successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in getMyTasks:', error.message);
       console.error('Stack:', error.stack);
@@ -64,7 +69,7 @@ export const tasksController = {
       };
       
       const tasks = await tasksService.getAllTasks(filters);
-      sendSuccess(res, tasks, 'All tasks fetched successfully');
+      sendSuccess(res, formatTaskCollection(tasks), 'All tasks fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -93,7 +98,7 @@ export const tasksController = {
       
       const tasks = await tasksService.getAssignedByUser(userId, filters);
       console.log('📦 [Controller] Returning', tasks.length, 'assigned tasks');
-      sendSuccess(res, tasks, 'Assigned tasks fetched successfully');
+      sendSuccess(res, formatTaskCollection(tasks), 'Assigned tasks fetched successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in getMyAssignedTasks:', error.message);
       sendError(res, error.message, 400);
@@ -146,7 +151,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
       
-      sendSuccess(res, task, 'Task created successfully', 201);
+      sendSuccess(res, formatTaskResponse(task), 'Task created successfully', 201);
     } catch (error) {
       console.error('❌ [Controller] Error in createTask:', error);
       sendError(res, error.message, 400);
@@ -178,7 +183,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
       
-      sendSuccess(res, task, `Task updated to ${status}`);
+      sendSuccess(res, formatTaskResponse(task), `Task updated to ${status}`);
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -242,7 +247,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
 
-      sendSuccess(res, task, 'Task updated successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task updated successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in updateTask:', error);
       sendError(res, error.message, 400);
@@ -314,7 +319,19 @@ export const tasksController = {
       const userId = req.user.id;
       const limit = parseInt(req.query.limit) || 5;
       const tasks = await tasksService.getDashboardTasks(userId, limit);
-      sendSuccess(res, tasks, 'Dashboard tasks fetched');
+      sendSuccess(res, formatTaskCollection(tasks), 'Dashboard tasks fetched');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async getTaskById(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await tasksService.getTaskById(id);
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      sendSuccess(res, formatTaskResponse(task), 'Task fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -382,7 +399,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
 
-      sendSuccess(res, task, 'Task placed on hold successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task placed on hold successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in holdTask:', error.message);
       sendError(res, error.message, 400);
@@ -412,7 +429,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
 
-      sendSuccess(res, task, 'Task resumed successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task resumed successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in resumeTaskFromHold:', error.message);
       sendError(res, error.message, 400);
@@ -452,7 +469,7 @@ export const tasksController = {
         visibility: 'PUBLIC',
       }).catch(() => {});
 
-      sendSuccess(res, task, 'Task reassigned successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task reassigned successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in reassignTask:', error.message);
       sendError(res, error.message, 400);
@@ -515,31 +532,27 @@ export const tasksController = {
       }
 
       const now = new Date();
-      const estimatedMinutes = Math.max(
-        0,
-        Number.isFinite(Number(task.estimatedMinutes))
-          ? Math.round(Number(task.estimatedMinutes))
-          : Math.round((Number(task.estimatedHours) || 0) * 60)
-      );
-
       task.status = 'in-progress';
+      task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
       task.isRunning = true;
       task.isPaused = false;
       task.currentSessionStartTime = now;
-      if (!task.startedAt) task.startedAt = now;
-      task.estimatedMinutes = estimatedMinutes;
-      task.pausedDurationMinutes = Math.floor((task.totalPausedTimeInSeconds || 0) / 60);
+      task.startedAt = now;
 
-      const computedDue = calculateDueTime(task.startedAt, task.estimatedMinutes, task.pausedDurationMinutes);
-      if (computedDue) {
-        task.dueAt = computedDue;
-        task.dueDate = computedDue;
-      }
+      // Reset active timing window on fresh start
+      task.totalPausedTimeInSeconds = 0;
+      task.pausedDurationMs = 0;
+      task.pausedDurationMinutes = 0;
+      task.pauseEntries = [];
+
+      syncTaskTimingFields(task, now);
 
       task.thirtyMinReminderSent = false;
       task.fifteenMinReminderSent = false;
       task.dueNowReminderSent = false;
       task.overdueReminderSent = false;
+
+      logTaskTimingSnapshot(task, now, 'startTask');
 
       await task.save();
       await task.populate([
@@ -548,7 +561,7 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Task started successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task started successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -586,6 +599,7 @@ export const tasksController = {
       }
 
       task.status = 'paused';
+      task.timingState = TASK_TIMING_STATE.PAUSED;
       task.isRunning = false;
       task.isPaused = true;
       task.currentSessionStartTime = null;
@@ -596,6 +610,9 @@ export const tasksController = {
         pausedDurationInSeconds: 0
       });
 
+      syncTaskTimingFields(task, now);
+      logTaskTimingSnapshot(task, now, 'pauseTask');
+
       await task.save();
       await task.populate([
         { path: 'assignedTo', select: 'name email' },
@@ -603,7 +620,7 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Task paused successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task paused successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -635,19 +652,18 @@ export const tasksController = {
         lastPause.resumedAt = now;
         lastPause.pausedDurationInSeconds = pausedSeconds;
         task.totalPausedTimeInSeconds += pausedSeconds;
-        task.pausedDurationMinutes = Math.floor(task.totalPausedTimeInSeconds / 60);
+        task.pausedDurationMs += pausedSeconds * 1000;
+        task.pausedDurationMinutes = Math.floor(task.pausedDurationMs / 60000);
       }
 
       task.status = 'in-progress';
+      task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
       task.isRunning = true;
       task.isPaused = false;
       task.currentSessionStartTime = now;
 
-      const recomputedDue = calculateDueTime(task.startedAt, task.estimatedMinutes, task.pausedDurationMinutes);
-      if (recomputedDue) {
-        task.dueAt = recomputedDue;
-        task.dueDate = recomputedDue;
-      }
+      syncTaskTimingFields(task, now);
+      logTaskTimingSnapshot(task, now, 'resumeTask');
 
       await task.save();
       await task.populate([
@@ -656,7 +672,7 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Task resumed successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task resumed successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -698,18 +714,24 @@ export const tasksController = {
           lastPause.resumedAt = now;
           lastPause.pausedDurationInSeconds = pausedSeconds;
           task.totalPausedTimeInSeconds += pausedSeconds;
-          task.pausedDurationMinutes = Math.floor(task.totalPausedTimeInSeconds / 60);
+          task.pausedDurationMs += pausedSeconds * 1000;
+          task.pausedDurationMinutes = Math.floor(task.pausedDurationMs / 60000);
         }
       }
 
       task.status = 'completed';
+      task.timingState = TASK_TIMING_STATE.COMPLETED;
       task.completedAt = now;
       task.progress = 100;
       task.isRunning = false;
       task.isPaused = false;
       task.currentSessionStartTime = null;
-      const completionDueAt = task.dueAt || task.dueDate;
+      syncTaskTimingFields(task, now);
+
+      const completionDueAt = task.dueAt || calculateDueTime(task.startedAt, task.estimatedMinutes, task.pausedDurationMs) || task.dueDate;
       task.completedOnTime = completionDueAt ? now <= new Date(completionDueAt) : null;
+
+      logTaskTimingSnapshot(task, now, 'completeTask');
 
       await task.save();
       await task.populate([
@@ -718,7 +740,7 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Task completed successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task completed successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -804,7 +826,7 @@ export const tasksController = {
       }
 
       notifyTaskUpdated(task, req.user.id);
-      sendSuccess(res, task, 'Extension request submitted successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Extension request submitted successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -859,7 +881,7 @@ export const tasksController = {
       }
 
       notifyTaskUpdated(task, req.user.id);
-      sendSuccess(res, task, 'Extension request approved successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Extension request approved successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -923,7 +945,7 @@ export const tasksController = {
       }
 
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Extension request rejected successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Extension request rejected successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -962,7 +984,7 @@ export const tasksController = {
       }
 
       notifyTaskStatusChanged(task, req.user.id);
-      sendSuccess(res, task, 'Task rejected successfully');
+      sendSuccess(res, formatTaskResponse(task), 'Task rejected successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }

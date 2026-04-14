@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "test": "node --test",
+    "migrate:tasks": "node src/migrations/taskTimingFix.js",
+    "validate:timing": "node src/scripts/validateTaskTimingSystem.js",
+    "timing:backfill:dry": "node src/scripts/backfillTaskTiming.js --dry-run",
+    "timing:backfill:apply": "node src/scripts/backfillTaskTiming.js --apply"
   },
   "keywords": [],
   "author": "",
