@@ -87,6 +87,54 @@ export const STATUS_STYLES = {
     badge: 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300',
     icon: 'text-slate-600 dark:text-slate-400'
   },
+  paused: {
+    bg: 'bg-orange-100 dark:bg-orange-900/30',
+    text: 'text-orange-700 dark:text-orange-300',
+    border: 'border-orange-300 dark:border-orange-700',
+    dot: 'bg-orange-500',
+    badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    icon: 'text-orange-600 dark:text-orange-400'
+  },
+  'due-soon': {
+    bg: 'bg-yellow-100 dark:bg-yellow-900/30',
+    text: 'text-yellow-700 dark:text-yellow-300',
+    border: 'border-yellow-300 dark:border-yellow-700',
+    dot: 'bg-yellow-500',
+    badge: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+    icon: 'text-yellow-600 dark:text-yellow-400'
+  },
+  extension_requested: {
+    bg: 'bg-indigo-100 dark:bg-indigo-900/30',
+    text: 'text-indigo-700 dark:text-indigo-300',
+    border: 'border-indigo-300 dark:border-indigo-700',
+    dot: 'bg-indigo-500',
+    badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+    icon: 'text-indigo-600 dark:text-indigo-400'
+  },
+  overdue: {
+    bg: 'bg-red-100 dark:bg-red-900/30',
+    text: 'text-red-700 dark:text-red-300',
+    border: 'border-red-300 dark:border-red-700',
+    dot: 'bg-red-500',
+    badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    icon: 'text-red-600 dark:text-red-400'
+  },
+  extended: {
+    bg: 'bg-cyan-100 dark:bg-cyan-900/30',
+    text: 'text-cyan-700 dark:text-cyan-300',
+    border: 'border-cyan-300 dark:border-cyan-700',
+    dot: 'bg-cyan-500',
+    badge: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+    icon: 'text-cyan-600 dark:text-cyan-400'
+  },
+  rejected: {
+    bg: 'bg-rose-100 dark:bg-rose-900/30',
+    text: 'text-rose-700 dark:text-rose-300',
+    border: 'border-rose-300 dark:border-rose-700',
+    dot: 'bg-rose-500',
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+    icon: 'text-rose-600 dark:text-rose-400'
+  },
   cancelled: {
     bg: 'bg-red-100 dark:bg-red-900/30',
     text: 'text-red-700 dark:text-red-300',
@@ -145,6 +193,12 @@ export const getStatusLabel = (status) => {
     'in-progress': 'In Progress',
     completed: 'Completed',
     'on-hold': 'On Hold',
+    paused: 'Paused',
+    'due-soon': 'Due Soon',
+    extension_requested: 'Extension Requested',
+    overdue: 'Overdue',
+    extended: 'Extended',
+    rejected: 'Rejected',
     cancelled: 'Cancelled'
   };
   return labels[status?.toLowerCase()] || 'Pending';
@@ -172,7 +226,9 @@ export const getPriorityOrder = (priority) => {
  * @returns {boolean}
  */
 export const isTaskOverdue = (dueDate, status) => {
-  return status !== 'completed' && new Date() > new Date(dueDate);
+  if (['completed', 'rejected', 'cancelled'].includes(status)) return false;
+  if (!dueDate) return false;
+  return new Date() > new Date(dueDate);
 };
 
 /**
@@ -267,6 +323,12 @@ export const PRIORITY_OPTIONS = [
 export const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending', color: 'amber' },
   { value: 'in-progress', label: 'In Progress', color: 'blue' },
+  { value: 'paused', label: 'Paused', color: 'orange' },
+  { value: 'due-soon', label: 'Due Soon', color: 'yellow' },
+  { value: 'extension_requested', label: 'Extension Requested', color: 'indigo' },
+  { value: 'overdue', label: 'Overdue', color: 'red' },
+  { value: 'extended', label: 'Extended', color: 'cyan' },
+  { value: 'rejected', label: 'Rejected', color: 'rose' },
   { value: 'completed', label: 'Completed', color: 'green' },
   { value: 'on-hold', label: 'On Hold', color: 'slate' },
   { value: 'cancelled', label: 'Cancelled', color: 'red' }

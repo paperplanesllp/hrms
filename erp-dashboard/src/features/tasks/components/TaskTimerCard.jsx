@@ -7,6 +7,7 @@ import { useTaskTimer } from '../hooks/useTaskTimer.js';
 import TaskAnalysisPanel from './TaskAnalysisPanel.jsx';
 import { calcPausedSeconds, formatSecondsHuman, getTimerState } from '../utils/taskTimerUtils.js';
 import { useAuthStore } from '../../../store/authStore.js';
+import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 
 // ─── Style maps ────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,12 @@ const PRIORITY_BADGE = {
 const STATUS_BADGE = {
   pending:     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   'in-progress':'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  extension_requested: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  paused:      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  'due-soon':  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  overdue:     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  extended:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+  rejected:    'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
   'on-hold':   'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   completed:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   new:         'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -29,6 +36,12 @@ const STATUS_BADGE = {
 const STATUS_LABEL = {
   pending:     'Pending',
   'in-progress':'In Progress',
+  extension_requested: 'Extension Requested',
+  paused:      'Paused',
+  'due-soon':  'Due Soon',
+  overdue:     'Overdue',
+  extended:    'Extended',
+  rejected:    'Rejected',
   'on-hold':   'Paused',
   completed:   'Completed',
   new:         'New',
@@ -58,6 +71,7 @@ export default function TaskTimerCard({
   onResume,
   onComplete,
   onView,
+  onRequestMoreTime,
   loadingAction,
 }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -85,8 +99,20 @@ export default function TaskTimerCard({
     });
   };
 
-  const isOverdue =
-    task.status !== 'completed' && new Date() > new Date(task.dueDate);
+  const remaining = calculateRemainingTime(task);
+  const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
+  const isOverdue = remaining.isOverdue || task.status === 'overdue';
+  const dueSoon = !isOverdue && remaining.remainingMinutes !== null && remaining.remainingMinutes <= 30;
+
+  const formatRemaining = () => {
+    if (task.isPaused) return 'Paused';
+    if (!remaining.shouldTrackDeadline || remaining.remainingMs === null) return '-';
+    if (remaining.isOverdue) {
+      return `${formatSecondsHuman(Math.abs(Math.floor(remaining.remainingMs / 1000)))} overdue`;
+    }
+
+    return formatSecondsHuman(Math.floor(remaining.remainingMs / 1000));
+  };
 
   return (
     <div
@@ -115,6 +141,16 @@ export default function TaskTimerCard({
             {isOverdue && (
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> Overdue
+              </span>
+            )}
+            {!isOverdue && dueSoon && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Due Soon
+              </span>
+            )}
+            {task.taskExtended && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                Extended
               </span>
             )}
           </div>
@@ -200,8 +236,12 @@ export default function TaskTimerCard({
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 dark:text-slate-500 mb-4">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            Due: {fmtDate(task.dueDate)}
+            Due: {formatToIST(effectiveDueAt)}
           </span>
+          {task.estimatedMinutes > 0 && (
+            <span>Estimated: {formatSecondsHuman(task.estimatedMinutes * 60)}</span>
+          )}
+          <span>Remaining: {formatRemaining()}</span>
           {task.pauseEntries?.length > 0 && (
             <span className="flex items-center gap-1 text-orange-400 dark:text-orange-500">
               <Pause className="w-3 h-3" />
@@ -224,6 +264,23 @@ export default function TaskTimerCard({
 
         {/* ── Action buttons ── */}
         <div className="flex flex-wrap items-center gap-2">
+          {isOverdue && !['rejected', 'completed', 'extension_requested'].includes(task.status) && (
+            <>
+              <button
+                onClick={() => onRequestMoreTime?.(task)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
+              >
+                Request Extension
+              </button>
+            </>
+          )}
+
+          {task.status === 'extension_requested' && (
+            <span className="px-3 py-2 rounded-xl text-sm font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+              Extension request pending manager approval
+            </span>
+          )}
+
           {/* START — never been started */}
           {timerState === 'pending' && (
             <button

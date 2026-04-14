@@ -18,6 +18,8 @@ export default function AssignedTasksSection() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [extensionRejectModal, setExtensionRejectModal] = useState(null);
+  const [extensionRejectionReason, setExtensionRejectionReason] = useState('');
 
   const fetchAssignedTasks = useCallback(async () => {
     try {
@@ -132,6 +134,8 @@ export default function AssignedTasksSection() {
         return AlertCircle;
       case 'on-hold':
         return AlertCircle;
+      case 'extension_requested':
+        return Clock;
       case 'cancelled':
         return AlertCircle;
       default:
@@ -149,6 +153,8 @@ export default function AssignedTasksSection() {
         return 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800';
       case 'on-hold':
         return 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800';
+      case 'extension_requested':
+        return 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800';
       case 'cancelled':
         return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-800';
       default:
@@ -233,12 +239,65 @@ export default function AssignedTasksSection() {
     }
   };
 
+  const getPendingExtensionRequest = (task) => {
+    const requests = task.extensionRequests || [];
+    const pending = requests.filter(r => r.approvalStatus === 'pending');
+    return pending.length ? pending[pending.length - 1] : null;
+  };
+
+  const handleApproveExtension = async (task) => {
+    const pending = getPendingExtensionRequest(task);
+    if (!pending) {
+      toast({ title: 'No pending extension request found', type: 'error' });
+      return;
+    }
+
+    try {
+      const updated = await taskService.approveTaskExtension(task._id, pending._id);
+      setAssignedTasks(prev => prev.map(t => (t._id === updated._id ? updated : t)));
+      toast({ title: 'Extension Approved', message: 'Due time updated successfully.', type: 'success' });
+    } catch (err) {
+      toast({ title: 'Failed to approve extension', message: err?.response?.data?.message || err.message, type: 'error' });
+    }
+  };
+
+  const handleOpenRejectExtension = (task) => {
+    const pending = getPendingExtensionRequest(task);
+    if (!pending) {
+      toast({ title: 'No pending extension request found', type: 'error' });
+      return;
+    }
+    setExtensionRejectionReason('');
+    setExtensionRejectModal({ taskId: task._id, requestId: pending._id, title: task.title });
+  };
+
+  const handleRejectExtension = async () => {
+    if (!extensionRejectModal) return;
+    if (!extensionRejectionReason.trim()) {
+      toast({ title: 'Rejection reason is required', type: 'error' });
+      return;
+    }
+
+    try {
+      const updated = await taskService.rejectTaskExtension(
+        extensionRejectModal.taskId,
+        extensionRejectModal.requestId,
+        extensionRejectionReason.trim()
+      );
+      setAssignedTasks(prev => prev.map(t => (t._id === updated._id ? updated : t)));
+      toast({ title: 'Extension Rejected', type: 'warning' });
+      setExtensionRejectModal(null);
+    } catch (err) {
+      toast({ title: 'Failed to reject extension', message: err?.response?.data?.message || err.message, type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Filter Buttons and Refresh */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-3">
-          {['all', 'pending', 'in-progress', 'completed', 'on-hold'].map((status) => (
+          {['all', 'pending', 'in-progress', 'extension_requested', 'completed', 'on-hold'].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
@@ -377,6 +436,35 @@ export default function AssignedTasksSection() {
                 {/* Expanded Details */}
                 {expanded && (
                   <div className="bg-slate-50 dark:bg-slate-800 p-6 border-t border-slate-200 dark:border-slate-700 space-y-4">
+                    {(() => {
+                      const pendingRequest = getPendingExtensionRequest(task);
+                      if (!pendingRequest) return null;
+
+                      return (
+                        <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-900/20">
+                          <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Extension Request</h4>
+                          <p className="text-sm text-indigo-700 dark:text-indigo-400 mt-1">
+                            Requested Time: {pendingRequest.requestedTimeMinutes} minutes
+                          </p>
+                          <p className="text-sm text-indigo-700 dark:text-indigo-400">Remarks: {pendingRequest.requestRemarks}</p>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              onClick={() => handleApproveExtension(task)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleOpenRejectExtension(task)}
+                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {task.description && (
                       <div>
                         <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Description</h4>
@@ -457,6 +545,39 @@ export default function AssignedTasksSection() {
       )}
 
       {/* Edit modal removed (UI hidden) */}
+
+      {extensionRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setExtensionRejectModal(null)} />
+          <div className="relative z-10 w-full max-w-md mx-4 rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Reject Extension</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Provide a reason for rejecting extension request on "{extensionRejectModal.title}".
+            </p>
+            <textarea
+              rows={4}
+              value={extensionRejectionReason}
+              onChange={(e) => setExtensionRejectionReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+              placeholder="Rejection reason"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setExtensionRejectModal(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectExtension}
+                className="flex-1 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

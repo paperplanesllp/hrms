@@ -41,7 +41,7 @@ const taskSchema = new mongoose.Schema(
     // Task Status & Priority
     status: {
       type: String,
-      enum: ['new', 'pending', 'in-progress', 'on-hold', 'under-review', 'completed', 'overdue', 'cancelled'],
+      enum: ['new', 'pending', 'in-progress', 'paused', 'on-hold', 'due-soon', 'under-review', 'extension_requested', 'completed', 'overdue', 'extended', 'rejected', 'cancelled'],
       default: 'new',
       index: true
     },
@@ -54,6 +54,12 @@ const taskSchema = new mongoose.Schema(
     },
 
     // Dates
+    dueAt: {
+      type: Date,
+      default: null,
+      index: true
+    },
+
     dueDate: {
       type: Date,
       required: [true, 'Due date is required'],
@@ -67,6 +73,18 @@ const taskSchema = new mongoose.Schema(
 
     // Workload & Performance
     estimatedHours: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    estimatedMinutes: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    pausedDurationMinutes: {
       type: Number,
       min: 0,
       default: 0
@@ -176,6 +194,10 @@ const taskSchema = new mongoose.Schema(
 
     // Notification tracking
     isOverdueNotified: { type: Boolean, default: false },
+    thirtyMinReminderSent: { type: Boolean, default: false },
+    fifteenMinReminderSent: { type: Boolean, default: false },
+    dueNowReminderSent: { type: Boolean, default: false },
+    overdueReminderSent: { type: Boolean, default: false },
 
     // Task acceptance/rejection tracking
     acceptedBy: {
@@ -200,6 +222,84 @@ const taskSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+
+    // Extension workflow
+    taskExtended: {
+      type: Boolean,
+      default: false
+    },
+    extendedTimeMinutes: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    extensionCount: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    extensionHistory: [{
+      addedMinutes: { type: Number, required: true, min: 1 },
+      previousDueAt: { type: Date, required: true },
+      newDueAt: { type: Date, required: true },
+      remarks: { type: String, required: true, trim: true },
+      extendedAt: { type: Date, default: Date.now },
+      addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+    }],
+
+    extensionRequests: [{
+      requestedTimeMinutes: { type: Number, required: true, min: 1 },
+      requestRemarks: { type: String, required: true, trim: true },
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      requestedAt: { type: Date, default: Date.now },
+      approvalStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+      },
+      approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      approvedAt: { type: Date, default: null },
+      rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      rejectedAt: { type: Date, default: null },
+      rejectionReason: { type: String, trim: true, default: '' }
+    }],
+
+    requestedTime: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    requestRemarks: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    requestedAt: {
+      type: Date,
+      default: null
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected'],
+      default: 'none'
+    },
+
+    // Structured remarks history
+    remarks: [{
+      type: {
+        type: String,
+        enum: ['extension', 'rejection', 'note'],
+        required: true
+      },
+      text: { type: String, required: true, trim: true },
+      addedAt: { type: Date, default: Date.now },
+      addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+    }],
 
     // === TIMER TRACKING ===
     startedAt: { type: Date, default: null },
@@ -270,7 +370,12 @@ const taskSchema = new mongoose.Schema(
 
 // Virtual: Check if task is overdue
 taskSchema.virtual('isOverdue').get(function() {
-  return this.status !== 'completed' && new Date() > this.dueDate;
+  if (!this.startedAt) return false;
+  if (['completed', 'rejected', 'cancelled'].includes(this.status)) return false;
+
+  const due = this.dueAt || this.dueDate;
+  if (!due) return false;
+  return new Date() > new Date(due);
 });
 
 // Virtual: Days until due

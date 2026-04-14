@@ -8,6 +8,13 @@ import {
   notifyTaskDeleted
 } from '../../utils/socket.js';
 import { createActivityLog } from '../activity/activity.service.js';
+import { createTaskNotification } from '../../utils/notificationHelper.js';
+import {
+  calculateDueTime,
+  extendTaskTime,
+  markTaskRejected,
+  formatToIST,
+} from './taskDeadline.utils.js';
 
 export const tasksController = {
   // Get my tasks
@@ -508,11 +515,31 @@ export const tasksController = {
       }
 
       const now = new Date();
+      const estimatedMinutes = Math.max(
+        0,
+        Number.isFinite(Number(task.estimatedMinutes))
+          ? Math.round(Number(task.estimatedMinutes))
+          : Math.round((Number(task.estimatedHours) || 0) * 60)
+      );
+
       task.status = 'in-progress';
       task.isRunning = true;
       task.isPaused = false;
       task.currentSessionStartTime = now;
       if (!task.startedAt) task.startedAt = now;
+      task.estimatedMinutes = estimatedMinutes;
+      task.pausedDurationMinutes = Math.floor((task.totalPausedTimeInSeconds || 0) / 60);
+
+      const computedDue = calculateDueTime(task.startedAt, task.estimatedMinutes, task.pausedDurationMinutes);
+      if (computedDue) {
+        task.dueAt = computedDue;
+        task.dueDate = computedDue;
+      }
+
+      task.thirtyMinReminderSent = false;
+      task.fifteenMinReminderSent = false;
+      task.dueNowReminderSent = false;
+      task.overdueReminderSent = false;
 
       await task.save();
       await task.populate([
@@ -558,7 +585,7 @@ export const tasksController = {
         task.totalActiveTimeInSeconds += sessionSeconds;
       }
 
-      task.status = 'on-hold';
+      task.status = 'paused';
       task.isRunning = false;
       task.isPaused = true;
       task.currentSessionStartTime = null;
@@ -608,12 +635,19 @@ export const tasksController = {
         lastPause.resumedAt = now;
         lastPause.pausedDurationInSeconds = pausedSeconds;
         task.totalPausedTimeInSeconds += pausedSeconds;
+        task.pausedDurationMinutes = Math.floor(task.totalPausedTimeInSeconds / 60);
       }
 
       task.status = 'in-progress';
       task.isRunning = true;
       task.isPaused = false;
       task.currentSessionStartTime = now;
+
+      const recomputedDue = calculateDueTime(task.startedAt, task.estimatedMinutes, task.pausedDurationMinutes);
+      if (recomputedDue) {
+        task.dueAt = recomputedDue;
+        task.dueDate = recomputedDue;
+      }
 
       await task.save();
       await task.populate([
@@ -664,6 +698,7 @@ export const tasksController = {
           lastPause.resumedAt = now;
           lastPause.pausedDurationInSeconds = pausedSeconds;
           task.totalPausedTimeInSeconds += pausedSeconds;
+          task.pausedDurationMinutes = Math.floor(task.totalPausedTimeInSeconds / 60);
         }
       }
 
@@ -673,7 +708,8 @@ export const tasksController = {
       task.isRunning = false;
       task.isPaused = false;
       task.currentSessionStartTime = null;
-      task.completedOnTime = now <= new Date(task.dueDate);
+      const completionDueAt = task.dueAt || task.dueDate;
+      task.completedOnTime = completionDueAt ? now <= new Date(completionDueAt) : null;
 
       await task.save();
       await task.populate([
@@ -683,6 +719,250 @@ export const tasksController = {
       ]);
       notifyTaskStatusChanged(task, req.user.id);
       sendSuccess(res, task, 'Task completed successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Request more time for overdue task
+  async requestTaskExtension(req, res) {
+    try {
+      const taskId = req.params.id || req.body.taskId;
+      const { additionalTime, unit = 'minutes', remarks } = req.body;
+
+      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can request more time', 403);
+      }
+
+      const effectiveDueAt = task.dueAt || task.dueDate;
+      if (!effectiveDueAt || new Date() <= new Date(effectiveDueAt)) {
+        return sendError(res, 'Extension request is allowed only after task is overdue', 400);
+      }
+
+      const parsedTime = Number(additionalTime);
+      if (!Number.isFinite(parsedTime) || parsedTime <= 0) {
+        return sendError(res, 'Additional time must be a positive number', 400);
+      }
+
+      const additionalMinutes = unit === 'hours'
+        ? Math.round(parsedTime * 60)
+        : Math.round(parsedTime);
+
+      if (additionalMinutes <= 0) {
+        return sendError(res, 'Additional time must be at least 1 minute', 400);
+      }
+
+      const MAX_EXTENSION_REQUESTS = 5;
+      if ((task.extensionRequests?.length || 0) >= MAX_EXTENSION_REQUESTS) {
+        return sendError(res, 'Maximum extension requests reached for this task', 400);
+      }
+
+      const hasPendingRequest = (task.extensionRequests || []).some(r => r.approvalStatus === 'pending');
+      if (hasPendingRequest) {
+        return sendError(res, 'An extension request is already pending approval', 400);
+      }
+
+      const safeRemarks = `${remarks || ''}`.trim();
+      if (!safeRemarks) {
+        return sendError(res, 'Remarks are required', 400);
+      }
+
+      task.status = 'extension_requested';
+      task.requestedTime = additionalMinutes;
+      task.requestRemarks = safeRemarks;
+      task.requestedBy = req.user.id;
+      task.requestedAt = new Date();
+      task.approvalStatus = 'pending';
+
+      task.extensionRequests.push({
+        requestedTimeMinutes: additionalMinutes,
+        requestRemarks: safeRemarks,
+        requestedBy: req.user.id,
+        requestedAt: new Date(),
+        approvalStatus: 'pending',
+      });
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+
+      if (task.assignedBy && task.assignedBy._id?.toString() !== req.user.id) {
+        await createTaskNotification({
+          userId: task.assignedBy._id,
+          taskId: task._id,
+          eventType: 'system',
+          title: 'Extension Request',
+          message: `"${task.title}" has requested additional time. Requested: ${additionalMinutes} minutes. Remarks: ${safeRemarks}`,
+          triggeredBy: req.user.id,
+        });
+      }
+
+      notifyTaskUpdated(task, req.user.id);
+      sendSuccess(res, task, 'Extension request submitted successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async approveTaskExtension(req, res) {
+    try {
+      const { taskId, requestId } = req.body;
+      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (task.assignedBy?.toString() !== req.user.id) {
+        return sendError(res, 'Only task assigner can approve extension requests', 403);
+      }
+
+      const requests = task.extensionRequests || [];
+      const pendingIndex = requestId
+        ? requests.findIndex(r => r._id.toString() === requestId && r.approvalStatus === 'pending')
+        : requests.map((r, idx) => ({ r, idx })).reverse().find(({ r }) => r.approvalStatus === 'pending')?.idx;
+
+      if (pendingIndex === undefined || pendingIndex < 0) {
+        return sendError(res, 'No pending extension request found', 400);
+      }
+
+      const pendingRequest = requests[pendingIndex];
+      pendingRequest.approvalStatus = 'approved';
+      pendingRequest.approvedBy = req.user.id;
+      pendingRequest.approvedAt = new Date();
+
+      task.approvalStatus = 'approved';
+
+      extendTaskTime(task, pendingRequest.requestedTimeMinutes, req.user.id, pendingRequest.requestRemarks);
+      task.status = 'extended';
+
+      const currentDue = task.dueAt || task.dueDate;
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+      ]);
+
+      if (pendingRequest.requestedBy) {
+        await createTaskNotification({
+          userId: pendingRequest.requestedBy,
+          taskId: task._id,
+          eventType: 'system',
+          title: 'Extension Approved',
+          message: `Your extension request for "${task.title}" was approved. New due time: ${formatToIST(currentDue)}`,
+          triggeredBy: req.user.id,
+        });
+      }
+
+      notifyTaskUpdated(task, req.user.id);
+      sendSuccess(res, task, 'Extension request approved successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async rejectTaskExtension(req, res) {
+    try {
+      const { taskId, requestId, rejectionReason } = req.body;
+      const reason = `${rejectionReason || ''}`.trim();
+      if (!reason) {
+        return sendError(res, 'Rejection reason is required', 400);
+      }
+
+      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (task.assignedBy?.toString() !== req.user.id) {
+        return sendError(res, 'Only task assigner can reject extension requests', 403);
+      }
+
+      const requests = task.extensionRequests || [];
+      const pendingIndex = requestId
+        ? requests.findIndex(r => r._id.toString() === requestId && r.approvalStatus === 'pending')
+        : requests.map((r, idx) => ({ r, idx })).reverse().find(({ r }) => r.approvalStatus === 'pending')?.idx;
+
+      if (pendingIndex === undefined || pendingIndex < 0) {
+        return sendError(res, 'No pending extension request found', 400);
+      }
+
+      const pendingRequest = requests[pendingIndex];
+      pendingRequest.approvalStatus = 'rejected';
+      pendingRequest.rejectedBy = req.user.id;
+      pendingRequest.rejectedAt = new Date();
+      pendingRequest.rejectionReason = reason;
+
+      task.approvalStatus = 'rejected';
+      task.status = 'overdue';
+
+      task.remarks.push({
+        type: 'note',
+        text: `Extension rejected: ${reason}`,
+        addedAt: new Date(),
+        addedBy: req.user.id,
+      });
+
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+      ]);
+
+      if (pendingRequest.requestedBy) {
+        await createTaskNotification({
+          userId: pendingRequest.requestedBy,
+          taskId: task._id,
+          eventType: 'system',
+          title: 'Extension Rejected',
+          message: `Your extension request for "${task.title}" was rejected. Please complete it immediately. Reason: ${reason}`,
+          triggeredBy: req.user.id,
+        });
+      }
+
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Extension request rejected successfully');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Reject task with mandatory reason
+  async rejectTask(req, res) {
+    try {
+      const { id } = req.params;
+      const { rejectionReason } = req.body;
+
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+
+      if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
+        return sendError(res, 'Only an assignee can reject this task', 403);
+      }
+
+      markTaskRejected(task, rejectionReason, req.user.id);
+      await task.save();
+      await task.populate([
+        { path: 'assignedTo', select: 'name email' },
+        { path: 'assignedBy', select: 'name email' },
+        { path: 'department', select: 'name' }
+      ]);
+
+      if (task.assignedBy) {
+        await createTaskNotification({
+          userId: task.assignedBy._id,
+          taskId: task._id,
+          eventType: 'task-rejected',
+          title: 'Task Rejected',
+          message: `"${task.title}" was rejected. Reason: ${task.rejectionReason}`,
+          triggeredBy: req.user.id,
+        });
+      }
+
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, task, 'Task rejected successfully');
     } catch (error) {
       sendError(res, error.message, 400);
     }

@@ -24,6 +24,11 @@ router.get('/my/dashboard', tasksController.getDashboardTasks);
 // Tasks assigned by me routes
 router.get('/assigned', tasksController.getMyAssignedTasks);
 
+// Extension approval workflow routes
+router.post('/request-extension', tasksController.requestTaskExtension);
+router.post('/approve-extension', tasksController.approveTaskExtension);
+router.post('/reject-extension', tasksController.rejectTaskExtension);
+
 // Admin/HR only routes (before general routes to maintain priority)
 // Get all tasks - admin/hr only
 router.get('/', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasks);
@@ -65,6 +70,8 @@ router.post('/:id/start', tasksController.startTask);
 router.post('/:id/pause', tasksController.pauseTask);
 router.post('/:id/resume', tasksController.resumeTask);
 router.post('/:id/complete', tasksController.completeTask);
+router.post('/:id/request-extension', tasksController.requestTaskExtension);
+router.post('/:id/reject', tasksController.rejectTask);
 router.get('/:id/analysis', tasksController.getTaskAnalysis);
 
 export default router;

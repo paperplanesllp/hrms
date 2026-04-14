@@ -23,6 +23,12 @@ export default function MyTasksSection() {
   const [actionLoading, setActionLoading] = useState(null);
   const [pauseModal, setPauseModal] = useState(null);     // { _id, title }
   const [completeModal, setCompleteModal] = useState(null); // { _id, title }
+  const [extensionModal, setExtensionModal] = useState(null);
+  const [rejectionModal, setRejectionModal] = useState(null);
+  const [additionalTime, setAdditionalTime] = useState('30');
+  const [timeUnit, setTimeUnit] = useState('minutes');
+  const [extensionRemarks, setExtensionRemarks] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const fetchMyTasks = useCallback(async () => {
     try {
@@ -277,6 +283,71 @@ export default function MyTasksSection() {
     setCompleteModal({ _id: task._id, title: task.title });
   };
 
+  const handleRequestMoreTime = (task) => {
+    setAdditionalTime('30');
+    setTimeUnit('minutes');
+    setExtensionRemarks('');
+    setExtensionModal({ _id: task._id, title: task.title });
+  };
+
+  const handleRejectTaskRequest = (task) => {
+    setRejectionReason('');
+    setRejectionModal({ _id: task._id, title: task.title });
+  };
+
+  const submitExtensionRequest = async () => {
+    if (!extensionModal) return;
+    if (!extensionRemarks.trim()) {
+      toast({ title: 'Remarks are required', type: 'error' });
+      return;
+    }
+
+    setActionLoading(extensionModal._id);
+    try {
+      const updated = await taskService.requestTaskExtension(extensionModal._id, {
+        additionalTime: Number(additionalTime),
+        unit: timeUnit,
+        remarks: extensionRemarks.trim(),
+      });
+
+      setMyTasks(prev => prev.map(t => (t._id === updated._id ? updated : t)));
+      toast({ title: 'Extension Request Sent', message: 'Your manager will review this extension request.', type: 'success' });
+      setExtensionModal(null);
+    } catch (error) {
+      toast({
+        title: 'Extension failed',
+        message: error?.response?.data?.message || 'Unable to extend task time',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const submitTaskRejection = async () => {
+    if (!rejectionModal) return;
+    if (!rejectionReason.trim()) {
+      toast({ title: 'Rejection reason is required', type: 'error' });
+      return;
+    }
+
+    setActionLoading(rejectionModal._id);
+    try {
+      const updated = await taskService.rejectTask(rejectionModal._id, rejectionReason.trim());
+      setMyTasks(prev => prev.map(t => (t._id === updated._id ? updated : t)));
+      toast({ title: 'Task rejected', message: 'Task was marked as rejected.', type: 'warning' });
+      setRejectionModal(null);
+    } catch (error) {
+      toast({
+        title: 'Reject failed',
+        message: error?.response?.data?.message || 'Unable to reject task',
+        type: 'error',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleCompleteConfirm = async () => {
     if (!completeModal) return;
     const { _id } = completeModal;
@@ -438,6 +509,7 @@ export default function MyTasksSection() {
               onPause={handlePauseRequest}
               onResume={handleResumeTask}
               onComplete={handleCompleteRequest}
+              onRequestMoreTime={handleRequestMoreTime}
               onView={setSelectedTask}
               loadingAction={actionLoading}
             />
@@ -508,6 +580,96 @@ export default function MyTasksSection() {
           onClose={() => setSelectedTask(null)}
           onStatusChange={handleStatusChange}
         />
+      )}
+
+      {/* Extension Modal */}
+      {extensionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setExtensionModal(null)} />
+          <div className="relative z-10 w-full max-w-md mx-4 rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Request Extension</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Task Overdue: "{extensionModal.title}" is now overdue. Do you want to request more time?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                min="1"
+                value={additionalTime}
+                onChange={(e) => setAdditionalTime(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+              />
+              <select
+                value={timeUnit}
+                onChange={(e) => setTimeUnit(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+              >
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+              </select>
+            </div>
+
+            <textarea
+              rows={3}
+              placeholder="Remarks (mandatory)"
+              value={extensionRemarks}
+              onChange={(e) => setExtensionRemarks(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setExtensionModal(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitExtensionRequest}
+                className="flex-1 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Modal */}
+      {rejectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setRejectionModal(null)} />
+          <div className="relative z-10 w-full max-w-md mx-4 rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Reject Task</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Provide a rejection reason for "{rejectionModal.title}".
+            </p>
+
+            <textarea
+              rows={4}
+              placeholder="Rejection reason (mandatory)"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRejectionModal(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitTaskRejection}
+                className="flex-1 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Reject Task
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Task } from './Task.model.js';
 import { User } from '../users/User.model.js';
 import { Department } from '../department/Department.model.js';
+import { evaluateEmployeePerformance } from './taskDeadline.utils.js';
 
 export const tasksService = {
   // Get my tasks (assigned to current user)
@@ -247,18 +248,30 @@ export const tasksService = {
       data.priority = 'MEDIUM';
     }
 
+    const estimatedMinutes = Math.max(
+      0,
+      Number.isFinite(Number(data.estimatedMinutes))
+        ? Math.round(Number(data.estimatedMinutes))
+        : Math.round((Number(data.estimatedHours) || 0) * 60)
+    );
+
+    const dueDate = data.dueDate ? new Date(data.dueDate) : null;
+
     const taskData = {
       title: data.title.trim(),
       description: data.description?.trim() || '',
       assignedTo: assignedToRaw.map(id => new mongoose.Types.ObjectId(id)),
       assignedBy: new mongoose.Types.ObjectId(assignedById),
       department: data.department ? new mongoose.Types.ObjectId(data.department) : null,
-      dueDate: new Date(data.dueDate),
+      dueDate,
+      dueAt: dueDate,
       priority: data.priority || 'MEDIUM',
       status: data.status || 'pending',
       tags: data.tags || [],
       progress: data.progress || 0,
-      isRecurring: data.isRecurring || false
+      isRecurring: data.isRecurring || false,
+      estimatedHours: Number(data.estimatedHours) || 0,
+      estimatedMinutes
     };
     
     const task = await Task.create(taskData);
@@ -268,7 +281,7 @@ export const tasksService = {
 
   // Update task status (complete/mark in-progress)
   async updateTaskStatus(taskId, userId, status) {
-    const validStatuses = ['pending', 'in-progress', 'completed', 'on-hold', 'cancelled'];
+    const validStatuses = ['pending', 'in-progress', 'paused', 'on-hold', 'completed', 'rejected', 'cancelled'];
     
     if (!validStatuses.includes(status)) {
       throw new Error('Invalid status provided');
@@ -407,8 +420,12 @@ export const tasksService = {
     const overdueCount = await Task.countDocuments({
       assignedTo: userObjectId,
       isDeleted: false,
-      status: { $ne: 'completed' },
-      dueDate: { $lt: new Date() }
+      startedAt: { $ne: null },
+      status: { $nin: ['completed', 'rejected', 'cancelled'] },
+      $or: [
+        { dueAt: { $lt: new Date() } },
+        { dueAt: null, dueDate: { $lt: new Date() } }
+      ]
     });
     
     return {
@@ -566,8 +583,12 @@ export const tasksService = {
     // Get overdue tasks
     const overdueCount = await Task.countDocuments({
       ...query,
-      status: { $ne: 'completed' },
-      dueDate: { $lt: now }
+      startedAt: { $ne: null },
+      status: { $nin: ['completed', 'rejected', 'cancelled'] },
+      $or: [
+        { dueAt: { $lt: now } },
+        { dueAt: null, dueDate: { $lt: now } }
+      ]
     });
 
     const totalTasks = allTasks.length;
@@ -603,23 +624,114 @@ export const tasksService = {
       teamMembers.map(async (member) => {
         const userId = member._id;
 
-        // Count completed tasks
-        const completed = await Task.countDocuments({
+        const totalTasks = await Task.countDocuments({
           assignedTo: userId,
-          status: 'completed',
           isDeleted: false
         });
+
+        const completedOnTime = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'completed',
+          completedOnTime: true,
+          isDeleted: false
+        });
+
+        const completedLate = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'completed',
+          completedOnTime: false,
+          isDeleted: false
+        });
+
+        const overdueCount = await Task.countDocuments({
+          assignedTo: userId,
+          isDeleted: false,
+          startedAt: { $ne: null },
+          status: { $nin: ['completed', 'rejected', 'cancelled'] },
+          $or: [
+            { dueAt: { $lt: new Date() } },
+            { dueAt: null, dueDate: { $lt: new Date() } }
+          ]
+        });
+
+        const extensionCount = await Task.aggregate([
+          {
+            $match: {
+              assignedTo: userId,
+              isDeleted: false
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $ifNull: ['$extensionCount', 0] } }
+            }
+          }
+        ]);
+
+        const rejectedTasks = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'rejected',
+          isDeleted: false
+        });
+
+        const extensionRequestMetrics = await Task.aggregate([
+          {
+            $match: {
+              assignedTo: userId,
+              isDeleted: false
+            }
+          },
+          {
+            $project: {
+              extensionRequests: { $ifNull: ['$extensionRequests', []] },
+              isOverdueWithoutRequest: {
+                $and: [
+                  { $eq: ['$status', 'overdue'] },
+                  { $eq: [{ $size: { $ifNull: ['$extensionRequests', []] } }, 0] }
+                ]
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              extensionRequests: { $sum: { $size: '$extensionRequests' } },
+              approvedExtensions: {
+                $sum: {
+                  $size: {
+                    $filter: {
+                      input: '$extensionRequests',
+                      as: 'request',
+                      cond: { $eq: ['$$request.approvalStatus', 'approved'] }
+                    }
+                  }
+                }
+              },
+              rejectedExtensions: {
+                $sum: {
+                  $size: {
+                    $filter: {
+                      input: '$extensionRequests',
+                      as: 'request',
+                      cond: { $eq: ['$$request.approvalStatus', 'rejected'] }
+                    }
+                  }
+                }
+              },
+              overdueWithoutRequest: {
+                $sum: { $cond: ['$isOverdueWithoutRequest', 1, 0] }
+              }
+            }
+          }
+        ]);
+
+        const completed = completedOnTime + completedLate;
 
         // Count in-progress tasks
         const inProgress = await Task.countDocuments({
           assignedTo: userId,
-          status: 'in-progress',
-          isDeleted: false
-        });
-
-        // Count all tasks
-        const totalTasks = await Task.countDocuments({
-          assignedTo: userId,
+          status: { $in: ['in-progress', 'paused', 'on-hold', 'due-soon', 'extended', 'overdue'] },
           isDeleted: false
         });
 
@@ -643,21 +755,46 @@ export const tasksService = {
         }
 
         // Calculate performance score (0-100)
-        let performanceScore = 0;
-        if (totalTasks > 0) {
-          performanceScore = Math.round((completed / totalTasks) * 100);
-        }
+        const metrics = {
+          totalTasks,
+          completedOnTime,
+          completedLate,
+          overdueCount,
+          extensionCount: extensionCount[0]?.total || 0,
+          rejectedTasks,
+          extensionRequests: extensionRequestMetrics[0]?.extensionRequests || 0,
+          approvedExtensions: extensionRequestMetrics[0]?.approvedExtensions || 0,
+          rejectedExtensions: extensionRequestMetrics[0]?.rejectedExtensions || 0,
+          overdueWithoutRequest: extensionRequestMetrics[0]?.overdueWithoutRequest || 0,
+        };
+
+        const performance = evaluateEmployeePerformance(metrics);
+
+        const performanceScore = totalTasks > 0
+          ? Math.round(((completedOnTime * 1.2 + completedLate * 0.7) / totalTasks) * 100)
+          : 0;
 
         return {
           _id: userId,
           name: member.name,
           userName: member.userName,
           email: member.email,
+          totalTasks,
+          completedOnTime,
+          completedLate,
+          overdueCount,
+          extensionCount: metrics.extensionCount,
+          rejectedTasks,
+          extensionRequests: metrics.extensionRequests,
+          approvedExtensions: metrics.approvedExtensions,
+          rejectedExtensions: metrics.rejectedExtensions,
+          overdueWithoutRequest: metrics.overdueWithoutRequest,
           completed,
           inProgress,
-          totalTasks,
           avgCompletionTime,
-          performanceScore
+          performanceScore,
+          classification: performance.classification,
+          onTimeRate: performance.onTimeRate
         };
       })
     );

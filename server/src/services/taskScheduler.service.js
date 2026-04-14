@@ -1,17 +1,15 @@
 import cron from "node-cron";
 import { Task } from "../modules/tasks/Task.model.js";
-import { 
-  notifyDueReminder, 
-  notifyTaskOverdue 
-} from "../utils/notificationHelper.js";
+import { createNotificationsForUsers } from "../utils/notificationHelper.js";
+import { calculateRemainingTime } from "../modules/tasks/taskDeadline.utils.js";
 
 let schedulerActive = false;
 
 /**
  * Initialize task scheduler
  * Checks every minute for:
- * 1. Tasks with due reminders (1h, 1d, 2d before due date)
- * 2. Tasks that are overdue
+ * 1. Deadline reminders (30m, 15m, due-now)
+ * 2. Overdue transitions
  */
 export function initializeTaskScheduler() {
   if (schedulerActive) {
@@ -22,8 +20,7 @@ export function initializeTaskScheduler() {
   // Run every minute
   const taskScheduler = cron.schedule("* * * * *", async () => {
     try {
-      await checkForDueReminders();
-      await checkForOverdueTasks();
+      await checkTaskDeadlines();
     } catch (error) {
       console.error("❌ Task scheduler error:", error);
     }
@@ -36,106 +33,105 @@ export function initializeTaskScheduler() {
 }
 
 /**
- * Check for tasks with due reminders
- * Sends notifications for tasks due in: 2 days, 1 day, 1 hour
+ * Build standardized reminder title and message.
  */
-async function checkForDueReminders() {
-  try {
-    const now = new Date();
-
-    // Reminder windows: [2 days, 1 day, 1 hour]
-    const reminderWindows = [
-      { minutes: 1440, label: "1 day" },      // 1 day = 1440 minutes
-      { minutes: 1500, label: "1d 1h" },     // 1 day 1 hour
-      { minutes: 1530, label: "1d 30m" },    // 1 day 30 min
-      { minutes: 60, label: "1 hour" },      // 1 hour = 60 minutes
-      { minutes: 90, label: "1.5 hours" },   // 1.5 hours
-      { minutes: 2880, label: "2 days" }     // 2 days = 2880 minutes
-    ];
-
-    for (const window of reminderWindows) {
-      const minutesFromNow = window.minutes;
-      const reminderTime = new Date(now.getTime() + minutesFromNow * 60000);
-
-      // Find tasks with due dates in this window
-      // Check if task status is not 'completed' and has a reminder preference
-      const tasks = await Task.find({
-        status: { $ne: "completed" },
-        dueDate: {
-          $gte: new Date(reminderTime.getTime() - 2 * 60000), // 2 minutes before window
-          $lte: new Date(reminderTime.getTime() + 2 * 60000)  // 2 minutes after window
-        },
-        "reminders.lastNotified": {
-          $ne: reminderTime.toISOString().split('T')[0] // Not already sent today
-        }
-      })
-      .select("_id assignedTo title dueDate reminders")
-      .lean();
-
-      for (const task of tasks) {
-        try {
-          // Check if assignee has this reminder enabled
-          const hasDueReminder = task.reminders && task.reminders.length > 0;
-          if (hasDueReminder) {
-            await notifyDueReminder(task._id.toString(), task.assignedTo.toString());
-            console.log(`✅ Due reminder sent for task: ${task.title} (${window.label})`);
-          }
-        } catch (error) {
-          console.error(`❌ Error sending due reminder for task ${task._id}:`, error.message);
-        }
-      }
-    }
-  } catch (error) {
-    console.error("❌ Error checking for due reminders:", error);
+function buildReminderTemplate(type, taskName) {
+  if (type === "30m") {
+    return {
+      title: "⏰ Task Reminder",
+      message: `"${taskName}" is due in 30 minutes.\nPlease plan to complete it on time.`,
+    };
   }
+
+  if (type === "15m") {
+    return {
+      title: "⚠️ Task Due Soon",
+      message: `"${taskName}" is due in 15 minutes.\nPlease give it immediate attention.`,
+    };
+  }
+
+  if (type === "due-now") {
+    return {
+      title: "🚨 Task Deadline Reached",
+      message: `"${taskName}" has reached its deadline.\nPlease complete it as soon as possible.`,
+    };
+  }
+
+  return {
+    title: "⚠️ Task Overdue",
+    message: `"${taskName}" is now overdue.\nPlease prioritize and complete it as soon as possible.`,
+  };
+}
+
+async function notifyAssignees(task, type) {
+  const assigneeIds = (task.assignedTo || []).map((u) => u.toString());
+  if (!assigneeIds.length) return;
+
+  const payload = buildReminderTemplate(type, task.title || "Untitled Task");
+
+  await createNotificationsForUsers(assigneeIds, {
+    taskId: task._id,
+    eventType: type === "overdue" ? "task-overdue" : "task-due-reminder",
+    title: payload.title,
+    message: payload.message,
+    triggeredBy: null,
+  });
 }
 
 /**
- * Check for overdue tasks
- * Sends notifications for tasks whose due date has passed
+ * Evaluate all started tasks with estimated minutes and send one-time reminders.
  */
-async function checkForOverdueTasks() {
+async function checkTaskDeadlines() {
   try {
     const now = new Date();
 
-    // Find tasks with due dates that have passed and are not completed
-    const overdueTasks = await Task.find({
-      status: { $ne: "completed" },
-      dueDate: { $lt: now },
-      isOverdueNotified: { $ne: true } // Only notify once
-    })
-    .select("_id title assignedTo assignedBy status")
-    .lean();
+    const tasks = await Task.find({
+      isDeleted: false,
+      startedAt: { $ne: null },
+      estimatedMinutes: { $gt: 0 },
+      status: { $nin: ["completed", "cancelled", "rejected"] },
+    }).select(
+      "_id title assignedTo startedAt estimatedMinutes pausedDurationMinutes dueAt dueDate status isPaused thirtyMinReminderSent fifteenMinReminderSent dueNowReminderSent overdueReminderSent taskExtended"
+    );
 
-    for (const task of overdueTasks) {
-      try {
-        // Update status to 'overdue' if not already
-        if (task.status !== 'overdue') {
-          await Task.findByIdAndUpdate(
-            task._id,
-            { 
-              status: 'overdue',
-              isOverdueNotified: true 
-            },
-            { returnDocument: "after" }
-          );
-        } else {
-          // Just mark as notified
-          await Task.findByIdAndUpdate(
-            task._id,
-            { isOverdueNotified: true },
-            { returnDocument: "after" }
-          );
-        }
-        
-        await notifyTaskOverdue(task._id.toString());
-        console.log(`✅ Overdue notification sent for task: ${task.title}`);
-      } catch (error) {
-        console.error(`❌ Error processing overdue task ${task._id}:`, error.message);
+    for (const task of tasks) {
+      if (task.isPaused) continue;
+
+      const time = calculateRemainingTime(task, now);
+      if (!time.shouldTrackDeadline || !time.effectiveDueAt) continue;
+
+      const patch = { dueAt: time.effectiveDueAt, dueDate: time.effectiveDueAt };
+
+      if (!task.thirtyMinReminderSent && time.remainingMinutes <= 30 && time.remainingMinutes > 15) {
+        await notifyAssignees(task, "30m");
+        patch.thirtyMinReminderSent = true;
+        patch.status = task.status === "in-progress" ? "due-soon" : task.status;
       }
+
+      if (!task.fifteenMinReminderSent && time.remainingMinutes <= 15 && time.remainingMinutes > 0) {
+        await notifyAssignees(task, "15m");
+        patch.fifteenMinReminderSent = true;
+        patch.status = "due-soon";
+      }
+
+      if (!task.dueNowReminderSent && time.isDueNow) {
+        await notifyAssignees(task, "due-now");
+        patch.dueNowReminderSent = true;
+      }
+
+      if (!task.overdueReminderSent && time.isOverdue) {
+        await notifyAssignees(task, "overdue");
+        patch.overdueReminderSent = true;
+        patch.isOverdueNotified = true;
+        if (task.status !== "extension_requested") {
+          patch.status = "overdue";
+        }
+      }
+
+      await Task.updateOne({ _id: task._id }, { $set: patch });
     }
   } catch (error) {
-    console.error("❌ Error checking for overdue tasks:", error);
+    console.error("❌ Error while checking task deadlines:", error);
   }
 }
 

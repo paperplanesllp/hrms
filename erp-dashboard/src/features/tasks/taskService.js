@@ -108,6 +108,26 @@ export const taskService = {
     return normalizeResponse(res);
   },
 
+  async requestTaskExtension(taskId, payload) {
+    const res = await api.post('/tasks/request-extension', { taskId, ...payload });
+    return normalizeResponse(res);
+  },
+
+  async approveTaskExtension(taskId, requestId) {
+    const res = await api.post('/tasks/approve-extension', { taskId, requestId });
+    return normalizeResponse(res);
+  },
+
+  async rejectTaskExtension(taskId, requestId, rejectionReason) {
+    const res = await api.post('/tasks/reject-extension', { taskId, requestId, rejectionReason });
+    return normalizeResponse(res);
+  },
+
+  async rejectTask(taskId, rejectionReason) {
+    const res = await api.post(`/tasks/${taskId}/reject`, { rejectionReason });
+    return normalizeResponse(res);
+  },
+
   async getTaskAnalysis(taskId) {
     const res = await api.get(`/tasks/${taskId}/analysis`);
     return normalizeResponse(res);
