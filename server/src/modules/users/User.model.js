@@ -82,6 +82,24 @@ const userSchema = new mongoose.Schema(
       taskOverdue: { type: Boolean, default: true }
     },
 
+    // Push subscriptions (Web Push / PWA) used as fallback for incoming calls.
+    pushSubscriptions: {
+      type: [
+        {
+          endpoint: { type: String, required: true },
+          keys: {
+            p256dh: { type: String, required: true },
+            auth: { type: String, required: true },
+          },
+          userAgent: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: { type: Date, default: Date.now },
+          lastUsedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+
     refreshTokenHash: { type: String, default: "" },
     resetPasswordToken: { type: String, default: "" },
     resetPasswordExpires: { type: Date },
@@ -104,5 +122,7 @@ const userSchema = new mongoose.Schema(
 userSchema.methods.comparePassword = async function (plain) {
   return bcrypt.compare(plain, this.passwordHash);
 };
+
+userSchema.index({ "pushSubscriptions.endpoint": 1 });
 
 export const User = mongoose.model("User", userSchema);

@@ -36,7 +36,7 @@ export const usePresenceStore = create((set, get) => ({
         email: user.email,
         profileImageUrl: user.profileImageUrl,
         // Preserve socket-driven truth if already available.
-        isOnline: (existing?.isOnline ?? user.isOnline) || false,
+        isOnline: existing?.isOnline ?? user.isOnline ?? false,
         lastSeen: existing?.lastSeen ?? (user.lastSeen ? new Date(user.lastSeen) : null),
         lastActivityAt: existing?.lastActivityAt ?? (user.lastActivityAt ? new Date(user.lastActivityAt) : null),
         lastSeenLocally: new Date(),

@@ -5,6 +5,16 @@ const USER_STATUS = {
   OFFLINE: "offline",
 };
 
+const CALL_STATUS = {
+  INITIATING: "initiating",
+  RINGING: "ringing",
+  IN_CALL: "in_call",
+  REJECTED: "rejected",
+  ENDED: "ended",
+  TIMEOUT: "timeout",
+  FAILED: "failed",
+};
+
 const userStates = new Map(); // Map<userId, state>
 const activeCalls = new Map(); // Map<callId, call>
 const userSocketIds = new Map(); // Map<userId, Set<socketId>>
@@ -86,6 +96,12 @@ export const registerUserSocket = (userId, socketId) => {
 
   userSocketIds.get(userKey).add(socketKey);
 
+  console.log("[CallManager] registerUserSocket", {
+    userId: userKey,
+    socketId: socketKey,
+    socketCount: userSocketIds.get(userKey).size,
+  });
+
   const state = ensureUserState(userKey);
   if (!isBusyStatus(state.status)) {
     state.status = USER_STATUS.AVAILABLE;
@@ -102,6 +118,12 @@ export const unregisterUserSocket = (userId, socketId) => {
   if (!sockets) return;
 
   sockets.delete(socketKey);
+  console.log("[CallManager] unregisterUserSocket", {
+    userId: userKey,
+    socketId: socketKey,
+    remainingSocketCount: sockets.size,
+  });
+
   if (sockets.size === 0) {
     userSocketIds.delete(userKey);
     const state = ensureUserState(userKey);
@@ -113,6 +135,19 @@ export const unregisterUserSocket = (userId, socketId) => {
 };
 
 export const isUserOnline = (userId) => isOnlineBySockets(userId);
+
+export const hasUserSocket = (userId) => isOnlineBySockets(userId);
+
+export const getUserSocketSnapshot = (userId) => {
+  const key = toKey(userId);
+  const sockets = Array.from(userSocketIds.get(key) || []);
+  return {
+    userId: key,
+    socketCount: sockets.length,
+    socketIds: sockets,
+    hasSocket: sockets.length > 0,
+  };
+};
 
 export const isUserBusy = (userId) => {
   const state = ensureUserState(userId);
@@ -143,10 +178,6 @@ export const startRinging = ({ callId, callerId, receiverId, callType, conversat
     return { ok: false, code: "INVALID_CALL_TARGET" };
   }
 
-  if (!isUserOnline(normalizedReceiverId)) {
-    return { ok: false, code: "USER_OFFLINE" };
-  }
-
   if (isUserBusy(normalizedCallerId)) {
     return { ok: false, code: "SELF_BUSY" };
   }
@@ -163,13 +194,58 @@ export const startRinging = ({ callId, callerId, receiverId, callType, conversat
     callType,
     conversationId: conversationId || null,
     startedAt,
-    status: USER_STATUS.RINGING,
+    status: CALL_STATUS.INITIATING,
+    delivery: {
+      mode: "pending",
+      attemptedAt: new Date(),
+      deliveredAt: null,
+      pushSentAt: null,
+      failureReason: null,
+    },
+    expiresAt: null,
     acceptedAt: null,
   };
 
   activeCalls.set(normalizedCallId, call);
   setRinging(normalizedCallerId, call);
-  setRinging(normalizedReceiverId, call);
+
+  if (isOnlineBySockets(normalizedReceiverId)) {
+    setRinging(normalizedReceiverId, call);
+  } else {
+    setAvailableOrOffline(normalizedReceiverId);
+  }
+
+  return { ok: true, call: { ...call } };
+};
+
+export const setCallExpiresAt = (callId, expiresAt) => {
+  const normalizedCallId = toKey(callId);
+  const call = activeCalls.get(normalizedCallId);
+  if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+
+  call.expiresAt = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
+  return { ok: true, call: { ...call } };
+};
+
+export const markCallDelivery = ({ callId, mode, failureReason = null }) => {
+  const normalizedCallId = toKey(callId);
+  const call = activeCalls.get(normalizedCallId);
+  if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+
+  call.delivery = {
+    ...(call.delivery || {}),
+    mode,
+    attemptedAt: call.delivery?.attemptedAt || new Date(),
+    deliveredAt: mode === "realtime-delivered" ? new Date() : call.delivery?.deliveredAt || null,
+    pushSentAt: mode === "push-sent" ? new Date() : call.delivery?.pushSentAt || null,
+    failureReason,
+  };
+
+  if (mode === "realtime-delivered") {
+    call.status = CALL_STATUS.RINGING;
+    setRinging(call.receiverId, call);
+    setRinging(call.callerId, call);
+  }
 
   return { ok: true, call: { ...call } };
 };
@@ -180,7 +256,7 @@ export const acceptCall = (callId, userId) => {
   const call = activeCalls.get(normalizedCallId);
   if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
 
-  if (call.status !== USER_STATUS.RINGING) {
+  if (call.status !== CALL_STATUS.RINGING && call.status !== CALL_STATUS.INITIATING) {
     return { ok: false, code: "CALL_NOT_AVAILABLE" };
   }
 
@@ -188,7 +264,7 @@ export const acceptCall = (callId, userId) => {
     return { ok: false, code: "CALL_PARTICIPANT_MISMATCH" };
   }
 
-  call.status = USER_STATUS.IN_CALL;
+  call.status = CALL_STATUS.IN_CALL;
   call.acceptedAt = new Date();
 
   setInCall(call.callerId, call);
@@ -202,6 +278,7 @@ export const rejectCall = (callId) => {
   const call = activeCalls.get(normalizedCallId);
   if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
 
+  call.status = CALL_STATUS.REJECTED;
   activeCalls.delete(normalizedCallId);
   setAvailableOrOffline(call.callerId);
   setAvailableOrOffline(call.receiverId);
@@ -213,6 +290,7 @@ export const missCall = (callId) => {
   const call = activeCalls.get(normalizedCallId);
   if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
 
+  call.status = CALL_STATUS.TIMEOUT;
   activeCalls.delete(normalizedCallId);
   setAvailableOrOffline(call.callerId);
   setAvailableOrOffline(call.receiverId);
@@ -223,6 +301,25 @@ export const endCall = (callId) => {
   const normalizedCallId = toKey(callId);
   const call = activeCalls.get(normalizedCallId);
   if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+
+  call.status = CALL_STATUS.ENDED;
+  activeCalls.delete(normalizedCallId);
+  setAvailableOrOffline(call.callerId);
+  setAvailableOrOffline(call.receiverId);
+  return { ok: true, call: { ...call } };
+};
+
+export const failCall = (callId, reason = "UNKNOWN") => {
+  const normalizedCallId = toKey(callId);
+  const call = activeCalls.get(normalizedCallId);
+  if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+
+  call.status = CALL_STATUS.FAILED;
+  call.delivery = {
+    ...(call.delivery || {}),
+    mode: "failed",
+    failureReason: reason,
+  };
 
   activeCalls.delete(normalizedCallId);
   setAvailableOrOffline(call.callerId);
@@ -255,3 +352,4 @@ export const getCallManagerSnapshot = () => ({
 });
 
 export const CALL_USER_STATUS = USER_STATUS;
+export const CALL_SESSION_STATUS = CALL_STATUS;

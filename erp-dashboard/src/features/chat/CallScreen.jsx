@@ -50,12 +50,20 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
   };
 
   const statusLabel =
-    callStatus === "calling"
+    callStatus === "trying"
+      ? "Trying to reach user..."
+      : callStatus === "calling"
       ? "Calling..."
       : callStatus === "ringing" || callStatus === "incoming"
-      ? "Incoming call"
+      ? "Ringing..."
       : callStatus === "connecting"
       ? "Connecting..."
+      : callStatus === "rejected"
+      ? "Rejected"
+      : callStatus === "no_answer"
+      ? "No answer"
+      : callStatus === "failed"
+      ? "Couldn't reach user"
       : isConnected
       ? formatDuration(callDuration)
       : callStatus;

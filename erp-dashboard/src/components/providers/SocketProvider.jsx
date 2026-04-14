@@ -5,6 +5,7 @@ import { usePresenceStore } from "../../store/presenceStore.js";
 import { getAuth } from "../../lib/auth.js";
 import { initializeSocket, disconnectSocket, getCachedPresenceInit, triggerUserActivity } from "../../lib/socket.js";
 import api from "../../lib/api.js";
+import { ensurePushSubscription } from "../../lib/pushNotifications.js";
 
 export default function SocketProvider({ children }) {
   const userId = useAuthStore((s) => s.user?._id || s.user?.id || null);
@@ -24,6 +25,18 @@ export default function SocketProvider({ children }) {
 
     const socket = initializeSocket();
     if (!socket) return;
+
+    ensurePushSubscription({ promptForPermission: true })
+      .then((result) => {
+        if (!result?.ok) {
+          console.log("[Push] Subscription not active", { reason: result?.reason });
+        } else {
+          console.log("[Push] Subscription registered for call fallback");
+        }
+      })
+      .catch((err) => {
+        console.error("[Push] Failed to initialize push subscription", err?.message);
+      });
 
     // Initialize realtime notifications
     const { initializeRealTime, fetchNotifications } = useNotificationStore.getState();

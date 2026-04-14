@@ -104,8 +104,7 @@ export default function ChatHeader({
   const callStatus = useCallStore((s) => s.callStatus);
   const callBusy = callStatus !== "idle";
   const realtimeReady = isSocketConnected();
-  const targetOnline = chat.isGroupChat ? false : otherPresence.isOnline === true;
-  const callDisabled = callBusy || chat.isGroupChat || !realtimeReady || !targetOnline;
+  const callDisabled = callBusy || chat.isGroupChat;
   const isMuted = Boolean(chat.isMuted);
   const isPinned = Boolean(chat.isPinned);
   const isArchived = Boolean(chat.isArchived);
@@ -127,6 +126,10 @@ export default function ChatHeader({
 
   const handleVoiceCall = async () => {
     if (callDisabled || !other) return;
+    if (!realtimeReady) {
+      showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+      return;
+    }
     const result = await initiateCall(other, chat._id, "voice");
     if (!result?.ok) {
       showCallToast({ title: "Call", code: result?.reason || "SERVER_ERROR", type: "info" });
@@ -135,6 +138,10 @@ export default function ChatHeader({
 
   const handleVideoCall = async () => {
     if (callDisabled || !other) return;
+    if (!realtimeReady) {
+      showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+      return;
+    }
     const result = await initiateCall(other, chat._id, "video");
     if (!result?.ok) {
       showCallToast({ title: "Call", code: result?.reason || "SERVER_ERROR", type: "info" });
@@ -226,8 +233,6 @@ export default function ChatHeader({
               ? "Already in a call"
               : !realtimeReady
               ? "Realtime server unavailable"
-              : !targetOnline
-              ? "User is offline"
               : "Voice call"
           }
           className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -245,8 +250,6 @@ export default function ChatHeader({
               ? "Already in a call"
               : !realtimeReady
               ? "Realtime server unavailable"
-              : !targetOnline
-              ? "User is offline"
               : "Video call"
           }
           className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

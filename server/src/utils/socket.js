@@ -89,6 +89,10 @@ export const initializeSocket = (server) => {
       });
 
       registerUserSocket(socket.userId, socket.id);
+      console.log("[SocketMap] Registered authenticated socket", {
+        userId: socket.userId,
+        socketId: socket.id,
+      });
 
       // Update user in database
       await User.findByIdAndUpdate(socket.userId, {
@@ -125,6 +129,10 @@ export const initializeSocket = (server) => {
 
       // Join user to their personal room
       socket.join(`user_${socket.userId}`);
+      console.log("[SocketMap] Joined personal room", {
+        userId: socket.userId,
+        room: `user_${socket.userId}`,
+      });
       
       // Join HR/Admin to management room
       if (socket.userRole === "HR" || socket.userRole === "ADMIN") {
@@ -291,6 +299,10 @@ export const initializeSocket = (server) => {
         console.log(`🔌 Socket disconnected for user ${userName}: ${socket.id}`);
 
         unregisterUserSocket(userId, socket.id);
+        console.log("[SocketMap] Unregistered socket", {
+          userId,
+          socketId: socket.id,
+        });
         
         // Remove only this socket from the user's active set
         const stillOnline = presenceManager.removeConnection(userId, socket.id);

@@ -1,14 +1,7 @@
 import axios from "axios";
 import { getAuth } from "./auth.js";
 import { setSession, logout } from "../store/authStore.js";
-
-const normalizeApiBaseUrl = (value) => {
-  const candidate = (value || "").trim();
-  const base = candidate || `${window.location.origin}/api`;
-  return base.endsWith("/api") ? base : `${base.replace(/\/$/, "")}/api`;
-};
-
-const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+import { API_BASE_URL } from "./url.js";
 const PUBLIC_AUTH_ROUTES = new Set([
   "/auth/login",
   "/auth/refresh",

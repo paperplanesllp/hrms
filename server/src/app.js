@@ -30,6 +30,7 @@ import departmentRoutes from "./modules/department/department.routes.js";
 import documentRoutes from "./modules/documents/document.routes.js";
 import activityRoutes from "./modules/activity/activity.routes.js";
 import tasksRoutes from "./modules/tasks/tasks.routes.js";
+import callsRoutes from "./modules/calls/call.routes.js";
 
 export function createApp() {
   const app = express();
@@ -102,6 +103,7 @@ export function createApp() {
   app.use("/api/documents", documentRoutes);
   app.use("/api/activity", activityRoutes);
   app.use("/api/tasks", tasksRoutes);
+  app.use("/api/calls", callsRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
 import { getAuth } from "./auth.js";
 import { toast } from "../store/toastStore.js";
-import { SERVER_BASE_URL } from "./url.js";
+import { API_BASE_URL, SERVER_BASE_URL, SOCKET_BASE_URL } from "./url.js";
 
 let socket = null;
 let connectionAttempts = 0;
@@ -20,6 +20,17 @@ const normalizeSocketPath = (value) => {
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 };
+
+const getResolvedSocketPath = () => normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH);
+
+export const getSocketDebugInfo = () => ({
+  socketBaseUrl: SOCKET_BASE_URL,
+  socketPath: getResolvedSocketPath(),
+  apiBaseUrl: API_BASE_URL,
+  serverBaseUrl: SERVER_BASE_URL,
+  status: socketStatus,
+  connected: Boolean(socket?.connected),
+});
 
 export const initializeSocket = () => {
   const auth = getAuth();
@@ -45,22 +56,26 @@ export const initializeSocket = () => {
 
   // Prevent multiple socket instances
   if (socket && (socket.connected || socket.active)) {
-    console.log("ℹ️ Socket already connected");
+    console.log("ℹ️ Socket already initialized", getSocketDebugInfo());
     return socket;
   }
 
-  const socketBaseUrl = (import.meta.env.VITE_SOCKET_URL || "").trim() || SERVER_BASE_URL;
-  const socketPath = normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH);
+  const socketBaseUrl = SOCKET_BASE_URL;
+  const socketPath = getResolvedSocketPath();
   
-  console.log("🔌 Initializing socket connection...", { socketBaseUrl, socketPath });
+  console.log("🔌 Initializing socket connection", {
+    socketBaseUrl,
+    socketPath,
+    apiBaseUrl: API_BASE_URL,
+    serverBaseUrl: SERVER_BASE_URL,
+  });
   
   socket = io(socketBaseUrl, {
     auth: {
       token: auth.accessToken
     },
     autoConnect: true,
-    // Polling-first is more tolerant on hosted proxies; then it upgrades to websocket.
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1500,
     reconnectionDelayMax: 10000,
@@ -74,7 +89,11 @@ export const initializeSocket = () => {
 
   // Connection established
   socket.on("connect", () => {
-    console.log("✅ Socket connected successfully");
+    console.log("✅ Socket connected successfully", {
+      socketId: socket.id,
+      socketBaseUrl,
+      socketPath,
+    });
     connectionAttempts = 0;
     socketStatus = "connected";
     
@@ -84,7 +103,11 @@ export const initializeSocket = () => {
 
   // Connection lost
   socket.on("disconnect", (reason) => {
-    console.log("🔌 Socket disconnected. Reason:", reason);
+    console.log("🔌 Socket disconnected", {
+      reason,
+      socketBaseUrl,
+      socketPath,
+    });
     stopHeartbeat();
     socketStatus = "disconnected";
     
@@ -102,7 +125,14 @@ export const initializeSocket = () => {
     const now = Date.now();
     if (now - lastConnectErrorAt > 3000) {
       lastConnectErrorAt = now;
-      console.error(`❌ Socket connection error (attempt ${connectionAttempts}):`, error.message);
+      console.error("❌ Socket connection error", {
+        attempt: connectionAttempts,
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        socketBaseUrl,
+        socketPath,
+      });
     }
     
     if (error.message.includes("AUTH_")) {
@@ -115,13 +145,20 @@ export const initializeSocket = () => {
   // Reconnect attempt
   socket.on("reconnect_attempt", (attemptNumber) => {
     socketStatus = "connecting";
-    console.log(`🔄 Reconnection attempt #${attemptNumber}`);
+    console.log("🔄 Socket reconnection attempt", {
+      attempt: attemptNumber,
+      socketBaseUrl,
+      socketPath,
+    });
   });
 
   // Max reconnect attempts reached
   socket.on("reconnect_failed", () => {
     socketStatus = "error";
-    console.error("❌ Max reconnection attempts reached");
+    console.error("❌ Max socket reconnection attempts reached", {
+      socketBaseUrl,
+      socketPath,
+    });
   });
 
   // ============ PRESENCE EVENTS ============

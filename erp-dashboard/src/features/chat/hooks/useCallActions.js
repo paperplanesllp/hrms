@@ -1,4 +1,6 @@
-import { getSocket, initializeSocket, isSocketConnected } from "../../../lib/socket.js";
+import { getSocket, isSocketConnected } from "../../../lib/socket.js";
+import { getAuth } from "../../../lib/auth.js";
+import { getSocketDebugInfo } from "../../../lib/socket.js";
 import { callActions, getCallState } from "../store/callStore.js";
 
 let pendingCallStart = false;
@@ -8,54 +10,9 @@ let pendingCallStart = false;
  * clicks the voice or video call button.
  *
  * Emits `call:initiate` to the backend and immediately transitions the
- * local UI to the "calling" state so the CallScreen renders.
+ * local UI to the "trying" state so the CallScreen renders while delivery is attempted.
  */
 export function useCallActions() {
-  const waitForSocketConnection = (socket, timeoutMs = 5000) =>
-    new Promise((resolve) => {
-      if (!socket) {
-        resolve(false);
-        return;
-      }
-
-      if (socket.connected) {
-        resolve(true);
-        return;
-      }
-
-      let settled = false;
-      const cleanup = () => {
-        socket.off("connect", onConnect);
-        socket.off("connect_error", onError);
-      };
-
-      const onConnect = () => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(true);
-      };
-
-      const onError = () => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(false);
-      };
-
-      socket.once("connect", onConnect);
-      socket.once("connect_error", onError);
-
-      socket.connect();
-
-      setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(socket.connected === true);
-      }, timeoutMs);
-    });
-
   const initiateCall = async (targetUser, conversationId, callType) => {
     if (pendingCallStart) {
       return { ok: false, reason: "SELF_BUSY" };
@@ -63,21 +20,8 @@ export function useCallActions() {
 
     pendingCallStart = true;
     try {
-      let socket = getSocket();
-      if (!socket) {
-        socket = initializeSocket();
-      }
-
-      if (!socket) {
-        return { ok: false, reason: "REALTIME_UNAVAILABLE" };
-      }
-
-      const isConnected = await waitForSocketConnection(socket);
-      if (!isConnected) {
-        return { ok: false, reason: "REALTIME_UNAVAILABLE" };
-      }
-
-      if (!isSocketConnected()) {
+      const socket = getSocket();
+      if (!socket || !isSocketConnected()) {
         return { ok: false, reason: "SOCKET_DISCONNECTED" };
       }
 
@@ -89,13 +33,31 @@ export function useCallActions() {
       callActions.setCallType(callType);
       callActions.setRemoteUser(targetUser);
       callActions.setConversationId(conversationId);
-      callActions.setCallStatus("calling");
+      callActions.setCallStatus("trying");
 
-      socket.emit("call:initiate", {
-        targetUserId: targetUser._id,
-        callType,
+      const payload = {
+        receiverId: targetUser._id,
+        callerId: getAuth()?.user?._id || getAuth()?.user?.id || null,
+        startedAt: new Date().toISOString(),
         conversationId,
-      });
+        callType,
+        targetUserId: targetUser._id,
+      };
+
+      if (callType === "voice") {
+        console.log("📞 Voice call emit start", {
+          event: "voice-call:initiate",
+          receiverId: payload.receiverId,
+          callerId: payload.callerId,
+          startedAt: payload.startedAt,
+          ...getSocketDebugInfo(),
+        });
+        socket.emit("voice-call:initiate", payload);
+      } else {
+        socket.emit("call:initiate", payload);
+      }
+
+      callActions.setCallStatus("calling");
 
       return { ok: true };
     } finally {

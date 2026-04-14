@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback } from "react";
-import { getSocket } from "../../lib/socket.js";
+import { getSocket, initializeSocket, getSocketDebugInfo } from "../../lib/socket.js";
+import { getAuth } from "../../lib/auth.js";
 import { useCallStore, callActions, getCallState } from "./store/callStore.js";
 import { useWebRTC } from "./hooks/useWebRTC.js";
 import { useRingtone } from "./hooks/useRingtone.js";
@@ -10,6 +11,7 @@ import {
 import IncomingCallModal from "./IncomingCallModal.jsx";
 import CallScreen from "./CallScreen.jsx";
 import { showCallToast } from "./utils/callErrorMap.js";
+import api from "../../lib/api.js";
 
 /**
  * CallProvider wraps the chat page and manages the entire call lifecycle:
@@ -32,6 +34,50 @@ export default function CallProvider({ children }) {
   const durationRef      = useRef(null);  // interval id
   const ringTimeoutRef   = useRef(null);  // auto-miss timeout id
   const targetUserIdRef  = useRef(null);  // opposite party's userId
+
+  useEffect(() => {
+    const restoreIncomingCallFromUrl = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const incomingCallId = params.get("incomingCallId");
+      if (!incomingCallId) return;
+
+      try {
+        const response = await api.get(`/calls/${incomingCallId}/session`);
+        const session = response?.data?.call;
+        if (!session) return;
+
+        const receiverId = String(session.receiverId?._id || session.receiverId || "");
+        const auth = getAuth();
+        const localUser = String(auth?.user?._id || auth?.user?.id || "");
+
+        const isPendingStatus = ["initiating", "ringing", "accepted"].includes(String(session.status || "").toLowerCase());
+        if (response?.data?.active && isPendingStatus && receiverId && localUser && receiverId === localUser) {
+          const caller = session.caller || {};
+          const payload = {
+            callId: incomingCallId,
+            callerId: String(caller._id || session.callerId || ""),
+            callerName: caller.name || "Unknown",
+            callerImage: caller.profileImageUrl || null,
+            callType: session.callType || "voice",
+            conversationId: session.conversationId || null,
+            status: "incoming",
+          };
+
+          console.log("📲 Restored incoming call from URL", payload);
+          callActions.showIncomingCall(payload);
+          startRingtone();
+        }
+      } catch (err) {
+        console.warn("[CallProvider] Failed to restore incoming call", err?.message);
+      } finally {
+        params.delete("incomingCallId");
+        const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash || ""}`;
+        window.history.replaceState({}, "", next);
+      }
+    };
+
+    restoreIncomingCallFromUrl();
+  }, [startRingtone]);
 
   // ── Duration timer ───────────────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
@@ -57,21 +103,72 @@ export default function CallProvider({ children }) {
     targetUserIdRef.current = null;
   }, [webrtc, stopDurationTimer, stopRingtone]);
 
+  const emitRejectEvent = useCallback((socket, payload, eventCallType) => {
+    const eventName = eventCallType === "voice" ? "voice-call:rejected" : "call:reject";
+    socket.emit(eventName, payload);
+  }, []);
+
+  const emitAcceptEvent = useCallback((socket, payload, eventCallType) => {
+    const eventName = eventCallType === "voice" ? "voice-call:accepted" : "call:accept";
+    socket.emit(eventName, payload);
+  }, []);
+
+  const emitEndEvent = useCallback((socket, payload, eventCallType) => {
+    const eventName = eventCallType === "voice" ? "voice-call:ended" : "call:end";
+    socket.emit(eventName, payload);
+  }, []);
+
   // ── Socket event handlers (registered once, read store via getCallState) ──
   useEffect(() => {
-    const socket = getSocket();
+    const socket = getSocket() || initializeSocket();
     if (!socket) return;
 
     // ── call:initiated — backend acked our outbound call; store the callId ──
-    const onCallInitiated = ({ callId }) => {
+    const onCallInitiated = ({ callId, status }) => {
+      console.log("📞 Outgoing call acknowledged", {
+        event: "call:initiated",
+        callId,
+        status,
+        ...getSocketDebugInfo(),
+      });
       callActions.setCallId(callId);
+      if (status === "session_created" || status === "initiating") {
+        callActions.setCallStatus("trying");
+      }
+    };
+
+    const onVoiceCallRinging = ({ callId, status, message, delivery }) => {
+      console.log("🔔 Voice call ringing update", {
+        event: "voice-call:ringing",
+        callId,
+        status,
+        delivery,
+        message,
+        ...getSocketDebugInfo(),
+      });
+      if (String(status).toLowerCase() === "ringing") {
+        callActions.setCallStatus("ringing");
+      } else {
+        callActions.setCallStatus("trying");
+      }
     };
 
     // ── call:incoming — someone is calling us ────────────────────────────
     const onCallIncoming = (data) => {
+      console.log("📲 Incoming call event received", {
+        event: data?.eventName || "call:incoming",
+        callId: data.callId,
+        callerId: data.callerId,
+        callType: data.callType,
+        ...getSocketDebugInfo(),
+      });
+      console.log("[CallProvider] Receiver listener active for voice-call:incoming", {
+        callId: data.callId,
+        event: "voice-call:incoming",
+      });
       const { callStatus: cs } = getCallState();
       if (cs !== "idle") {
-        socket.emit("call:reject", { callId: data.callId, callerId: data.callerId });
+        emitRejectEvent(socket, { callId: data.callId, callerId: data.callerId }, data.callType);
         return;
       }
       targetUserIdRef.current = data.callerId;
@@ -97,6 +194,13 @@ export default function CallProvider({ children }) {
 
     // ── call:accepted — the person we called accepted ────────────────────
     const onCallAccepted = async ({ callId, receiverId }) => {
+      console.log("✅ Call accepted event received", {
+        event: "call:accepted",
+        callId,
+        receiverId,
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       callActions.setCallStatus("connecting");
       targetUserIdRef.current = receiverId;
 
@@ -115,7 +219,7 @@ export default function CallProvider({ children }) {
       } catch (err) {
         console.error("[CallProvider] createOffer error:", err);
         showCallToast({ title: "Call", code: "SERVER_ERROR", type: "error" });
-        socket.emit("call:end", { callId, targetUserId: receiverId });
+        emitEndEvent(socket, { callId, targetUserId: receiverId }, getCallState().callType);
         cleanup();
         callActions.resetCall();
       }
@@ -123,13 +227,25 @@ export default function CallProvider({ children }) {
 
     // ── call:reject ──────────────────────────────────────────────────────
     const onCallRejected = () => {
+      console.log("❌ Call rejected event received", {
+        event: "call:reject",
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       cleanup();
-      callActions.resetCall();
+      callActions.setCallStatus("rejected");
+      setTimeout(() => callActions.resetCall(), 600);
       showCallToast({ title: "Call", code: "CALL_REJECTED", type: "info" });
     };
 
     // ── call:end ─────────────────────────────────────────────────────────
     const onCallEnded = ({ reason }) => {
+      console.log("📴 Call ended event received", {
+        event: "call:end",
+        reason,
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
       cleanup();
@@ -142,15 +258,49 @@ export default function CallProvider({ children }) {
 
     // ── call:missed ───────────────────────────────────────────────────────
     const onCallMissed = () => {
+      console.log("⌛ Call missed event received", {
+        event: "call:missed",
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
       cleanup();
-      callActions.resetCall();
+      callActions.setCallStatus("no_answer");
+      setTimeout(() => callActions.resetCall(), 600);
       showCallToast({ title: "Call", code: "NO_ANSWER", type: "info" });
+    };
+
+    const onVoiceCallTimeout = ({ code }) => {
+      console.log("⌛ Voice call timeout event received", {
+        event: "voice-call:timeout",
+        code,
+        ...getSocketDebugInfo(),
+      });
+      onCallMissed();
+    };
+
+    const onVoiceCallFailed = ({ code, message }) => {
+      console.log("⚠️ Voice call failed event received", {
+        event: "voice-call:failed",
+        code,
+        message,
+        ...getSocketDebugInfo(),
+      });
+      cleanup();
+      callActions.setCallStatus("failed");
+      showCallToast({ title: "Call", code: code || "COULD_NOT_REACH_USER", type: "info" });
+      setTimeout(() => callActions.resetCall(), 700);
     };
 
     // ── call:busy — target user is already in another call ───────────────
     const onCallBusy = ({ code }) => {
+      console.log("🚫 Call busy event received", {
+        event: "call:busy",
+        code,
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       cleanup();
       callActions.resetCall();
       showCallToast({ title: "Call", code: code || "USER_BUSY", type: "info" });
@@ -175,7 +325,7 @@ export default function CallProvider({ children }) {
       } catch (err) {
         console.error("[CallProvider] createAnswer error:", err);
         showCallToast({ title: "Call", code: "SERVER_ERROR", type: "error" });
-        socket.emit("call:end", { callId, targetUserId: fromUserId });
+        emitEndEvent(socket, { callId, targetUserId: fromUserId }, getCallState().callType);
         cleanup();
         callActions.resetCall();
       }
@@ -201,12 +351,19 @@ export default function CallProvider({ children }) {
 
     // ── call:error ────────────────────────────────────────────────────────
     const onCallError = ({ code }) => {
+      console.log("⚠️ Call error event received", {
+        event: "call:error",
+        code,
+        callType: getCallState().callType,
+        ...getSocketDebugInfo(),
+      });
       showCallToast({ title: "Call", code: code || "SERVER_ERROR", type: "error" });
       cleanup();
       callActions.resetCall();
     };
 
     const onSocketDisconnect = () => {
+      console.log("🔌 CallProvider observed socket disconnect", getSocketDebugInfo());
       const { callStatus: currentStatus } = getCallState();
       if (currentStatus !== "idle") {
         showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
@@ -216,6 +373,7 @@ export default function CallProvider({ children }) {
     };
 
     const onSocketConnectError = () => {
+      console.log("❌ CallProvider observed socket connect error", getSocketDebugInfo());
       const { callStatus: currentStatus } = getCallState();
       if (currentStatus === "calling" || currentStatus === "connecting") {
         showCallToast({ title: "Call", code: "REALTIME_UNAVAILABLE", type: "error" });
@@ -226,8 +384,12 @@ export default function CallProvider({ children }) {
 
     socket.on("call:initiated",       onCallInitiated);
     socket.on("call:incoming",        onCallIncoming);
+    socket.on("voice-call:incoming",  onCallIncoming);
     socket.on("call:accepted",        onCallAccepted);
     socket.on("call:reject",          onCallRejected);
+    socket.on("voice-call:ringing",   onVoiceCallRinging);
+    socket.on("voice-call:timeout",   onVoiceCallTimeout);
+    socket.on("voice-call:failed",    onVoiceCallFailed);
     socket.on("call:missed",          onCallMissed);
     socket.on("call:busy",            onCallBusy);
     socket.on("call:end",             onCallEnded);
@@ -241,8 +403,12 @@ export default function CallProvider({ children }) {
     return () => {
       socket.off("call:initiated",       onCallInitiated);
       socket.off("call:incoming",        onCallIncoming);
+      socket.off("voice-call:incoming",  onCallIncoming);
       socket.off("call:accepted",        onCallAccepted);
       socket.off("call:reject",          onCallRejected);
+      socket.off("voice-call:ringing",   onVoiceCallRinging);
+      socket.off("voice-call:timeout",   onVoiceCallTimeout);
+      socket.off("voice-call:failed",    onVoiceCallFailed);
       socket.off("call:missed",          onCallMissed);
       socket.off("call:busy",            onCallBusy);
       socket.off("call:end",             onCallEnded);
@@ -255,7 +421,7 @@ export default function CallProvider({ children }) {
     };
     // Intentionally empty deps — handlers use getCallState() for fresh state
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cleanup, emitAcceptEvent, emitEndEvent, emitRejectEvent, startDurationTimer, startRingtone, stopRingtone, webrtc]);
 
   // ── Listen for mute/camera toggle events dispatched by CallScreen ────────
   useEffect(() => {
@@ -291,7 +457,7 @@ export default function CallProvider({ children }) {
     callActions.setCallStatus("connecting");
     targetUserIdRef.current = callerId;
 
-    socket.emit("call:accept", { callId, callerId });
+    emitAcceptEvent(socket, { callId, callerId }, ct);
   };
 
   // ── Reject incoming call ─────────────────────────────────────────────────
@@ -307,7 +473,13 @@ export default function CallProvider({ children }) {
     
     stopRingtone();
     
-    socket.emit("call:reject", { callId: incomingData.callId, callerId: incomingData.callerId });
+    console.log("❌ Emitting reject event", {
+      event: incomingData.callType === "voice" ? "voice-call:rejected" : "call:reject",
+      callId: incomingData.callId,
+      callerId: incomingData.callerId,
+      ...getSocketDebugInfo(),
+    });
+    emitRejectEvent(socket, { callId: incomingData.callId, callerId: incomingData.callerId }, incomingData.callType);
     callActions.resetCall();
   };
 
@@ -316,9 +488,16 @@ export default function CallProvider({ children }) {
     const socket = getSocket();
     const { callId } = getCallState();
     const targetId = targetUserIdRef.current;
+    const { callType: activeCallType } = getCallState();
 
     if (socket?.connected && callId && targetId) {
-      socket.emit("call:end", { callId, targetUserId: targetId });
+      console.log("📴 Emitting end event", {
+        event: activeCallType === "voice" ? "voice-call:ended" : "call:end",
+        callId,
+        targetUserId: targetId,
+        ...getSocketDebugInfo(),
+      });
+      emitEndEvent(socket, { callId, targetUserId: targetId }, activeCallType);
     }
     cleanup();
     callActions.resetCall();
@@ -329,9 +508,17 @@ export default function CallProvider({ children }) {
     const socket = getSocket();
     const { callId } = getCallState();
     const targetId = targetUserIdRef.current;
+    const { callType: activeCallType } = getCallState();
 
     if (socket?.connected && callId && targetId) {
-      socket.emit("call:cancel", { callId, targetUserId: targetId });
+      const eventName = activeCallType === "voice" ? "voice-call:ended" : "call:cancel";
+      console.log("📴 Emitting cancel/end event", {
+        event: eventName,
+        callId,
+        targetUserId: targetId,
+        ...getSocketDebugInfo(),
+      });
+      socket.emit(eventName, { callId, targetUserId: targetId });
     }
     cleanup();
     callActions.resetCall();
@@ -339,7 +526,7 @@ export default function CallProvider({ children }) {
 
   // ── Decide which overlay to display ─────────────────────────────────────
   const showIncomingModal = isIncoming && ["incoming", "ringing"].includes(callStatus);
-  const showCallScreen    = ["calling", "connecting", "in_call"].includes(callStatus);
+  const showCallScreen    = ["trying", "calling", "ringing", "connecting", "in_call", "failed", "rejected", "no_answer"].includes(callStatus);
 
   return (
     <>

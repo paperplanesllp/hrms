@@ -6,13 +6,18 @@ import {
   acceptCall,
   cleanupUserCallState,
   endCall,
+  failCall,
   getCallState,
+  getUserSocketSnapshot,
+  hasUserSocket,
   isUserBusy,
-  isUserOnline,
+  markCallDelivery,
   missCall,
   rejectCall,
+  setCallExpiresAt,
   startRinging,
 } from "./callManager.js";
+import { sendVoiceCallPushNotification } from "./pushNotifications.js";
 
 // In-memory timeout tracker: Map<callId, timeoutId>
 const callTimeouts = new Map();
@@ -25,7 +30,6 @@ const CALL_ERROR = {
   SERVER_ERROR: "SERVER_ERROR",
   USER_BUSY: "USER_BUSY",
   SELF_BUSY: "SELF_BUSY",
-  USER_OFFLINE: "USER_OFFLINE",
   NO_ANSWER: "NO_ANSWER",
   CALL_REJECTED: "CALL_REJECTED",
   REALTIME_UNAVAILABLE: "REALTIME_UNAVAILABLE",
@@ -36,10 +40,47 @@ const CALL_ERROR = {
   CALL_NOT_AVAILABLE: "CALL_NOT_AVAILABLE",
   CALL_PARTICIPANT_MISMATCH: "CALL_PARTICIPANT_MISMATCH",
   INVALID_CALL_PAYLOAD: "INVALID_CALL_PAYLOAD",
+  COULD_NOT_REACH_USER: "COULD_NOT_REACH_USER",
 };
 
 const emitCallError = (socket, code) => {
   socket.emit("call:error", { code });
+};
+
+const emitCallLifecycleEvent = (io, userId, eventName, payload, callType) => {
+  if (!userId) return;
+  io.to(`user_${userId}`).emit(eventName, payload);
+  if (callType === "voice") {
+    const voiceAliasMap = {
+      "call:accepted": "voice-call:accepted",
+      "call:reject": "voice-call:rejected",
+      "call:end": "voice-call:ended",
+    };
+
+    const aliasEvent = voiceAliasMap[eventName];
+    if (aliasEvent) {
+      io.to(`user_${userId}`).emit(aliasEvent, payload);
+    }
+  }
+};
+
+const emitSocketLifecycleEvent = (socket, eventName, payload, callType) => {
+  socket.emit(eventName, payload);
+  if (callType === "voice") {
+    const voiceAliasMap = {
+      "call:end": "voice-call:ended",
+    };
+
+    const aliasEvent = voiceAliasMap[eventName];
+    if (aliasEvent) {
+      socket.emit(aliasEvent, payload);
+    }
+  }
+};
+
+const emitIncomingCallEvents = (io, receiverId, payload) => {
+  io.to(`user_${receiverId}`).emit("call:incoming", payload);
+  io.to(`user_${receiverId}`).emit("voice-call:incoming", payload);
 };
 
 const getPeerUserId = (call, userId) =>
@@ -116,12 +157,15 @@ const persistCallTimelineMessage = async (callLog, senderUserId, excludeUserId =
  * Called once per socket connection from initializeSocket().
  */
 export const registerCallHandlers = (io, socket) => {
-  // ───────────────────────────────────────────────
-  // CALL:INITIATE — caller starts a call
-  // ───────────────────────────────────────────────
-  socket.on("call:initiate", async ({ targetUserId, callType, conversationId }) => {
+  const handleCallInitiate = async ({
+    targetUserId,
+    receiverId,
+    callType,
+    conversationId,
+    startedAt,
+  }) => {
     const callerId = String(socket.userId);
-    const receiverId = String(targetUserId || "");
+    const resolvedReceiverId = String(targetUserId || receiverId || "");
 
     if (pendingInitiations.has(callerId)) {
       emitCallError(socket, CALL_ERROR.SELF_BUSY);
@@ -136,7 +180,7 @@ export const registerCallHandlers = (io, socket) => {
         return;
       }
 
-      if (!receiverId || receiverId === callerId) {
+      if (!resolvedReceiverId || resolvedReceiverId === callerId) {
         emitCallError(socket, CALL_ERROR.INVALID_CALL_TARGET);
         return;
       }
@@ -146,22 +190,17 @@ export const registerCallHandlers = (io, socket) => {
         return;
       }
 
-      if (!isUserOnline(receiverId)) {
-        emitCallError(socket, CALL_ERROR.REALTIME_UNAVAILABLE);
-        return;
-      }
-
-      if (isUserBusy(receiverId)) {
+      if (isUserBusy(resolvedReceiverId)) {
         socket.emit("call:busy", { code: CALL_ERROR.USER_BUSY });
 
         const busyLog = await CallLog.create({
           caller: callerId,
-          receiver: receiverId,
+          receiver: resolvedReceiverId,
           conversationId: conversationId || undefined,
           callType,
           status: "busy",
           callStatus: "unanswered",
-          startedAt: new Date(),
+          startedAt: startedAt ? new Date(startedAt) : new Date(),
           endedAt: new Date(),
           durationSeconds: 0,
           initiatedBy: callerId,
@@ -175,20 +214,29 @@ export const registerCallHandlers = (io, socket) => {
 
       const callLog = await CallLog.create({
         caller: callerId,
-        receiver: receiverId,
+        receiver: resolvedReceiverId,
         conversationId: conversationId || undefined,
         callType,
         status: "initiated",
         callStatus: "unanswered",
-        startedAt: new Date(),
+        startedAt: startedAt ? new Date(startedAt) : new Date(),
         initiatedBy: callerId,
       });
 
       const callId = callLog._id.toString();
+      console.log("[VoiceCall] Call session created", {
+        callId,
+        callerId,
+        receiverId: resolvedReceiverId,
+        callType,
+        conversationId: conversationId || null,
+        startedAt: callLog.startedAt,
+      });
+
       const startResult = startRinging({
         callId,
         callerId,
-        receiverId,
+        receiverId: resolvedReceiverId,
         callType,
         conversationId,
       });
@@ -209,25 +257,177 @@ export const registerCallHandlers = (io, socket) => {
 
       socket.emit("call:initiated", {
         callId,
-        status: "ringing",
+        status: "session_created",
+        delivery: "trying",
       });
 
-      await CallLog.findByIdAndUpdate(callId, { status: "ringing" });
+      socket.emit("voice-call:ringing", {
+        callId,
+        receiverId: resolvedReceiverId,
+        status: "initiating",
+        message: "Trying to reach user...",
+      });
 
-      io.to(`user_${receiverId}`).emit("call:incoming", {
+      console.log("[VoiceCall] Emitting incoming call", {
+        event: callType === "voice" ? "voice-call:initiate" : "call:initiate",
+        callerId,
+        receiverId: resolvedReceiverId,
+        callId,
+        callType,
+      });
+
+      const expiresAt = new Date(Date.now() + Number(RING_TIMEOUT_MS));
+      setCallExpiresAt(callId, expiresAt);
+
+      const incomingPayload = {
         callId,
         callerId,
         callerName: socket.userName,
         callerImage: socket.userImage || null,
         callType,
         conversationId: conversationId || null,
+        startedAt: startResult.call?.startedAt || new Date(),
+        expiresAt,
         status: "incoming",
+      };
+
+      const roomName = `user_${resolvedReceiverId}`;
+      const receiverRoomSize = io.sockets.adapter.rooms.get(roomName)?.size || 0;
+      const receiverMapHasSocket = hasUserSocket(resolvedReceiverId);
+      const receiverSocketSnapshot = getUserSocketSnapshot(resolvedReceiverId);
+      const receiverHasSocket = receiverMapHasSocket || receiverRoomSize > 0;
+
+      console.log("[VoiceCall] Receiver socket lookup", {
+        callId,
+        receiverId: resolvedReceiverId,
+        normalizedReceiverId: String(resolvedReceiverId),
+        roomName,
+        receiverRoomSize,
+        receiverMapHasSocket,
+        receiverSocketSnapshot,
+        receiverHasSocket,
       });
 
-      io.to(`user_${receiverId}`).emit("notification:incoming-call", {
+      let pushResult = { attempted: false, sent: 0, reason: "NOT_ATTEMPTED", subscriptionCount: 0 };
+
+      if (receiverHasSocket) {
+        console.log("[VoiceCall] Attempting socket delivery", {
+          callId,
+          receiverId: resolvedReceiverId,
+          roomName,
+          receiverRoomSize,
+        });
+
+        emitIncomingCallEvents(io, resolvedReceiverId, incomingPayload);
+        markCallDelivery({ callId, mode: "realtime-delivered" });
+        await CallLog.findByIdAndUpdate(callId, {
+          status: "ringing",
+          failureReason: null,
+        });
+
+        console.log("[VoiceCall] Socket delivery emitted", {
+          callId,
+          receiverId: resolvedReceiverId,
+          eventNames: ["call:incoming", "voice-call:incoming"],
+          status: "realtime-delivered",
+        });
+
+        io.to(`user_${callerId}`).emit("voice-call:ringing", {
+          callId,
+          receiverId: resolvedReceiverId,
+          status: "ringing",
+          delivery: "realtime-delivered",
+          message: "Ringing...",
+        });
+      } else {
+        console.log("[VoiceCall] No active receiver socket, attempting push fallback", {
+          callId,
+          receiverId: resolvedReceiverId,
+        });
+
+        pushResult = await sendVoiceCallPushNotification({
+          receiverId: resolvedReceiverId,
+          payload: {
+            type: "voice_call",
+            callId,
+            callerId,
+            callerName: socket.userName,
+            callType,
+            conversationId: conversationId || null,
+          },
+        });
+
+        console.log("[VoiceCall] Push fallback result", {
+          callId,
+          receiverId: resolvedReceiverId,
+          pushAttempted: pushResult.attempted,
+          pushSent: pushResult.sent,
+          pushReason: pushResult.reason,
+          pushSubscriptionCount: pushResult.subscriptionCount,
+        });
+
+        if (pushResult.sent > 0) {
+          markCallDelivery({ callId, mode: "push-sent" });
+          await CallLog.findByIdAndUpdate(callId, {
+            status: "ringing",
+            failureReason: null,
+          });
+          io.to(`user_${callerId}`).emit("voice-call:ringing", {
+            callId,
+            receiverId: resolvedReceiverId,
+            status: "ringing",
+            delivery: "push-attempted",
+            message: "Trying to reach user...",
+          });
+        } else {
+          markCallDelivery({
+            callId,
+            mode: "failed",
+            failureReason: pushResult.reason || "NO_DELIVERY_CHANNEL",
+          });
+          failCall(callId, pushResult.reason || "NO_DELIVERY_CHANNEL");
+
+          await CallLog.findByIdAndUpdate(callId, {
+            status: "failed",
+            callStatus: "unanswered",
+            endedAt: new Date(),
+            endedBy: callerId,
+            failureReason: pushResult.reason || "NO_DELIVERY_CHANNEL",
+            duration: 0,
+            durationSeconds: 0,
+          });
+
+          io.to(`user_${callerId}`).emit("voice-call:failed", {
+            callId,
+            receiverId: resolvedReceiverId,
+            code: CALL_ERROR.COULD_NOT_REACH_USER,
+            message: "Couldn't reach user",
+          });
+
+          console.warn("[VoiceCall] Emitted COULD_NOT_REACH_USER", {
+            callId,
+            callerId,
+            receiverId: resolvedReceiverId,
+            reason: pushResult.reason || "NO_DELIVERY_CHANNEL",
+            receiverHasSocket,
+            pushAttempted: pushResult.attempted,
+            pushSent: pushResult.sent,
+          });
+        }
+      }
+
+      console.log("[VoiceCall] Delivery decision", {
         callId,
-        callerName: socket.userName,
-        callType,
+        callerId,
+        receiverId: resolvedReceiverId,
+        receiverHasSocket,
+        pushAttempted: pushResult.attempted,
+        pushSent: pushResult.sent,
+        pushReason: pushResult.reason,
+        finalReason:
+          receiverHasSocket || pushResult.sent > 0
+            ? "DELIVERY_IN_PROGRESS"
+            : pushResult.reason || "NO_DELIVERY_CHANNEL",
       });
 
       const timeoutId = setTimeout(async () => {
@@ -250,8 +450,10 @@ export const registerCallHandlers = (io, socket) => {
         }
 
         io.to(`user_${callerId}`).emit("call:missed", { callId, code: CALL_ERROR.NO_ANSWER });
-        io.to(`user_${receiverId}`).emit("call:missed", { callId, code: CALL_ERROR.NO_ANSWER });
-        io.to(`user_${receiverId}`).emit("notification:missed-call", {
+        io.to(`user_${resolvedReceiverId}`).emit("call:missed", { callId, code: CALL_ERROR.NO_ANSWER });
+        io.to(`user_${callerId}`).emit("voice-call:timeout", { callId, code: CALL_ERROR.NO_ANSWER });
+        io.to(`user_${resolvedReceiverId}`).emit("voice-call:timeout", { callId, code: CALL_ERROR.NO_ANSWER });
+        io.to(`user_${resolvedReceiverId}`).emit("notification:missed-call", {
           callId,
           callerName: socket.userName,
           callType,
@@ -267,13 +469,32 @@ export const registerCallHandlers = (io, socket) => {
     } finally {
       pendingInitiations.delete(callerId);
     }
-  });
+  };
 
   // ───────────────────────────────────────────────
-  // CALL:ACCEPT — receiver accepts
+  // CALL:INITIATE — caller starts a call
   // ───────────────────────────────────────────────
-  socket.on("call:accept", async ({ callId, callerId }) => {
+  socket.on("call:initiate", handleCallInitiate);
+
+  // ───────────────────────────────────────────────
+  // VOICE-CALL:INITIATE — voice call alias for the same signaling flow
+  // ───────────────────────────────────────────────
+  socket.on("voice-call:initiate", (payload = {}) =>
+    handleCallInitiate({
+      ...payload,
+      callType: "voice",
+      targetUserId: payload.targetUserId || payload.receiverId,
+    })
+  );
+
+  const handleCallAccept = async ({ callId, callerId }) => {
     try {
+      console.log("[VoiceCall] Accept received", {
+        event: "voice-call:accepted",
+        callId,
+        callerId,
+        receiverId: socket.userId,
+      });
       const managerResult = acceptCall(callId, socket.userId);
       if (!managerResult.ok) {
         emitCallError(socket, managerResult.code || CALL_ERROR.CALL_NOT_AVAILABLE);
@@ -304,18 +525,24 @@ export const registerCallHandlers = (io, socket) => {
       callLog.callStatus = "unanswered";
       await callLog.save();
 
-      io.to(`user_${call.callerId}`).emit("call:accepted", {
+      emitCallLifecycleEvent(io, call.callerId, "call:accepted", {
         callId,
         receiverId: socket.userId,
         receiverName: socket.userName,
         receiverImage: socket.userImage || null,
         status: "connecting",
-      });
+      }, call.callType);
     } catch (err) {
       console.error("call:accept error:", err.message);
       emitCallError(socket, CALL_ERROR.SERVER_ERROR);
     }
-  });
+  };
+
+  // ───────────────────────────────────────────────
+  // CALL:ACCEPT — receiver accepts
+  // ───────────────────────────────────────────────
+  socket.on("call:accept", handleCallAccept);
+  socket.on("voice-call:accepted", handleCallAccept);
 
   // ───────────────────────────────────────────────
   // CALL:CONNECTED — WebRTC connection established
@@ -334,11 +561,14 @@ export const registerCallHandlers = (io, socket) => {
     }
   });
 
-  // ───────────────────────────────────────────────
-  // CALL:REJECT — receiver rejects
-  // ───────────────────────────────────────────────
-  socket.on("call:reject", async ({ callId, callerId }) => {
+  const handleCallReject = async ({ callId, callerId }) => {
     try {
+      console.log("[VoiceCall] Reject received", {
+        event: "voice-call:rejected",
+        callId,
+        callerId,
+        receiverId: socket.userId,
+      });
       const managerResult = rejectCall(callId);
       if (!managerResult.ok) {
         emitCallError(socket, managerResult.code || CALL_ERROR.CALL_NOT_AVAILABLE);
@@ -364,24 +594,34 @@ export const registerCallHandlers = (io, socket) => {
       }
 
       const peerId = managerResult.call?.callerId || callerId;
-      io.to(`user_${peerId}`).emit("call:reject", {
+      emitCallLifecycleEvent(io, peerId, "call:reject", {
         callId,
         receiverId: socket.userId,
         receiverName: socket.userName,
         code: CALL_ERROR.CALL_REJECTED,
-      });
+      }, managerResult.call?.callType);
     } catch (err) {
       console.error("call:reject error:", err.message);
       emitCallError(socket, CALL_ERROR.SERVER_ERROR);
     }
-  });
+  };
 
   // ───────────────────────────────────────────────
-  // CALL:CANCEL — caller cancels before answer
+  // CALL:REJECT — receiver rejects
   // ───────────────────────────────────────────────
-  socket.on("call:cancel", async ({ callId, targetUserId }) => {
+  socket.on("call:reject", handleCallReject);
+  socket.on("voice-call:rejected", handleCallReject);
+
+  const handleCallCancel = async ({ callId, targetUserId }) => {
     try {
-      endCall(callId);
+      console.log("[VoiceCall] Cancel received", {
+        event: "call:cancel",
+        callId,
+        targetUserId,
+        callerId: socket.userId,
+      });
+      const managerResult = endCall(callId);
+      const call = managerResult.ok ? managerResult.call : getCallState(callId);
 
       const callLog = await CallLog.findById(callId);
       if (callLog && !["completed", "rejected", "no_answer", "cancelled"].includes(callLog.status)) {
@@ -401,23 +641,31 @@ export const registerCallHandlers = (io, socket) => {
         callTimeouts.delete(callId);
       }
 
-      io.to(`user_${targetUserId}`).emit("call:end", {
+      emitCallLifecycleEvent(io, targetUserId, "call:end", {
         callId,
         callerId: socket.userId,
         endedBy: socket.userId,
         reason: "cancelled",
-      });
+      }, callLog?.callType || call?.callType);
     } catch (err) {
       console.error("call:cancel error:", err.message);
       emitCallError(socket, CALL_ERROR.SERVER_ERROR);
     }
-  });
+  };
 
   // ───────────────────────────────────────────────
-  // CALL:END — either party ends the call
+  // CALL:CANCEL — caller cancels before answer
   // ───────────────────────────────────────────────
-  socket.on("call:end", async ({ callId, targetUserId }) => {
+  socket.on("call:cancel", handleCallCancel);
+
+  const handleCallEnd = async ({ callId, targetUserId }) => {
     try {
+      console.log("[VoiceCall] End received", {
+        event: "voice-call:ended",
+        callId,
+        targetUserId,
+        callerId: socket.userId,
+      });
       const managerResult = endCall(callId);
       const call = managerResult.ok ? managerResult.call : getCallState(callId);
 
@@ -441,19 +689,34 @@ export const registerCallHandlers = (io, socket) => {
       }
 
       const peerId = targetUserId || getPeerUserId(call, socket.userId);
-      io.to(`user_${peerId}`).emit("call:end", {
+      emitCallLifecycleEvent(io, peerId, "call:end", {
         callId,
         endedBy: socket.userId,
-      });
+      }, callLog?.callType || call?.callType);
 
-      socket.emit("call:end", {
+      emitSocketLifecycleEvent(socket, "call:end", {
         callId,
         endedBy: socket.userId,
-      });
+      }, callLog?.callType || call?.callType);
     } catch (err) {
       console.error("call:end error:", err.message);
       emitCallError(socket, CALL_ERROR.SERVER_ERROR);
     }
+  };
+
+  // ───────────────────────────────────────────────
+  // CALL:END — either party ends the call
+  // ───────────────────────────────────────────────
+  socket.on("call:end", handleCallEnd);
+
+  socket.on("voice-call:ended", async ({ callId, targetUserId }) => {
+    const activeCall = getCallState(callId);
+    if (activeCall?.status === "ringing") {
+      await handleCallCancel({ callId, targetUserId });
+      return;
+    }
+
+    await handleCallEnd({ callId, targetUserId });
   });
 
   // ───────────────────────────────────────────────
@@ -538,10 +801,10 @@ export const registerCallHandlers = (io, socket) => {
       console.error("call disconnect cleanup error:", err.message);
     }
 
-    io.to(`user_${withUserId}`).emit("call:end", {
+    emitCallLifecycleEvent(io, withUserId, "call:end", {
       callId,
       endedBy: socket.userId,
       reason: "disconnected",
-    });
+    }, cleanupResult.call?.callType);
   });
 };

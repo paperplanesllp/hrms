@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 const INITIAL_STATE = {
   // Call status lifecycle:
-  // idle → calling/incoming/ringing → connecting → in_call → ended/busy/failed
+  // idle → trying/calling/ringing/incoming → connecting → in_call → rejected/no_answer/failed
   callStatus: "idle",
   callId: null,
   callType: null,           // 'voice' | 'video'

@@ -19,13 +19,11 @@ startCronJobs();
 server.listen(env.PORT, () => {
   console.log(`✅ Server running on http://localhost:${env.PORT}`);
   console.log(`🔌 Socket.IO initialized for real-time notifications`);
+  console.log(`🔌 Socket.IO path: ${env.SOCKET_IO_PATH}`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.log(`❌ Port ${env.PORT} is already in use. Trying port ${env.PORT + 1}...`);
-    server.listen(env.PORT + 1, () => {
-      console.log(`✅ Server running on http://localhost:${env.PORT + 1}`);
-      console.log(`🔌 Socket.IO initialized for real-time notifications`);
-    });
+    console.error(`❌ Port ${env.PORT} is already in use. Stop the existing backend process and restart so Socket.IO stays on the expected port.`);
+    process.exit(1);
   } else {
     console.error('Server error:', err);
     process.exit(1);
