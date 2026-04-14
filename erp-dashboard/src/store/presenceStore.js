@@ -25,23 +25,34 @@ export const usePresenceStore = create((set, get) => ({
    * Initialize presence store with user list from API
    */
   initializeUsers: (users) => {
+    const existingUsers = get().users;
     const presenceMap = {};
-    
+
     users.forEach(user => {
+      const existing = existingUsers[user._id];
       presenceMap[user._id] = {
         _id: user._id,
         name: user.name,
         email: user.email,
         profileImageUrl: user.profileImageUrl,
-        isOnline: user.isOnline || false,
-        lastSeen: user.lastSeen ? new Date(user.lastSeen) : null,
-        lastActivityAt: user.lastActivityAt ? new Date(user.lastActivityAt) : null,
+        // Preserve socket-driven truth if already available.
+        isOnline: (existing?.isOnline ?? user.isOnline) || false,
+        lastSeen: existing?.lastSeen ?? (user.lastSeen ? new Date(user.lastSeen) : null),
+        lastActivityAt: existing?.lastActivityAt ?? (user.lastActivityAt ? new Date(user.lastActivityAt) : null),
         lastSeenLocally: new Date(),
-        connectionTimestamp: null
+        connectionTimestamp: existing?.isOnline ? (existing?.connectionTimestamp || new Date()) : null
       };
     });
 
-    set({ users: presenceMap, lastUpdateTime: new Date() });
+    // Keep any user records already inserted by realtime events.
+    Object.entries(existingUsers).forEach(([uid, record]) => {
+      if (!presenceMap[uid]) {
+        presenceMap[uid] = record;
+      }
+    });
+
+    const onlineCount = Object.values(presenceMap).filter(u => u.isOnline).length;
+    set({ users: presenceMap, onlineCount, lastUpdateTime: new Date() });
   },
 
   /**
@@ -51,8 +62,17 @@ export const usePresenceStore = create((set, get) => ({
     const state = get();
     const updatedUsers = { ...state.users };
 
-    // First mark everyone using cached data as potentially offline
-    // (don't reset — just overlay online users)
+    // Make presence:init authoritative: reset to offline first.
+    Object.keys(updatedUsers).forEach(uid => {
+      const prev = updatedUsers[uid];
+      updatedUsers[uid] = {
+        ...prev,
+        isOnline: false,
+        connectionTimestamp: null,
+        lastSeen: prev?.lastSeen || (prev?.isOnline ? new Date() : prev?.lastSeen)
+      };
+    });
+
     onlineUsers.forEach(onlineUser => {
       const uid = onlineUser.userId;
       if (updatedUsers[uid]) {
@@ -79,7 +99,8 @@ export const usePresenceStore = create((set, get) => ({
       }
     });
 
-    set({ users: updatedUsers, lastUpdateTime: new Date() });
+    const onlineCount = Object.values(updatedUsers).filter(u => u.isOnline).length;
+    set({ users: updatedUsers, onlineCount, lastUpdateTime: new Date() });
   },
 
   // ========== PRESENCE UPDATES (from socket) ==========
@@ -120,7 +141,8 @@ export const usePresenceStore = create((set, get) => ({
       };
     }
 
-    set({ users: updatedUsers, lastUpdateTime: new Date() });
+    const onlineCount = Object.values(updatedUsers).filter(u => u.isOnline).length;
+    set({ users: updatedUsers, onlineCount, lastUpdateTime: new Date() });
   },
 
   // ========== TYPING ==========

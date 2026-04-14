@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 const INITIAL_STATE = {
   // Call status lifecycle:
-  // idle → calling (outbound) / ringing (inbound) → connecting → connected → ended
+  // idle → calling/incoming/ringing → connecting → in_call → ended/busy/failed
   callStatus: "idle",
   callId: null,
   callType: null,           // 'voice' | 'video'
@@ -62,7 +62,7 @@ export const callActions = {
     setState({
       isIncomingCall: true,
       incomingCallData: data,
-      callStatus: "ringing",
+      callStatus: "incoming",
     }),
 
   resetCall: () => {

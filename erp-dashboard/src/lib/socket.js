@@ -8,6 +8,8 @@ let connectionAttempts = 0;
 let heartbeatInterval = null;
 let activityThrottleTimer = null;
 let cachedOnlineUsers = [];
+let socketStatus = "idle";
+let lastConnectErrorAt = 0;
 
 const HEARTBEAT_INTERVAL = 25000; // 25 seconds
 const ACTIVITY_THROTTLE = 10000; // 10 seconds
@@ -42,7 +44,7 @@ export const initializeSocket = () => {
   }
 
   // Prevent multiple socket instances
-  if (socket?.connected) {
+  if (socket && (socket.connected || socket.active)) {
     console.log("ℹ️ Socket already connected");
     return socket;
   }
@@ -60,18 +62,21 @@ export const initializeSocket = () => {
     // Polling-first is more tolerant on hosted proxies; then it upgrades to websocket.
     transports: ['polling', 'websocket'],
     reconnection: true,
-    reconnectionDelay: 2000,
+    reconnectionDelay: 1500,
     reconnectionDelayMax: 10000,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: 4,
     timeout: 20000,
     path: socketPath,
     withCredentials: true
   });
 
+  socketStatus = "connecting";
+
   // Connection established
   socket.on("connect", () => {
     console.log("✅ Socket connected successfully");
     connectionAttempts = 0;
+    socketStatus = "connected";
     
     // Start heartbeat to keep presence alive
     startHeartbeat();
@@ -81,8 +86,10 @@ export const initializeSocket = () => {
   socket.on("disconnect", (reason) => {
     console.log("🔌 Socket disconnected. Reason:", reason);
     stopHeartbeat();
+    socketStatus = "disconnected";
     
     if (reason === "io server disconnect") {
+      socketStatus = "connecting";
       socket.connect();
     }
   });
@@ -90,9 +97,15 @@ export const initializeSocket = () => {
   // Connection error
   socket.on("connect_error", (error) => {
     connectionAttempts++;
-    console.error(`❌ Socket connection error (attempt ${connectionAttempts}):`, error.message);
+    socketStatus = "error";
+
+    const now = Date.now();
+    if (now - lastConnectErrorAt > 3000) {
+      lastConnectErrorAt = now;
+      console.error(`❌ Socket connection error (attempt ${connectionAttempts}):`, error.message);
+    }
     
-    if (error.message.includes("Authentication") || error.message.includes("Invalid token")) {
+    if (error.message.includes("AUTH_")) {
       console.error("   💡 Authentication failed - stopping reconnection attempts");
       socket.disconnect();
       return;
@@ -101,11 +114,13 @@ export const initializeSocket = () => {
 
   // Reconnect attempt
   socket.on("reconnect_attempt", (attemptNumber) => {
+    socketStatus = "connecting";
     console.log(`🔄 Reconnection attempt #${attemptNumber}`);
   });
 
   // Max reconnect attempts reached
   socket.on("reconnect_failed", () => {
+    socketStatus = "error";
     console.error("❌ Max reconnection attempts reached");
   });
 
@@ -185,12 +200,17 @@ export const getCachedPresenceInit = () => cachedOnlineUsers;
 
 export const getSocket = () => socket;
 
+export const isSocketConnected = () => Boolean(socket && socket.connected);
+
+export const getSocketStatus = () => socketStatus;
+
 export const disconnectSocket = () => {
   stopHeartbeat();
   if (socket) {
     socket.disconnect();
     socket = null;
   }
+  socketStatus = "idle";
 };
 
 // Notification handlers
@@ -234,6 +254,8 @@ export const setupNotificationHandlers = (notificationStore = null) => {
 export default {
   initializeSocket,
   getSocket,
+  isSocketConnected,
+  getSocketStatus,
   disconnectSocket,
   setupNotificationHandlers,
   triggerUserActivity,

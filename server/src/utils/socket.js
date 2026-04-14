@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { corsOptions } from "../config/cors.js";
 import { User } from "../modules/users/User.model.js";
 import presenceManager from "./presenceManager.js";
+import { registerUserSocket, unregisterUserSocket } from "./callManager.js";
 
 let io;
 
@@ -14,6 +15,10 @@ const normalizeSocketPath = (value) => {
 };
 
 export const initializeSocket = (server) => {
+  if (io) {
+    return io;
+  }
+
   io = new Server(server, {
     cors: {
       origin: corsOptions.origin,
@@ -34,7 +39,7 @@ export const initializeSocket = (server) => {
       
       if (!token) {
         console.error("❌ Socket auth failed: Missing token");
-        return next(new Error("Authentication error: Missing token"));
+        return next(new Error("AUTH_REQUIRED"));
       }
 
       let decoded;
@@ -42,14 +47,14 @@ export const initializeSocket = (server) => {
         decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
       } catch (err) {
         console.error("❌ Socket auth failed: Invalid token -", err.message);
-        return next(new Error("Authentication error: Invalid token"));
+        return next(new Error("AUTH_INVALID"));
       }
 
       const user = await User.findById(decoded.id).select("-passwordHash -refreshTokenHash");
       
       if (!user) {
         console.error("❌ Socket auth failed: User not found -", decoded.id);
-        return next(new Error("Authentication error: User not found"));
+        return next(new Error("AUTH_USER_NOT_FOUND"));
       }
 
       socket.userId = user._id.toString();
@@ -62,7 +67,7 @@ export const initializeSocket = (server) => {
       next();
     } catch (err) {
       console.error("❌ Socket auth error:", err.message);
-      next(new Error("Authentication error"));
+      next(new Error("AUTH_ERROR"));
     }
   });
 
@@ -83,6 +88,8 @@ export const initializeSocket = (server) => {
         role: socket.userRole
       });
 
+      registerUserSocket(socket.userId, socket.id);
+
       // Update user in database
       await User.findByIdAndUpdate(socket.userId, {
         isOnline: true,
@@ -100,6 +107,13 @@ export const initializeSocket = (server) => {
           userEmail: socket.userEmail,
           userImage: socket.userImage,
           statusChangedAt: new Date()
+        });
+
+        io.emit("user:online", {
+          userId: socket.userId,
+          userName: socket.userName,
+          userEmail: socket.userEmail,
+          at: new Date().toISOString(),
         });
       }
 
@@ -275,6 +289,8 @@ export const initializeSocket = (server) => {
         if (!userId) return;
 
         console.log(`🔌 Socket disconnected for user ${userName}: ${socket.id}`);
+
+        unregisterUserSocket(userId, socket.id);
         
         // Remove only this socket from the user's active set
         const stillOnline = presenceManager.removeConnection(userId, socket.id);
@@ -305,6 +321,12 @@ export const initializeSocket = (server) => {
           lastActivityAt: now,
           userName,
           statusChangedAt: now
+        });
+
+        io.emit("user:offline", {
+          userId,
+          userName,
+          at: now.toISOString(),
         });
       });
 

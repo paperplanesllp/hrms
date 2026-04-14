@@ -207,7 +207,7 @@ export function MessageBubble({
             {/* ── Audio ── */}
             {isAudio && (
               <div className="px-2.5 py-2">
-                <AudioPlayer src={msg.fileUrl} isSender={isSent} />
+                <AudioPlayer src={msg.fileUrl} isSender={isSent} audioId={msg._id || msg.fileUrl} />
                 <MetaRow timeStr={timeStr} isSent={isSent} status={msg.status} isPending={isPending} />
               </div>
             )}

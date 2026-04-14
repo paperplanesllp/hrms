@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePresenceStore } from '../store/presenceStore.js';
 import { getDerivedPresenceStatus, getAvatarDotStyle, formatExactTimestamp } from '../lib/presenceUtils.js';
+
+const PRESENCE_TICK_MS = 30000;
 
 /**
  * Hook to get real-time presence data for a single user.
@@ -10,44 +12,48 @@ import { getDerivedPresenceStatus, getAvatarDotStyle, formatExactTimestamp } fro
  * @returns {{ isOnline, isTyping, lastActivityAt, lastSeen, status, label, dotStyle, tooltip }}
  */
 export const useUserPresence = (userId) => {
+  const [, setTick] = useState(0);
   const userData = usePresenceStore(s => s.users[userId]);
   const isTyping = usePresenceStore(s => {
     const entry = s.typingUsers[userId];
     return entry ? entry.expiresAt > Date.now() : false;
   });
 
-  return useMemo(() => {
-    const data = userData
-      ? { ...userData, isTyping }
-      : { isOnline: false, lastSeen: null, lastActivityAt: null, isTyping: false };
+  useEffect(() => {
+    const timer = setInterval(() => setTick((value) => value + 1), PRESENCE_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
 
-    const presence = getDerivedPresenceStatus(data);
-    const dotStyle = getAvatarDotStyle(presence.status);
+  const data = userData
+    ? { ...userData, isTyping }
+    : { isOnline: false, lastSeen: null, lastActivityAt: null, isTyping: false };
 
-    const rawDate = presence.status === 'offline' ? data?.lastSeen
-      : presence.status === 'away' ? data?.lastActivityAt
-      : null;
+  const presence = getDerivedPresenceStatus(data);
+  const dotStyle = getAvatarDotStyle(presence.status);
 
-    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : presence.tooltip;
+  const rawDate = presence.status === 'offline' ? data?.lastSeen
+    : presence.status === 'away' ? data?.lastActivityAt
+    : null;
 
-    let label = presence.label;
-    if (presence.status === 'offline' && presence.lastSeen && presence.lastSeen !== 'never') {
-      label = `Last seen ${presence.lastSeen}`;
-    }
+  const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : presence.tooltip;
 
-    return {
-      isOnline: data.isOnline,
-      isTyping,
-      lastActivityAt: data.lastActivityAt,
-      lastSeen: data.lastSeen,
-      status: presence.status,
-      label,
-      dotBg: dotStyle.bg,
-      dotRing: dotStyle.ring,
-      dotPulse: dotStyle.pulse,
-      tooltip
-    };
-  }, [userData, isTyping]);
+  let label = presence.label;
+  if (presence.status === 'offline' && presence.lastSeen && presence.lastSeen !== 'never') {
+    label = `Last seen ${presence.lastSeen}`;
+  }
+
+  return {
+    isOnline: data.isOnline,
+    isTyping,
+    lastActivityAt: data.lastActivityAt,
+    lastSeen: data.lastSeen,
+    status: presence.status,
+    label,
+    dotBg: dotStyle.bg,
+    dotRing: dotStyle.ring,
+    dotPulse: dotStyle.pulse,
+    tooltip
+  };
 };
 
 /**

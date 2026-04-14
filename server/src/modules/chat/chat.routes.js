@@ -9,19 +9,37 @@ const router = express.Router();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
-    const prefix = file.mimetype.startsWith('image/') ? 'image' : 'voice';
+    const prefix = file.mimetype.startsWith('image/')
+      ? 'image'
+      : file.mimetype.startsWith('audio/')
+      ? 'voice'
+      : 'file';
     cb(null, `${prefix}-${Date.now()}${path.extname(file.originalname)}`);
   }
 });
+
+const allowedDocumentMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+]);
 
 const upload = multer({ 
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('audio/')) {
+    if (
+      file.mimetype.startsWith('image/') ||
+      file.mimetype.startsWith('audio/') ||
+      allowedDocumentMimeTypes.has(file.mimetype)
+    ) {
       cb(null, true);
     } else {
-      cb(new Error('Only image and audio files are allowed'));
+      cb(new Error('Unsupported file type. Please use image, audio, PDF, DOC/DOCX, XLS/XLSX, TXT, or CSV.'));
     }
   }
 });
@@ -44,7 +62,7 @@ router.post("/:chatId/leave", chatController.leaveGroup);
 
 // Message operations
 router.get("/:chatId/messages", chatController.getMessages);
-router.post("/:chatId/messages", upload.fields([{ name: 'voice', maxCount: 1 }, { name: 'image', maxCount: 1 }]), chatController.postMessage);
+router.post("/:chatId/messages", upload.fields([{ name: 'voice', maxCount: 1 }, { name: 'image', maxCount: 1 }, { name: 'attachment', maxCount: 1 }]), chatController.postMessage);
 router.put("/:chatId/read", chatController.markRead);
 router.put("/messages/:messageId", chatController.updateMessage);
 router.delete("/messages/:messageId", chatController.deleteMessage);

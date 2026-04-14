@@ -3,16 +3,13 @@ import { getSocket } from "../../lib/socket.js";
 import { useCallStore, callActions, getCallState } from "./store/callStore.js";
 import { useWebRTC } from "./hooks/useWebRTC.js";
 import { useRingtone } from "./hooks/useRingtone.js";
-import { toast } from "../../store/toastStore.js";
 import {
   requestNotificationPermission,
   showIncomingCallNotification,
-  showMissedCallNotification,
 } from "./utils/browserNotifications.js";
 import IncomingCallModal from "./IncomingCallModal.jsx";
 import CallScreen from "./CallScreen.jsx";
-
-const RING_TIMEOUT_MS = 45_000; // auto-miss after 45 s
+import { showCallToast } from "./utils/callErrorMap.js";
 
 /**
  * CallProvider wraps the chat page and manages the entire call lifecycle:
@@ -74,7 +71,6 @@ export default function CallProvider({ children }) {
     const onCallIncoming = (data) => {
       const { callStatus: cs } = getCallState();
       if (cs !== "idle") {
-        // Already in a call → auto-reject with busy
         socket.emit("call:reject", { callId: data.callId, callerId: data.callerId });
         return;
       }
@@ -118,56 +114,46 @@ export default function CallProvider({ children }) {
         socket.emit("webrtc:offer", { targetUserId: receiverId, offer, callId });
       } catch (err) {
         console.error("[CallProvider] createOffer error:", err);
-        toast({ title: "Call failed", message: "Could not access camera/microphone.", type: "error" });
+        showCallToast({ title: "Call", code: "SERVER_ERROR", type: "error" });
         socket.emit("call:end", { callId, targetUserId: receiverId });
         cleanup();
         callActions.resetCall();
       }
     };
 
-    // ── call:rejected ────────────────────────────────────────────────────
-    const onCallRejected = ({ receiverName }) => {
+    // ── call:reject ──────────────────────────────────────────────────────
+    const onCallRejected = () => {
       cleanup();
       callActions.resetCall();
-      toast({ title: "Call declined", message: `${receiverName || "User"} declined your call.`, type: "info" });
+      showCallToast({ title: "Call", code: "CALL_REJECTED", type: "info" });
     };
 
-    // ── call:cancelled — caller withdrew before we answered ──────────────
-    const onCallCancelled = () => {
+    // ── call:end ─────────────────────────────────────────────────────────
+    const onCallEnded = ({ reason }) => {
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
       cleanup();
       callActions.resetCall();
-      toast({ title: "Call cancelled", message: "The caller ended the call.", type: "info" });
+
+      if (reason === "disconnected") {
+        showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+      }
     };
 
-    // ── call:timeout — call timed out on receiver side (no answer) ─────────
-    const onCallTimeout = () => {
+    // ── call:missed ───────────────────────────────────────────────────────
+    const onCallMissed = () => {
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
       cleanup();
       callActions.resetCall();
-      // No toast needed — the call log will show this
+      showCallToast({ title: "Call", code: "NO_ANSWER", type: "info" });
     };
 
     // ── call:busy — target user is already in another call ───────────────
-    const onCallBusy = () => {
+    const onCallBusy = ({ code }) => {
       cleanup();
       callActions.resetCall();
-      toast({ title: "User busy", message: "The user is already in another call.", type: "info" });
-    };
-
-    // ── call:ended — other party ended the call ───────────────────────────
-    const onCallEnded = () => {
-      cleanup();
-      callActions.resetCall();
-    };
-
-    // ── call:missed_notify — our outbound call was not answered ──────────
-    const onCallMissedNotify = () => {
-      cleanup();
-      callActions.resetCall();
-      toast({ title: "No answer", message: "The call was not answered.", type: "info" });
+      showCallToast({ title: "Call", code: code || "USER_BUSY", type: "info" });
     };
 
     // ── webrtc:offer — received by the answering side ────────────────────
@@ -184,11 +170,11 @@ export default function CallProvider({ children }) {
         webrtc.addTracks(stream);
         const answer = await webrtc.createAnswer(offer);
         socket.emit("webrtc:answer", { targetUserId: fromUserId, answer, callId });
-        callActions.setCallStatus("connected");
+        callActions.setCallStatus("in_call");
         startDurationTimer();
       } catch (err) {
         console.error("[CallProvider] createAnswer error:", err);
-        toast({ title: "Call failed", message: "Could not access camera/microphone.", type: "error" });
+        showCallToast({ title: "Call", code: "SERVER_ERROR", type: "error" });
         socket.emit("call:end", { callId, targetUserId: fromUserId });
         cleanup();
         callActions.resetCall();
@@ -198,7 +184,7 @@ export default function CallProvider({ children }) {
     // ── webrtc:answer — received by the calling side ─────────────────────
     const onWebRTCAnswer = async ({ answer }) => {
       await webrtc.setRemoteAnswer(answer);
-      callActions.setCallStatus("connected");
+      callActions.setCallStatus("in_call");
       startDurationTimer();
       
       // Emit to backend that connection is established
@@ -214,40 +200,58 @@ export default function CallProvider({ children }) {
     };
 
     // ── call:error ────────────────────────────────────────────────────────
-    const onCallError = ({ message }) => {
-      toast({ title: "Call error", message: message || "An error occurred.", type: "error" });
+    const onCallError = ({ code }) => {
+      showCallToast({ title: "Call", code: code || "SERVER_ERROR", type: "error" });
       cleanup();
       callActions.resetCall();
+    };
+
+    const onSocketDisconnect = () => {
+      const { callStatus: currentStatus } = getCallState();
+      if (currentStatus !== "idle") {
+        showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+        cleanup();
+        callActions.resetCall();
+      }
+    };
+
+    const onSocketConnectError = () => {
+      const { callStatus: currentStatus } = getCallState();
+      if (currentStatus === "calling" || currentStatus === "connecting") {
+        showCallToast({ title: "Call", code: "REALTIME_UNAVAILABLE", type: "error" });
+        cleanup();
+        callActions.resetCall();
+      }
     };
 
     socket.on("call:initiated",       onCallInitiated);
     socket.on("call:incoming",        onCallIncoming);
     socket.on("call:accepted",        onCallAccepted);
-    socket.on("call:rejected",        onCallRejected);
-    socket.on("call:cancelled",       onCallCancelled);
-    socket.on("call:timeout",         onCallTimeout);
+    socket.on("call:reject",          onCallRejected);
+    socket.on("call:missed",          onCallMissed);
     socket.on("call:busy",            onCallBusy);
-    socket.on("call:ended",           onCallEnded);
-    socket.on("call:missed_notify",   onCallMissedNotify);
+    socket.on("call:end",             onCallEnded);
     socket.on("webrtc:offer",         onWebRTCOffer);
     socket.on("webrtc:answer",        onWebRTCAnswer);
     socket.on("webrtc:ice-candidate", onIceCandidate);
     socket.on("call:error",           onCallError);
+    socket.on("disconnect",           onSocketDisconnect);
+    socket.on("connect_error",        onSocketConnectError);
 
     return () => {
       socket.off("call:initiated",       onCallInitiated);
       socket.off("call:incoming",        onCallIncoming);
       socket.off("call:accepted",        onCallAccepted);
-      socket.off("call:rejected",        onCallRejected);
-      socket.off("call:cancelled",       onCallCancelled);
-      socket.off("call:timeout",         onCallTimeout);
+      socket.off("call:reject",          onCallRejected);
+      socket.off("call:missed",          onCallMissed);
       socket.off("call:busy",            onCallBusy);
-      socket.off("call:ended",           onCallEnded);
-      socket.off("call:missed_notify",   onCallMissedNotify);
+      socket.off("call:end",             onCallEnded);
       socket.off("webrtc:offer",         onWebRTCOffer);
       socket.off("webrtc:answer",        onWebRTCAnswer);
       socket.off("webrtc:ice-candidate", onIceCandidate);
       socket.off("call:error",           onCallError);
+      socket.off("disconnect",           onSocketDisconnect);
+      socket.off("connect_error",        onSocketConnectError);
     };
     // Intentionally empty deps — handlers use getCallState() for fresh state
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,6 +274,10 @@ export default function CallProvider({ children }) {
   const handleAcceptCall = () => {
     if (!incomingData) return;
     const socket = getSocket();
+    if (!socket?.connected) {
+      showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+      return;
+    }
     clearTimeout(ringTimeoutRef.current);
     ringTimeoutRef.current = null;
     
@@ -290,6 +298,10 @@ export default function CallProvider({ children }) {
   const handleRejectCall = () => {
     if (!incomingData) return;
     const socket = getSocket();
+    if (!socket?.connected) {
+      showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
+      return;
+    }
     clearTimeout(ringTimeoutRef.current);
     ringTimeoutRef.current = null;
     
@@ -305,7 +317,7 @@ export default function CallProvider({ children }) {
     const { callId } = getCallState();
     const targetId = targetUserIdRef.current;
 
-    if (callId && targetId) {
+    if (socket?.connected && callId && targetId) {
       socket.emit("call:end", { callId, targetUserId: targetId });
     }
     cleanup();
@@ -318,7 +330,7 @@ export default function CallProvider({ children }) {
     const { callId } = getCallState();
     const targetId = targetUserIdRef.current;
 
-    if (callId && targetId) {
+    if (socket?.connected && callId && targetId) {
       socket.emit("call:cancel", { callId, targetUserId: targetId });
     }
     cleanup();
@@ -326,8 +338,8 @@ export default function CallProvider({ children }) {
   };
 
   // ── Decide which overlay to display ─────────────────────────────────────
-  const showIncomingModal = isIncoming && callStatus === "ringing";
-  const showCallScreen    = ["calling", "connecting", "connected"].includes(callStatus);
+  const showIncomingModal = isIncoming && ["incoming", "ringing"].includes(callStatus);
+  const showCallScreen    = ["calling", "connecting", "in_call"].includes(callStatus);
 
   return (
     <>

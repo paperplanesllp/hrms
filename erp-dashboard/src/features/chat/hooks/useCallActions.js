@@ -1,5 +1,7 @@
-import { getSocket, initializeSocket } from "../../../lib/socket.js";
+import { getSocket, initializeSocket, isSocketConnected } from "../../../lib/socket.js";
 import { callActions, getCallState } from "../store/callStore.js";
+
+let pendingCallStart = false;
 
 /**
  * Returns `initiateCall` — the function ChatHeader calls when the user
@@ -55,33 +57,50 @@ export function useCallActions() {
     });
 
   const initiateCall = async (targetUser, conversationId, callType) => {
-    let socket = getSocket();
-    if (!socket) {
-      socket = initializeSocket();
+    if (pendingCallStart) {
+      return { ok: false, reason: "SELF_BUSY" };
     }
 
-    const isConnected = await waitForSocketConnection(socket);
-    if (!isConnected) {
-      return { ok: false, reason: "offline" };
+    pendingCallStart = true;
+    try {
+      let socket = getSocket();
+      if (!socket) {
+        socket = initializeSocket();
+      }
+
+      if (!socket) {
+        return { ok: false, reason: "REALTIME_UNAVAILABLE" };
+      }
+
+      const isConnected = await waitForSocketConnection(socket);
+      if (!isConnected) {
+        return { ok: false, reason: "REALTIME_UNAVAILABLE" };
+      }
+
+      if (!isSocketConnected()) {
+        return { ok: false, reason: "SOCKET_DISCONNECTED" };
+      }
+
+      const { callStatus } = getCallState();
+      if (callStatus !== "idle") {
+        return { ok: false, reason: "SELF_BUSY" };
+      }
+
+      callActions.setCallType(callType);
+      callActions.setRemoteUser(targetUser);
+      callActions.setConversationId(conversationId);
+      callActions.setCallStatus("calling");
+
+      socket.emit("call:initiate", {
+        targetUserId: targetUser._id,
+        callType,
+        conversationId,
+      });
+
+      return { ok: true };
+    } finally {
+      pendingCallStart = false;
     }
-
-    const { callStatus } = getCallState();
-    if (callStatus !== "idle") {
-      return { ok: false, reason: "busy" };
-    }
-
-    callActions.setCallType(callType);
-    callActions.setRemoteUser(targetUser);
-    callActions.setConversationId(conversationId);
-    callActions.setCallStatus("calling");
-
-    socket.emit("call:initiate", {
-      targetUserId: targetUser._id,
-      callType,
-      conversationId,
-    });
-
-    return { ok: true };
   };
 
   return { initiateCall };

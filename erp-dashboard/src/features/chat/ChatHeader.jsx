@@ -7,7 +7,8 @@ import { useUserPresence } from "../../hooks/usePresence.js";
 import { getInitials } from "./chatUtils.js";
 import { useCallActions } from "./hooks/useCallActions.js";
 import { useCallStore } from "./store/callStore.js";
-import { toast } from "../../store/toastStore.js";
+import { isSocketConnected } from "../../lib/socket.js";
+import { showCallToast } from "./utils/callErrorMap.js";
 
 function PresenceStatus({ userId, isGroup, participantCount }) {
   const presence = useUserPresence(userId);
@@ -20,14 +21,29 @@ function PresenceStatus({ userId, isGroup, participantCount }) {
     );
   }
 
-  const statusColor =
-    presence.status === "offline" || presence.status === "unknown"
-      ? "bg-slate-400"
-      : "bg-emerald-500";
+  const isOnline = presence.isOnline === true;
+  const statusColor = isOnline ? "bg-emerald-500" : "bg-slate-400";
 
   return (
     <div className="flex items-center gap-1.5" title={presence.tooltip || presence.label}>
-      <span className={`w-1.5 h-1.5 rounded-full ${statusColor}`} />
+      <span
+        className={`relative inline-flex h-2 w-2 rounded-full transition-all duration-300 ${statusColor} ${
+          isOnline ? "shadow-[0_0_0_3px_rgba(16,185,129,0.16)]" : "shadow-none"
+        }`}
+      >
+        <span
+          className={`absolute -inset-1 rounded-full bg-emerald-400/35 transition-opacity duration-300 ${
+            isOnline ? "opacity-100 animate-pulse" : "opacity-0"
+          }`}
+        />
+      </span>
+      <span
+        className={`overflow-hidden text-[10px] font-semibold uppercase tracking-[0.06em] text-emerald-600 dark:text-emerald-400 transition-all duration-300 ${
+          isOnline ? "max-w-8 opacity-100" : "max-w-0 opacity-0"
+        }`}
+      >
+        Live
+      </span>
       <span className="text-xs text-slate-500 dark:text-slate-400">
         {presence.label}
       </span>
@@ -82,10 +98,14 @@ export default function ChatHeader({
     ? chat.participants?.find((p) => p._id !== userId)
     : null;
   const displayName = chat.isGroupChat ? chat.name : other?.name || "Unknown";
+  const otherPresence = useUserPresence(other?._id);
 
   const { initiateCall } = useCallActions();
   const callStatus = useCallStore((s) => s.callStatus);
   const callBusy = callStatus !== "idle";
+  const realtimeReady = isSocketConnected();
+  const targetOnline = chat.isGroupChat ? false : otherPresence.isOnline === true;
+  const callDisabled = callBusy || chat.isGroupChat || !realtimeReady || !targetOnline;
   const isMuted = Boolean(chat.isMuted);
   const isPinned = Boolean(chat.isPinned);
   const isArchived = Boolean(chat.isArchived);
@@ -106,18 +126,18 @@ export default function ChatHeader({
   }, [showMenu]);
 
   const handleVoiceCall = async () => {
-    if (callBusy || !other || chat.isGroupChat) return;
+    if (callDisabled || !other) return;
     const result = await initiateCall(other, chat._id, "voice");
-    if (!result?.ok && result?.reason === "offline") {
-      toast({ title: "Voice calling is not available right now", type: "info" });
+    if (!result?.ok) {
+      showCallToast({ title: "Call", code: result?.reason || "SERVER_ERROR", type: "info" });
     }
   };
 
   const handleVideoCall = async () => {
-    if (callBusy || !other || chat.isGroupChat) return;
+    if (callDisabled || !other) return;
     const result = await initiateCall(other, chat._id, "video");
-    if (!result?.ok && result?.reason === "offline") {
-      toast({ title: "Video calling is not available right now", type: "info" });
+    if (!result?.ok) {
+      showCallToast({ title: "Call", code: result?.reason || "SERVER_ERROR", type: "info" });
     }
   };
 
@@ -198,12 +218,16 @@ export default function ChatHeader({
       <div className="flex items-center gap-1 flex-shrink-0">
         <button
           onClick={handleVoiceCall}
-          disabled={callBusy || chat.isGroupChat}
+          disabled={callDisabled}
           title={
             chat.isGroupChat
               ? "Group voice calls not supported"
               : callBusy
               ? "Already in a call"
+              : !realtimeReady
+              ? "Realtime server unavailable"
+              : !targetOnline
+              ? "User is offline"
               : "Voice call"
           }
           className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -213,12 +237,16 @@ export default function ChatHeader({
         </button>
         <button
           onClick={handleVideoCall}
-          disabled={callBusy || chat.isGroupChat}
+          disabled={callDisabled}
           title={
             chat.isGroupChat
               ? "Group video calls not supported"
               : callBusy
               ? "Already in a call"
+              : !realtimeReady
+              ? "Realtime server unavailable"
+              : !targetOnline
+              ? "User is offline"
               : "Video call"
           }
           className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

@@ -64,8 +64,8 @@ export const postMessage = asyncHandler(async (req, res) => {
   const { content } = req.body;
   let fileData = null;
   
-  // Handle both voice and image files
-  const file = req.files?.voice?.[0] || req.files?.image?.[0] || req.file;
+  // Handle voice, image, and document attachments
+  const file = req.files?.voice?.[0] || req.files?.image?.[0] || req.files?.attachment?.[0] || req.file;
   
   if (file) {
     let mediaUrl = `/uploads/${file.filename}`;
@@ -88,7 +88,15 @@ export const postMessage = asyncHandler(async (req, res) => {
     };
   }
   
-  const message = await chatService.sendMessage(req.params.chatId, req.user.id, content || (file?.mimetype.startsWith('image/') ? "📷 Image" : "🎤 Voice message"), fileData);
+  const defaultContent = file?.mimetype?.startsWith('image/')
+    ? "📷 Image"
+    : file?.mimetype?.startsWith('audio/')
+    ? "🎤 Voice message"
+    : file?.originalname
+    ? `📎 ${file.originalname}`
+    : "📎 Attachment";
+
+  const message = await chatService.sendMessage(req.params.chatId, req.user.id, content || defaultContent, fileData);
   res.json(message);
 });
 

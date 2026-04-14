@@ -25,7 +25,7 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
   const callDuration = useCallStore((s) => s.callDuration);
 
   const isVideo = callType === "video";
-  const isConnected = callStatus === "connected";
+  const isConnected = callStatus === "in_call";
 
   // ── Attach streams to <video> elements ────────────────────────────────────
   useEffect(() => {
@@ -51,9 +51,11 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
 
   const statusLabel =
     callStatus === "calling"
-      ? "Calling…"
+      ? "Calling..."
+      : callStatus === "ringing" || callStatus === "incoming"
+      ? "Incoming call"
       : callStatus === "connecting"
-      ? "Connecting…"
+      ? "Connecting..."
       : isConnected
       ? formatDuration(callDuration)
       : callStatus;

@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthStore } from "../../store/authStore.js";
 import { getSocket } from "../../lib/socket.js";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
-import { MessageCircle, Send, Search, Users, Plus, Paperclip, X, Smile, Mic, User, UserPlus, MoreVertical, Edit2, Trash2, Eye, Phone, Video, Lock, Check, Settings, Copy } from "lucide-react";
+import { MessageCircle, Send, Search, Users, Plus, Paperclip, X, Smile, Mic, User, UserPlus, MoreVertical, Edit2, Trash2, Eye, Phone, Video, Lock, Check, Settings, Copy, FileText, Image as ImageIcon } from "lucide-react";
 import Card from "../../components/ui/Card.jsx";
 import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
@@ -30,6 +30,12 @@ export default function ChatPage() {
   const [typing, setTyping] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [voicePreview, setVoicePreview] = useState(null);
+  const [isSendingVoice, setIsSendingVoice] = useState(false);
+  const [voiceUiState, setVoiceUiState] = useState("idle");
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
+  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState(null);
+  const [isSendingAttachment, setIsSendingAttachment] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -63,6 +69,89 @@ export default function ChatPage() {
   const typingTimeoutRef = useRef(null);
   const typingExpireRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingStreamRef = useRef(null);
+  const autoStopTimerRef = useRef(null);
+  const recordingStartedAtRef = useRef(null);
+
+  const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+  const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/gif",
+  ]);
+  const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv", ".png", ".jpg", ".jpeg", ".webp", ".gif"
+  ]);
+
+  const formatVoiceDuration = (seconds) => {
+    const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+    const mins = Math.floor(safeSeconds / 60);
+    const secs = safeSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "0 KB";
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getExtension = (fileName = "") => {
+    const dot = fileName.lastIndexOf(".");
+    return dot >= 0 ? fileName.slice(dot).toLowerCase() : "";
+  };
+
+  const attachmentIsImage = (file) => Boolean(file?.type?.startsWith("image/"));
+
+  const isSupportedAttachment = (file) => {
+    if (!file) return false;
+    const typeOk = ALLOWED_ATTACHMENT_MIME_TYPES.has(file.type);
+    const extensionOk = ALLOWED_ATTACHMENT_EXTENSIONS.has(getExtension(file.name));
+    return typeOk || extensionOk;
+  };
+
+  const clearVoicePreview = useCallback(() => {
+    setVoicePreview((prev) => {
+      if (prev?.url) {
+        URL.revokeObjectURL(prev.url);
+      }
+      return null;
+    });
+  }, []);
+
+  const clearAttachmentPreview = useCallback(() => {
+    setSelectedAttachment(null);
+    setAttachmentPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  const cleanupRecorder = useCallback(() => {
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    if (recordingStreamRef.current) {
+      recordingStreamRef.current.getTracks().forEach((track) => track.stop());
+      recordingStreamRef.current = null;
+    }
+    mediaRecorderRef.current = null;
+    recordingStartedAtRef.current = null;
+  }, []);
 
   useEffect(() => {
     loadChats();
@@ -91,6 +180,30 @@ export default function ChatPage() {
       };
     }
   }, [socket]);
+
+  useEffect(() => {
+    return () => {
+      clearVoicePreview();
+      clearAttachmentPreview();
+      cleanupRecorder();
+    };
+  }, [clearVoicePreview, clearAttachmentPreview, cleanupRecorder]);
+
+  useEffect(() => {
+    if (!selectedAttachment || !attachmentIsImage(selectedAttachment)) {
+      setAttachmentPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedAttachment);
+    setAttachmentPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedAttachment]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -206,6 +319,11 @@ export default function ChatPage() {
   };
 
   const sendMessage = async () => {
+    if (selectedAttachment) {
+      await sendAttachmentMessage();
+      return;
+    }
+
     if ((!newMessage.trim() && !selectedImage) || !activeChat) return;
     
     try {
@@ -358,6 +476,50 @@ export default function ChatPage() {
     }
   };
 
+  const handleAttachmentSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      toast({ title: "File too large (max 10 MB)", type: "error" });
+      e.target.value = "";
+      return;
+    }
+
+    if (!isSupportedAttachment(file)) {
+      toast({ title: "Unsupported file type. Use PDF, DOC/DOCX, XLS/XLSX, TXT, CSV, or images.", type: "error" });
+      e.target.value = "";
+      return;
+    }
+
+    clearVoicePreview();
+    removeImage();
+    setSelectedAttachment(file);
+  };
+
+  const sendAttachmentMessage = async () => {
+    if (!selectedAttachment || !activeChat || isSendingAttachment) return;
+
+    const formData = new FormData();
+    const fieldName = attachmentIsImage(selectedAttachment) ? "image" : "attachment";
+    formData.append(fieldName, selectedAttachment, selectedAttachment.name);
+    formData.append("content", newMessage.trim() || `📎 ${selectedAttachment.name}`);
+    formData.append("isEncrypted", false);
+
+    try {
+      setIsSendingAttachment(true);
+      const res = await api.post(`/chat/${activeChat._id}/messages`, formData);
+      setMessages((prev) => [...prev, res.data]);
+      setNewMessage("");
+      clearAttachmentPreview();
+      socket?.emit("stop_typing", { chatId: activeChat._id, isGroupChat: activeChat.isGroupChat });
+    } catch (err) {
+      toast({ title: "Failed to upload file. You can retry.", type: "error" });
+    } finally {
+      setIsSendingAttachment(false);
+    }
+  };
+
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
@@ -367,49 +529,95 @@ export default function ChatPage() {
   };
 
   const startRecording = async () => {
+    if (!activeChat) return;
+    if (isSendingVoice) return;
+
     try {
+      clearVoicePreview();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       const chunks = [];
+      recordingStreamRef.current = stream;
+      mediaRecorderRef.current = mediaRecorder;
+      recordingStartedAtRef.current = Date.now();
 
-      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data?.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
         const blob = new Blob(chunks, { type: "audio/webm" });
-        const formData = new FormData();
-        formData.append("voice", blob, "voice.webm");
-        formData.append("content", "🎤 Voice message");
-        formData.append("isEncrypted", false);
-        
-        try {
-          const res = await api.post(`/chat/${activeChat._id}/messages`, formData);
-          setMessages(prev => [...prev, res.data]);
-        } catch (err) {
-          toast({ title: "Failed to send voice message", type: "error" });
+        if (blob.size > 0) {
+          const elapsedSeconds = recordingStartedAtRef.current
+            ? (Date.now() - recordingStartedAtRef.current) / 1000
+            : 0;
+          const previewUrl = URL.createObjectURL(blob);
+          setVoicePreview({ blob, url: previewUrl, duration: elapsedSeconds });
+          setVoiceUiState("recorded_preview");
+        } else {
+          setVoiceUiState("idle");
         }
-        stream.getTracks().forEach(track => track.stop());
+        cleanupRecorder();
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      
-      setTimeout(() => {
+      setVoiceUiState("recording");
+
+      autoStopTimerRef.current = setTimeout(() => {
         if (mediaRecorder.state === "recording") {
           mediaRecorder.stop();
           setIsRecording(false);
         }
       }, 60000); // Max 1 minute
-      
-      window.currentRecorder = mediaRecorder;
     } catch (err) {
       toast({ title: "Microphone access denied", type: "error" });
+      cleanupRecorder();
+      setVoiceUiState("idle");
     }
   };
 
   const stopRecording = () => {
-    if (window.currentRecorder && window.currentRecorder.state === "recording") {
-      window.currentRecorder.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+  };
+
+  const discardRecordedVoice = () => {
+    clearVoicePreview();
+    setVoiceUiState("cancelled");
+    requestAnimationFrame(() => setVoiceUiState("idle"));
+  };
+
+  const sendRecordedVoice = async () => {
+    if (!voicePreview?.blob || !activeChat || isSendingVoice) return;
+
+    const formData = new FormData();
+    formData.append("voice", voicePreview.blob, "voice.webm");
+    formData.append("content", "🎤 Voice message");
+    formData.append("isEncrypted", false);
+
+    try {
+      setIsSendingVoice(true);
+      setVoiceUiState("sending");
+      const res = await api.post(`/chat/${activeChat._id}/messages`, formData);
+      setMessages((prev) => [...prev, res.data]);
+      clearVoicePreview();
+      setVoiceUiState("idle");
+    } catch (err) {
+      toast({ title: "Failed to send voice message. You can retry.", type: "error" });
+      setVoiceUiState("recorded_preview");
+    } finally {
+      setIsSendingVoice(false);
+    }
+  };
+
+  const getAttachmentIcon = (file) => {
+    if (attachmentIsImage(file)) {
+      return <ImageIcon className="w-4 h-4 text-blue-500" />;
+    }
+    return <FileText className="w-4 h-4 text-amber-500" />;
   };
 
   const viewProfile = (userId) => {
@@ -880,7 +1088,7 @@ export default function ChatPage() {
                             <p className="mb-1 text-xs font-semibold opacity-80">{msg.sender.name}</p>
                           )}
                           {msg.fileUrl && msg.fileType?.startsWith("audio") ? (
-                            <AudioPlayer src={msg.fileUrl} isSender={msg.sender._id === user.id} />
+                            <AudioPlayer src={msg.fileUrl} isSender={msg.sender._id === user.id} audioId={msg._id || msg.fileUrl} />
                           ) : msg.fileUrl && msg.fileType?.startsWith("image") ? (
                             <div className="space-y-2">
                               <img 
@@ -895,6 +1103,22 @@ export default function ChatPage() {
                                 </p>
                               )}
                             </div>
+                          ) : msg.fileUrl ? (
+                            <a
+                              href={msg.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                                msg.sender._id === user.id
+                                  ? "border-white/30 bg-white/10 text-white"
+                                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-100"
+                              }`}
+                            >
+                              <FileText className="w-4 h-4" />
+                              <span className="text-xs font-medium truncate max-w-[220px]">
+                                {msg.fileName || "Attachment"}
+                              </span>
+                            </a>
                           ) : (
                             <p className="text-sm leading-relaxed break-words">
                               {isEncrypted(msg.content) ? decryptMessage(msg.content, activeChat._id) : msg.content}
@@ -986,26 +1210,106 @@ export default function ChatPage() {
                   </button>
                 </div>
               )}
+              {voicePreview && (
+                <div className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-gray-700/70 px-3 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Voice preview</p>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {formatVoiceDuration(voicePreview.duration)}
+                        </span>
+                      </div>
+                      <AudioPlayer src={voicePreview.url} isSender audioId={`preview-${activeChat?._id || "chat"}`} />
+                    </div>
+                    <button
+                      onClick={discardRecordedVoice}
+                      disabled={isSendingVoice}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-60"
+                    >
+                      Discard
+                    </button>
+                    <button
+                      onClick={startRecording}
+                      disabled={isSendingVoice}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-60"
+                    >
+                      Re-record
+                    </button>
+                    <button
+                      onClick={sendRecordedVoice}
+                      disabled={isSendingVoice}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                    >
+                      {isSendingVoice ? "Sending..." : "Send"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {selectedAttachment && (
+                <div className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-gray-700/70 px-3 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    {attachmentPreviewUrl ? (
+                      <img
+                        src={attachmentPreviewUrl}
+                        alt={selectedAttachment.name}
+                        className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-600"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-white dark:bg-gray-600 flex items-center justify-center">
+                        {getAttachmentIcon(selectedAttachment)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                        {selectedAttachment.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {formatFileSize(selectedAttachment.size)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={clearAttachmentPreview}
+                      disabled={isSendingAttachment}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={sendAttachmentMessage}
+                      disabled={isSendingAttachment}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
+                    >
+                      {isSendingAttachment ? "Sending..." : "Send"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {(voiceUiState === "recording" || voiceUiState === "sending") && (
+                <p className="mb-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  {voiceUiState === "recording" ? "Recording voice note..." : "Sending voice note..."}
+                </p>
+              )}
               <div className="flex items-end gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif"
+                  onChange={handleAttachmentSelect}
                   className="hidden"
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all flex-shrink-0"
-                  title="Attach Image"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all flex-shrink-0"
                 >
                   <Smile className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all flex-shrink-0"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
                 </button>
                 <div className="relative flex-1">
                   <Input
@@ -1018,10 +1322,11 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={isRecording ? stopRecording : startRecording}
+                  disabled={(Boolean(voicePreview) || Boolean(selectedAttachment)) && !isRecording}
                   className={`p-2.5 rounded-full transition-all flex-shrink-0 ${
                     isRecording 
                       ? "bg-red-500 text-white animate-pulse shadow-lg hover:bg-red-600 scale-110" 
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-60 disabled:hover:bg-slate-100"
                   }`}
                 >
                   <Mic className="w-5 h-5" />

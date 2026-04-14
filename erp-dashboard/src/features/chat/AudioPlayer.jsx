@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Play, Pause } from "lucide-react";
+import { useGlobalAudioController } from "./hooks/useGlobalAudioController.js";
 
-export default function AudioPlayer({ src, isSender }) {
-  const [isPlaying, setIsPlaying] = useState(false);
+export default function AudioPlayer({ src, isSender, audioId }) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef(null);
+  const stableAudioId = audioId || src;
+  const { isPlaying, handlePlayToggle, registerAudioRef } = useGlobalAudioController(stableAudioId);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -20,29 +22,32 @@ export default function AudioPlayer({ src, isSender }) {
     };
 
     const handleEnded = () => {
-      setIsPlaying(false);
       setProgress(0);
+    };
+
+    const handlePause = () => {
+      if (audio.currentTime === 0 || Number.isNaN(audio.duration)) {
+        setProgress(0);
+      }
     };
 
     audio.addEventListener("timeupdate", updateProgress);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("pause", handlePause);
 
     return () => {
       audio.removeEventListener("timeupdate", updateProgress);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("pause", handlePause);
     };
   }, []);
 
-  const togglePlay = () => {
-    if (isPlaying) {
-      audioRef.current?.pause();
-    } else {
-      audioRef.current?.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
+  useEffect(() => {
+    registerAudioRef(audioRef.current);
+    return () => registerAudioRef(null);
+  }, [registerAudioRef]);
 
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return "0:00";
@@ -53,9 +58,9 @@ export default function AudioPlayer({ src, isSender }) {
 
   return (
     <div className="flex items-center gap-2 min-w-[200px]">
-      <audio ref={audioRef} src={src} />
+      <audio ref={audioRef} src={src} preload="metadata" />
       <button
-        onClick={togglePlay}
+        onClick={handlePlayToggle}
         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
           isSender
             ? "bg-white/20 hover:bg-white/30"

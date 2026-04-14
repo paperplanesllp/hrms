@@ -1,16 +1,23 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import { Menu, LogOut, Sun, Moon } from "lucide-react";
 import NotificationCenter from "../ui/NotificationCenter.jsx";
 import DigitalClock from "../ui/DigitalClock.jsx";
+import CompactWeatherWidget from "../ui/CompactWeatherWidget.jsx";
 import api from "../../lib/api.js";
 import { useAuthStore, logout } from "../../store/authStore.js";
 import { toast } from "../../store/toastStore.js";
 import Button from "../ui/Button.jsx";
 import { useTheme } from "../providers/ThemeProvider.jsx";
+import { ROLES } from "../../app/constants.js";
 
 export default function HeaderBar({ onMenu }) {
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const { isDark, toggleTheme } = useTheme();
+  const showDashboardWeather =
+    location.pathname === "/" &&
+    (user?.role === ROLES.ADMIN || user?.role === ROLES.USER);
 
   const onLogout = async () => {
     try {
@@ -38,6 +45,9 @@ export default function HeaderBar({ onMenu }) {
 
           {/* Digital Clock */}
           <DigitalClock />
+
+          {/* Dashboard-only compact weather */}
+          {showDashboardWeather && <CompactWeatherWidget />}
 
         </div>
 
