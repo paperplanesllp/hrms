@@ -1,6 +1,8 @@
 /**
  * Geolocation Service
- * Handles requesting user permission and capturing current location
+ * Use this only for one-time location requests triggered by explicit user actions.
+ * Handles requesting user permission and capturing current location.
+ * Never use this utility for background tracking or watchPosition flows.
  */
 
 export async function requestGeolocation() {
@@ -50,6 +52,3 @@ function formatGeolocationError(error) {
   return error.message || "Could not access your location.";
 }
 
-export function isGeolocationSupported() {
-  return !!navigator.geolocation;
-}

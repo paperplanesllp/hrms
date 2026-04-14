@@ -3,8 +3,7 @@ import { useAuthStore } from "../../store/authStore.js";
 import { useNotificationStore } from "../../store/enterpriseNotificationStore.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import { getAuth } from "../../lib/auth.js";
-import { initializeSocket, disconnectSocket, getSocket, getCachedPresenceInit, triggerUserActivity } from "../../lib/socket.js";
-import { startLocationTracking, stopLocationTracking } from "../../lib/locationTracker.js";
+import { initializeSocket, disconnectSocket, getCachedPresenceInit, triggerUserActivity } from "../../lib/socket.js";
 import api from "../../lib/api.js";
 
 export default function SocketProvider({ children }) {
@@ -15,7 +14,6 @@ export default function SocketProvider({ children }) {
   useEffect(() => {
     if (!userId) {
       disconnectSocket();
-      stopLocationTracking();
       usePresenceStore.getState().clearPresence();
       presenceInitialized.current = false;
       return;
@@ -69,9 +67,6 @@ export default function SocketProvider({ children }) {
     document.addEventListener('scroll', onActivity, { passive: true });
     document.addEventListener('touchstart', onActivity, { passive: true });
 
-    // Start location tracking
-    startLocationTracking();
-
     return () => {
       window.removeEventListener('socket:presence:init', onPresenceInit);
       window.removeEventListener('socket:presence:update', onPresenceUpdate);
@@ -81,7 +76,6 @@ export default function SocketProvider({ children }) {
       document.removeEventListener('scroll', onActivity);
       document.removeEventListener('touchstart', onActivity);
       disconnectSocket();
-      stopLocationTracking();
     };
   }, [userId]);
 
