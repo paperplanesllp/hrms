@@ -12,6 +12,20 @@ const toDayRange = (d) => {
   return { start: start.toISOString(), end: end.toISOString() };
 };
 
+// Format time to IST 12-hour format with minutes & seconds (e.g., "4:30PM", "6:15:45AM")
+const formatToIST12Hour = (dateString) => {
+  if (!dateString) return '—';
+  const date = new Date(dateString);
+  // Convert to IST (UTC+5:30)
+  const istDate = new Date(date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+  let hours = istDate.getHours();
+  const minutes = String(istDate.getMinutes()).padStart(2, '0');
+  const seconds = String(istDate.getSeconds()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12; // Convert to 12-hour format
+  return `${hours}:${minutes}:${seconds}${ampm}`;
+};
+
 const groupByAssignee = (tasks) => {
   const map = {};
   tasks.forEach((t) => {
@@ -399,7 +413,7 @@ export default function DailyEmployeeTasks() {
                             </div>
                             <div className="text-right text-xs flex-shrink-0">
                               <div className="font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600">{t.status || 'new'}</div>
-                              {t.startedAt && <div className="text-slate-500 text-xs mt-1">{new Date(t.startedAt).toLocaleTimeString().slice(0, 5)}</div>}
+                              {t.startedAt && <div className="text-slate-500 text-xs mt-1 font-semibold">🕐 {formatToIST12Hour(t.startedAt)}</div>}
                             </div>
                           </div>
 
