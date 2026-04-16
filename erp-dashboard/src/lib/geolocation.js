@@ -6,32 +6,51 @@
  */
 
 export async function requestGeolocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation is not supported by this browser"));
-      return;
-    }
+  if (!navigator.geolocation) {
+    throw new Error("Geolocation is not supported by this browser");
+  }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        resolve({
-          latitude: parseFloat(latitude.toFixed(6)),
-          longitude: parseFloat(longitude.toFixed(6)),
-          accuracy: parseFloat(accuracy.toFixed(2)),
-          timestamp: new Date().toISOString(),
-        });
-      },
-      (error) => {
-        // User denied permission or location service unavailable
-        reject(new Error(formatGeolocationError(error)));
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000, // 10 seconds
-        maximumAge: 0, // Don't use cached location
+  // Attempt precise GPS first, then fallback to cached/network location for laptops.
+  const attempts = [
+    {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 20000,
+      maximumAge: 5 * 60 * 1000,
+    },
+  ];
+
+  let lastError = null;
+  for (const options of attempts) {
+    try {
+      const position = await getCurrentPosition(options);
+      const { latitude, longitude, accuracy } = position.coords;
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new Error("Location data is invalid. Please try again.");
       }
-    );
+
+      return {
+        latitude: parseFloat(latitude.toFixed(6)),
+        longitude: parseFloat(longitude.toFixed(6)),
+        accuracy: Number.isFinite(accuracy) ? parseFloat(accuracy.toFixed(2)) : null,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(formatGeolocationError(lastError));
+}
+
+function getCurrentPosition(options) {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
   });
 }
 
@@ -44,7 +63,7 @@ function formatGeolocationError(error) {
       case 2: // POSITION_UNAVAILABLE
         return "Location information is unavailable. Make sure GPS/location services are enabled.";
       case 3: // TIMEOUT
-        return "Location request timed out. Please try again.";
+        return "Location request timed out. Please turn on device location and try again.";
       default:
         return `Location error (code: ${error.code})`;
     }

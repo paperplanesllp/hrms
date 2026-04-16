@@ -66,15 +66,6 @@ function getUserCoordinates() {
   });
 }
 
-async function fetchCityByCoordinates(latitude, longitude) {
-  const response = await fetch(
-    `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&count=1&language=en`
-  );
-  if (!response.ok) throw new Error("Failed reverse geocoding");
-  const data = await response.json();
-  return data?.results?.[0]?.name || DEFAULT_CITY;
-}
-
 async function fetchCoordinatesByCity(cityName) {
   const encodedCity = encodeURIComponent(cityName);
   const response = await fetch(
@@ -122,7 +113,9 @@ export default function CompactWeatherWidget() {
           const coords = await getUserCoordinates();
           latitude = coords.latitude;
           longitude = coords.longitude;
-          cityLabel = await fetchCityByCoordinates(latitude, longitude);
+          // Reverse geocoding from browser can be blocked by CORS on some networks.
+          // Keep location-based weather while using a stable label.
+          cityLabel = fallbackCity;
         } catch {
           const fallback = await fetchCoordinatesByCity(fallbackCity);
           latitude = fallback.latitude;

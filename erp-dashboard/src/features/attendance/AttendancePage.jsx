@@ -203,28 +203,38 @@ export default function AttendancePage() {
   const checkIn = async () => {
     try {
       console.log("📍 Attempting check-in with geolocation...");
-      
-      // Capture current GPS location
-      const location = await requestGeolocation();
-      console.log("✅ Location captured:", location);
-      
+
       // Get device time for fraud detection audit (not used for official time)
       const now = new Date();
       const deviceTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
-      // SECURITY: Send only GPS coordinates and device time for audit
-      // Server generates official check-in time (cannot be manipulated by client)
-      const res = await api.post("/attendance/checkin", {
-        checkInLatitude: location.latitude,
-        checkInLongitude: location.longitude,
-        checkInAccuracy: location.accuracy,
-        deviceTime: deviceTime  // For fraud detection only, NOT used for official time
-      });
+
+      let payload = { deviceTime };
+      let locationCaptured = false;
+
+      try {
+        // Primary source: one-time geolocation from this click action.
+        const location = await requestGeolocation();
+        console.log("✅ Location captured:", location);
+        payload = {
+          checkInLatitude: location.latitude,
+          checkInLongitude: location.longitude,
+          checkInAccuracy: location.accuracy,
+          deviceTime,
+        };
+        locationCaptured = true;
+      } catch (geoError) {
+        console.warn("⚠️ Check-in geolocation failed. Trying server-tracked location fallback.", geoError?.message || geoError);
+      }
+
+      // If browser geolocation fails, backend can still use last tracked location from LocationProvider.
+      const res = await api.post("/attendance/checkin", payload);
       
       console.log("✅ Check-in successful:", res.data);
       toast({ 
         title: "Checked in successfully", 
-        description: `Distance from office: ${res.data.attendance?.distanceFromOffice || 0}m`,
+        description: locationCaptured
+          ? `Distance from office: ${res.data.attendance?.distanceFromOffice || 0}m`
+          : "Checked in using last synced location.",
         type: "success" 
       });
       
@@ -238,35 +248,49 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-in failed:", e?.response?.data?.message || e.message);
-      toast({ title: e?.response?.data?.message || "Check-in failed", type: "error" });
+      const errorMessage = e?.response?.data?.message || e.message || "Check-in failed";
+      const withGuidance =
+        errorMessage.toLowerCase().includes("location") || errorMessage.toLowerCase().includes("gps")
+          ? `${errorMessage} On laptop, enable browser + Windows Location and refresh once.`
+          : errorMessage;
+      toast({ title: withGuidance, type: "error" });
     }
   };
 
   const checkOut = async () => {
     try {
       console.log("🔚 Attempting check-out with geolocation...");
-      
-      // Capture current GPS location
-      const location = await requestGeolocation();
-      console.log("✅ Check-out location captured:", location);
-      
+
       // Get device time for fraud detection audit (not used for official time)
       const now = new Date();
       const deviceTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
-      // SECURITY: Send only GPS coordinates and device time for audit
-      // Server generates official check-out time (cannot be manipulated by client)
-      const res = await api.post("/attendance/checkout", {
-        checkOutLatitude: location.latitude,
-        checkOutLongitude: location.longitude,
-        checkOutAccuracy: location.accuracy,
-        deviceTime: deviceTime  // For fraud detection only, NOT used for official time
-      });
+
+      let payload = { deviceTime };
+      let locationCaptured = false;
+
+      try {
+        const location = await requestGeolocation();
+        console.log("✅ Check-out location captured:", location);
+        payload = {
+          checkOutLatitude: location.latitude,
+          checkOutLongitude: location.longitude,
+          checkOutAccuracy: location.accuracy,
+          deviceTime,
+        };
+        locationCaptured = true;
+      } catch (geoError) {
+        console.warn("⚠️ Check-out geolocation failed. Trying server-tracked location fallback.", geoError?.message || geoError);
+      }
+
+      // If browser geolocation fails, backend can still use last tracked location from LocationProvider.
+      const res = await api.post("/attendance/checkout", payload);
       
       console.log("✅ Check-out successful:", res.data);
       toast({ 
         title: "Checked out successfully", 
-        description: `Distance from office: ${res.data.attendance?.checkOutDistanceFromOffice || 0}m`,
+        description: locationCaptured
+          ? `Distance from office: ${res.data.attendance?.checkOutDistanceFromOffice || 0}m`
+          : "Checked out using last synced location.",
         type: "success" 
       });
       
@@ -276,7 +300,12 @@ export default function AttendancePage() {
       load();
     } catch (e) {
       console.error("❌ Check-out failed:", e?.response?.data?.message || e.message);
-      toast({ title: e?.response?.data?.message || "Check-out failed", type: "error" });
+      const errorMessage = e?.response?.data?.message || e.message || "Check-out failed";
+      const withGuidance =
+        errorMessage.toLowerCase().includes("location") || errorMessage.toLowerCase().includes("gps")
+          ? `${errorMessage} On laptop, enable browser + Windows Location and refresh once.`
+          : errorMessage;
+      toast({ title: withGuidance, type: "error" });
     }
   };
 
