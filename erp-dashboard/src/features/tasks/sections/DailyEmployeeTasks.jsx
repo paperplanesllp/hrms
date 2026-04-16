@@ -69,7 +69,7 @@ const groupByAssignee = (tasks) => {
       // Task not assigned to anyone
       const key = 'unassigned';
       const name = 'Unassigned';
-      if (!map[key]) map[key] = { name, tasks: [] };
+      if (!map[key]) map[key] = { id: key, name, tasks: [] };
       map[key].tasks.push(t);
     } else {
       // Add task to each assignee's group
@@ -84,7 +84,7 @@ const groupByAssignee = (tasks) => {
         } else {
           return; // skip invalid entry
         }
-        if (!map[key]) map[key] = { name, tasks: [] };
+        if (!map[key]) map[key] = { id: key, name, tasks: [] };
         map[key].tasks.push(t);
       });
     }
@@ -209,10 +209,21 @@ export default function DailyEmployeeTasks() {
 
   const members = useMemo(() => {
     const map = {};
-    
-    // Add all users from user list
-    users.forEach(u => { 
-      map[u._id] = { _id: u._id, name: u.name, avatar: u.avatar, count: 0 }; 
+
+    // Add all employees from user list (even those without tasks)
+    users.forEach((u) => {
+      const role = String(u?.role || '').toUpperCase();
+      if (role !== 'USER') return;
+
+      const id = String(u?._id || u?.id || '');
+      if (!id) return;
+
+      map[id] = {
+        _id: id,
+        name: u?.name || u?.userName || 'Unknown User',
+        avatar: u?.avatar,
+        count: 0,
+      };
     });
     
     // Add unassigned group if it exists
@@ -221,27 +232,25 @@ export default function DailyEmployeeTasks() {
       map['unassigned'] = { _id: 'unassigned', name: 'Unassigned', count: unassignedGroup.tasks.length };
     }
     
-    // Count tasks for each member
-    // Each group represents an assignee and contains their tasks
+    // Count tasks for each member directly from grouped assignees
     groups.forEach(g => {
       if (g.name === 'Unassigned') return; // Already handled above
-      if (g.tasks.length === 0) return;
-      
-      // Get the first task to find the assignee
-      const firstTask = g.tasks[0];
-      if (Array.isArray(firstTask.assignedTo) && firstTask.assignedTo.length > 0) {
-        const assignee = firstTask.assignedTo[0];
-        const key = assignee._id || assignee;
-        if (map[key]) {
-          map[key].count = g.tasks.length;
-        } else {
-          map[key] = { _id: key, name: assignee.name || 'Unknown', count: g.tasks.length };
-        }
+      const key = String(g.id || '');
+      if (!key) return;
+
+      if (map[key]) {
+        map[key].count = g.tasks.length;
+      } else {
+        // Keep assignees that are in tasks but not present in current user list payload.
+        map[key] = {
+          _id: key,
+          name: g.name || 'Unknown User',
+          count: g.tasks.length,
+        };
       }
     });
     
-    const arr = Object.values(map)
-      .filter(m => m.count > 0); // Only show members with tasks
+    const arr = Object.values(map);
     
     arr.sort((a, b) => {
       if (a._id === 'unassigned') return 1; // unassigned goes to end
