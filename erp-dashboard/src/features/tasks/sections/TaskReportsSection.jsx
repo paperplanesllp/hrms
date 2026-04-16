@@ -3,6 +3,7 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { BarChart3, LineChart, PieChart, Download, Calendar, TrendingUp, Loader, AlertCircle, RefreshCw } from 'lucide-react';
 import api from '../../../lib/api.js';
+import DailyEmployeeTasks from './DailyEmployeeTasks.jsx';
 import { useAuthStore } from '../../../store/authStore.js';
 import { toast } from '../../../store/toastStore.js';
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '../utils/exportReports.js';
@@ -26,6 +27,13 @@ export default function TaskReportsSection() {
       // Check if user has permission to view analytics
       if (!isAdminOrHR) {
         setError('You do not have permission to view task reports');
+        return;
+      }
+      
+      // Skip API calls for daily view (DailyEmployeeTasks handles its own data)
+      if (dateRange === 'daily') {
+        setAnalyticsData(null);
+        setTeamPerformance([]);
         return;
       }
       
@@ -149,7 +157,7 @@ export default function TaskReportsSection() {
 
         {/* Date Range Selector */}
         <div className="flex flex-wrap gap-2 items-center">
-          {['week', 'month', 'quarter', 'year'].map((range) => (
+          {['daily', 'week', 'month', 'quarter', 'year'].map((range) => (
             <button
               key={range}
               onClick={() => setDateRange(range)}
@@ -178,6 +186,7 @@ export default function TaskReportsSection() {
       </Card>
 
       {/* Key Metrics */}
+      {dateRange !== 'daily' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {reports.map((report, idx) => {
           const Icon = report.icon;
@@ -215,8 +224,10 @@ export default function TaskReportsSection() {
           );
         })}
       </div>
+      )}
 
       {/* Charts Placeholder */}
+      {dateRange !== 'daily' && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Completion Trend Chart */}
         <Card className="p-6">
@@ -281,8 +292,10 @@ export default function TaskReportsSection() {
           </div>
         </Card>
       </div>
+      )}
 
       {/* Team Performance Table */}
+      {dateRange !== 'daily' && (
       <Card className="p-6">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-brand-accent" />
@@ -350,8 +363,15 @@ export default function TaskReportsSection() {
           </table>
         </div>
       </Card>
+      )}
 
-      {/* Export Options */}
+      {/* Daily employee tasks (HR view) - Show when Daily tab is selected */}
+      {dateRange === 'daily' && (
+        <DailyEmployeeTasks />
+      )}
+
+      {/* Export Options - Hide in daily view */}
+      {dateRange !== 'daily' && (
       <Card className="p-6 bg-gradient-to-br from-brand-accent/5 to-transparent dark:from-brand-accent/10">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
           Export Reports
@@ -386,6 +406,7 @@ export default function TaskReportsSection() {
           </Button>
         </div>
       </Card>
+      )}
         </>
       )}
     </div>
