@@ -46,6 +46,35 @@ export const taskService = {
     return normalizeResponse(res) || [];
   },
 
+  /**
+   * Get all my tasks including:
+   * - Tasks assigned to me by others
+   * - Tasks I assigned to myself (created for myself)
+   * Removes duplicates and merges results
+   */
+  async getMyAllTasks(filters = {}) {
+    try {
+      const params = {};
+
+      if (filters.status) params.status = filters.status;
+      if (filters.priority) params.priority = filters.priority;
+      if (filters.from) params.from = filters.from;
+      if (filters.to) params.to = filters.to;
+      if (filters.search) params.search = filters.search;
+      if (filters.limit) params.limit = filters.limit;
+      if (filters.sort) params.sort = filters.sort;
+      
+      // Add flag to include self-assigned tasks
+      params.includeSelfAssigned = true;
+
+      const res = await api.get("/tasks/my", { params });
+      return normalizeResponse(res) || [];
+    } catch (err) {
+      console.error('Error fetching all my tasks:', err);
+      return [];
+    }
+  },
+
   async getMyTaskStats() {
     const res = await api.get("/tasks/my/stats");
     return normalizeResponse(res) || {};
@@ -105,6 +134,33 @@ export const taskService = {
 
   async completeTask(taskId) {
     const res = await api.post(`/tasks/${taskId}/complete`);
+    return normalizeResponse(res);
+  },
+
+  // ─── Premium Execution Tracking (NEW) ────────────────────────────────────
+
+  async blockTask(taskId, reason) {
+    const res = await api.post(`/tasks/${taskId}/block`, { reason });
+    return normalizeResponse(res);
+  },
+
+  async unblockTask(taskId, blockerId) {
+    const res = await api.post(`/tasks/${taskId}/unblock/${blockerId}`);
+    return normalizeResponse(res);
+  },
+
+  async sendForReview(taskId) {
+    const res = await api.post(`/tasks/${taskId}/send-for-review`);
+    return normalizeResponse(res);
+  },
+
+  async reopenTask(taskId, reason = '') {
+    const res = await api.post(`/tasks/${taskId}/reopen`, { reason });
+    return normalizeResponse(res);
+  },
+
+  async getExecutionDetails(taskId) {
+    const res = await api.get(`/tasks/${taskId}/execution-details`);
     return normalizeResponse(res);
   },
 

@@ -26,7 +26,9 @@ export default function TaskForm({
     priority: 'MEDIUM',
     status: 'pending',
     progress: 0,
-    tags: []
+    tags: [],
+    estimatedHours: 0,
+    estimatedMinutes: 0
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -44,7 +46,9 @@ export default function TaskForm({
         priority: task.priority || 'MEDIUM',
         status: task.status || 'pending',
         progress: task.progress || 0,
-        tags: task.tags || []
+        tags: task.tags || [],
+        estimatedHours: task.estimatedHours || 0,
+        estimatedMinutes: task.estimatedMinutes || 0
       });
     }
   }, [task]);
@@ -292,6 +296,53 @@ export default function TaskForm({
           <span>75%</span>
           <span>100%</span>
         </div>
+      </div>
+
+      {/* Estimated Time */}
+      <div className="space-y-3">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Estimated Time
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          {/* Estimated Hours */}
+          <div>
+            <label className="text-xs text-slate-600 dark:text-slate-400 block mb-2">
+              Hours
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={form.estimatedHours}
+              onChange={(e) => setForm({ ...form, estimatedHours: parseInt(e.target.value) || 0 })}
+              placeholder="0"
+              className="w-full"
+            />
+          </div>
+
+          {/* Estimated Minutes */}
+          <div>
+            <label className="text-xs text-slate-600 dark:text-slate-400 block mb-2">
+              Minutes (0-59)
+            </label>
+            <Input
+              type="number"
+              min="0"
+              max="59"
+              step="1"
+              value={form.estimatedMinutes}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 0;
+                setForm({ ...form, estimatedMinutes: Math.min(value, 59) });
+              }}
+              placeholder="0"
+              className="w-full"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          e.g., 2 hours 30 minutes = 2 in Hours, 30 in Minutes
+        </p>
       </div>
 
       {/* Remarks */}

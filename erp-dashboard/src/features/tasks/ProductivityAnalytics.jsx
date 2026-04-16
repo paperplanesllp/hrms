@@ -9,7 +9,6 @@ export default function ProductivityAnalytics({ departmentId = null }) {
   const [analytics, setAnalytics] = useState(null);
   const [overloaded, setOverloaded] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadAnalytics();
@@ -26,7 +25,6 @@ export default function ProductivityAnalytics({ departmentId = null }) {
       setAnalytics(analyticsRes.data?.data || {});
       setOverloaded(overloadedRes.data?.data || []);
     } catch (err) {
-      setError(err.message);
       console.error('Error loading analytics:', err);
     } finally {
       setLoading(false);
@@ -42,21 +40,9 @@ export default function ProductivityAnalytics({ departmentId = null }) {
     { name: 'On Hold', value: analytics.onHoldTasks || 0, fill: '#6366f1' }
   ];
 
-  const scoreHistory = analytics.scoreHistory || [
-    { date: 'Mon', score: 75 },
-    { date: 'Tue', score: 78 },
-    { date: 'Wed', score: 82 },
-    { date: 'Thu', score: 80 },
-    { date: 'Fri', score: 85 },
-    { date: 'Sat', score: 83 }
-  ];
+  const scoreHistory = analytics.scoreHistory || [];
 
-  const departmentComparison = analytics.departmentComparison || [
-    { name: 'Sales', completion: 82, onTime: 75 },
-    { name: 'Engineering', completion: 88, onTime: 85 },
-    { name: 'HR', completion: 76, onTime: 70 },
-    { name: 'Finance', completion: 91, onTime: 89 }
-  ];
+  const departmentComparison = analytics.departmentComparison || [];
 
   return (
     <div className="space-y-6">
@@ -122,65 +108,71 @@ export default function ProductivityAnalytics({ departmentId = null }) {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Task Distribution */}
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Task Distribution</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={productivityData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={(entry) => `${entry.name}: ${entry.value}`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {productivityData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </Card>
+        {productivityData.some(d => d.value > 0) && (
+          <Card className="p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Task Distribution</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={productivityData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={(entry) => `${entry.name}: ${entry.value}`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {productivityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
 
         {/* Productivity Score Trend */}
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Productivity Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={scoreHistory}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Line 
-                type="monotone" 
-                dataKey="score" 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+        {scoreHistory && scoreHistory.length > 0 && (
+          <Card className="p-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Productivity Trend</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={scoreHistory}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="score" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
       </div>
 
       {/* Department Comparison */}
-      <Card className="p-6">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Department Performance</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={departmentComparison}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="completion" fill="#10b981" name="Completion Rate" />
-            <Bar dataKey="onTime" fill="#3b82f6" name="On-Time Rate" />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
+      {departmentComparison && departmentComparison.length > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Department Performance</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={departmentComparison}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="completion" fill="#10b981" name="Completion Rate" />
+              <Bar dataKey="onTime" fill="#3b82f6" name="On-Time Rate" />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
 
       {/* Overloaded Employees */}
       {overloaded.length > 0 && (

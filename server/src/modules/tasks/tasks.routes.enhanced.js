@@ -1,5 +1,6 @@
 import express from 'express';
 import { tasksController } from './tasks.controller.js';
+import { taskExecutionController } from './taskExecution.controller.js';
 import { authMiddleware } from '../../middleware/auth.js';
 
 const router = express.Router();
@@ -76,6 +77,38 @@ router.get('/:id/comments', authMiddleware, tasksController.getComments);
 
 // Delete comment
 router.delete('/:id/comments/:commentId', authMiddleware, tasksController.deleteComment);
+
+/**
+ * Task Execution Tracking
+ * Premium execution tracking and productivity system
+ */
+
+// Start task execution
+router.post('/:id/start', authMiddleware, taskExecutionController.startTask);
+
+// Pause task execution with reason
+router.post('/:id/pause', authMiddleware, taskExecutionController.pauseTask);
+
+// Resume paused task
+router.post('/:id/resume', authMiddleware, taskExecutionController.resumeTask);
+
+// Complete task execution
+router.post('/:id/complete', authMiddleware, taskExecutionController.completeTask);
+
+// Block task with reason
+router.post('/:id/block', authMiddleware, taskExecutionController.blockTask);
+
+// Unblock task (resolve blocker)
+router.post('/:id/unblock/:blockerId', authMiddleware, taskExecutionController.unblockTask);
+
+// Send task for review
+router.post('/:id/send-for-review', authMiddleware, taskExecutionController.sendForReview);
+
+// Reopen completed task
+router.post('/:id/reopen', authMiddleware, taskExecutionController.reopenTask);
+
+// Get execution details and analytics
+router.get('/:id/execution-details', authMiddleware, taskExecutionController.getExecutionDetails);
 
 /**
  * Task Attachments

@@ -10,6 +10,8 @@ import {
 import Card from '../../components/ui/Card.jsx';
 import Button from '../../components/ui/Button.jsx';
 import Badge from '../../components/ui/Badge.jsx';
+import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
+import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
 import {
   getPriorityStyles,
   getStatusStyles,
@@ -31,6 +33,7 @@ export default function TaskCard({
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
   const isOverdue = isTaskOverdue(task.dueDate, task.status);
+  const estimatedCountdown = useEstimatedTimeCountdown(task);
   
   const handleStatusToggle = async (e) => {
     e.stopPropagation();
@@ -154,7 +157,10 @@ export default function TaskCard({
 
         {/* Footer: Metadata */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 flex-wrap">
+            {/* Estimated Time Countdown */}
+            <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            
             {/* Due Date */}
             <div className="flex items-center gap-1">
               <Clock size={14} className={isOverdue ? 'text-red-500' : 'text-slate-500'} />

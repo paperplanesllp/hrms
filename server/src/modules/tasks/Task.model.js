@@ -66,41 +66,11 @@ const taskSchema = new mongoose.Schema(
       index: true
     },
 
-    completedAt: {
-      type: Date,
-      default: null
-    },
-
-    // Workload & Performance
+    // Workload & Performance (keeping legacy field for compatibility)
     estimatedHours: {
       type: Number,
       min: 0,
       default: 0
-    },
-
-    estimatedMinutes: {
-      type: Number,
-      min: 0,
-      default: 0
-    },
-
-    pausedDurationMs: {
-      type: Number,
-      min: 0,
-      default: 0
-    },
-
-    pausedDurationMinutes: {
-      type: Number,
-      min: 0,
-      default: 0
-    },
-
-    timingState: {
-      type: String,
-      enum: ['not_started', 'in_progress', 'paused', 'completed', 'overdue'],
-      default: 'not_started',
-      index: true
     },
 
     actualHours: {
@@ -314,18 +284,110 @@ const taskSchema = new mongoose.Schema(
       addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
     }],
 
-    // === TIMER TRACKING ===
+    // === EXECUTION STATE (Replaces weak status flow) ===
+    executionStatus: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'paused', 'blocked', 'waiting_review', 'completed', 'completed_late', 'reopened'],
+      default: 'not_started',
+      index: true
+    },
+
+    // === DUE HEALTH (Separate from executionStatus) ===
+    dueHealth: {
+      type: String,
+      enum: ['on_track', 'due_today', 'at_risk', 'overdue', 'completed_on_time', 'completed_late'],
+      default: 'on_track',
+      index: true
+    },
+
+    // === EXECUTION TRACKING ===
+    // First started time
     startedAt: { type: Date, default: null },
-    currentSessionStartTime: { type: Date, default: null },
-    totalActiveTimeInSeconds: { type: Number, default: 0, min: 0 },
-    totalPausedTimeInSeconds: { type: Number, default: 0, min: 0 },
-    isRunning: { type: Boolean, default: false },
-    isPaused: { type: Boolean, default: false },
-    pauseEntries: [{
-      reason: { type: String, required: true, trim: true },
+    
+    // Last activity timestamp
+    lastActivityAt: { type: Date, default: null },
+    
+    // Completion timestamp
+    completedAt: { type: Date, default: null },
+
+    // === TIME TRACKING ===
+    estimatedMinutes: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    totalActiveMinutes: { type: Number, min: 0, default: 0 },
+    totalPausedMinutes: { type: Number, min: 0, default: 0 },
+    totalIdleMinutes: { type: Number, min: 0, default: 0 },
+
+    // === WORK SESSIONS ===
+    // Each session represents a continuous work period
+    sessions: [{
+      _id: mongoose.Schema.Types.ObjectId,
+      startedAt: { type: Date, required: true },
+      endedAt: { type: Date, default: null },
+      durationMinutes: { type: Number, default: 0 },
+      isActive: { type: Boolean, default: true }
+    }],
+
+    // === PAUSE TRACKING ===
+    pauses: [{
+      _id: mongoose.Schema.Types.ObjectId,
+      reason: { type: String, trim: true, default: 'No reason provided' },
       pausedAt: { type: Date, required: true },
       resumedAt: { type: Date, default: null },
-      pausedDurationInSeconds: { type: Number, default: 0 }
+      durationMinutes: { type: Number, default: 0 }
+    }],
+
+    // === BLOCKER TRACKING ===
+    blockers: [{
+      _id: mongoose.Schema.Types.ObjectId,
+      reason: { type: String, trim: true, required: true },
+      blockedAt: { type: Date, required: true },
+      unblockedAt: { type: Date, default: null },
+      unblocker: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      status: { 
+        type: String, 
+        enum: ['active', 'resolved'], 
+        default: 'active' 
+      }
+    }],
+
+    // === ACTIVITY LOG ===
+    // Chronological record of all task lifecycle events
+    activityLog: [{
+      _id: mongoose.Schema.Types.ObjectId,
+      action: {
+        type: String,
+        enum: [
+          'created',
+          'assigned',
+          'started',
+          'paused',
+          'resumed',
+          'blocked',
+          'unblocked',
+          'sent_for_review',
+          'completed',
+          'reopened',
+          'reassigned',
+          'priority_changed',
+          'due_date_changed',
+          'status_changed',
+          'comment_added'
+        ],
+        required: true
+      },
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      userName: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now },
+      details: {
+        reason: String,
+        oldValue: String,
+        newValue: String,
+        message: String
+      }
     }],
 
     // === WORKFLOW MANAGEMENT ===
@@ -401,12 +463,15 @@ taskSchema.virtual('daysUntilDue').get(function() {
 });
 
 // Indexes for efficient queries
-taskSchema.index({ assignedTo: 1, status: 1 });
+taskSchema.index({ assignedTo: 1, executionStatus: 1 });
+taskSchema.index({ assignedTo: 1, dueHealth: 1 });
 taskSchema.index({ assignedBy: 1, createdAt: -1 });
-taskSchema.index({ department: 1, status: 1 });
-taskSchema.index({ dueDate: 1, status: 1 });
-taskSchema.index({ priority: 1, status: 1 });
+taskSchema.index({ department: 1, executionStatus: 1 });
+taskSchema.index({ dueDate: 1, executionStatus: 1 });
+taskSchema.index({ priority: 1, executionStatus: 1 });
 taskSchema.index({ createdAt: -1 });
+taskSchema.index({ startedAt: 1, completedAt: 1 });
+taskSchema.index({ lastActivityAt: -1 });
 
 // Query helper to exclude deleted tasks
 taskSchema.query.active = function() {

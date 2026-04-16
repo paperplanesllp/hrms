@@ -4,6 +4,10 @@ import Button from '../../../components/ui/Button.jsx';
 import { Download, Calendar, RefreshCw, Search } from 'lucide-react';
 import api from '../../../lib/api.js';
 import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.js';
+import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatusUtils.js';
+import PauseTaskModal from '../components/PauseTaskModal.jsx';
+import PauseHistoryPanel from '../components/PauseHistoryPanel.jsx';
+import { pauseTaskWithRemarks } from '../utils/taskPauseUtils.js';
 
 const toDayRange = (d) => {
   const date = new Date(d);
@@ -15,15 +19,44 @@ const toDayRange = (d) => {
 // Format time to IST 12-hour format with minutes & seconds (e.g., "4:30PM", "6:15:45AM")
 const formatToIST12Hour = (dateString) => {
   if (!dateString) return '—';
-  const date = new Date(dateString);
-  // Convert to IST (UTC+5:30)
-  const istDate = new Date(date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-  let hours = istDate.getHours();
-  const minutes = String(istDate.getMinutes()).padStart(2, '0');
-  const seconds = String(istDate.getSeconds()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12; // Convert to 12-hour format
-  return `${hours}:${minutes}:${seconds}${ampm}`;
+  
+  try {
+    const date = new Date(dateString);
+    
+    // Validate date
+    if (isNaN(date.getTime())) {
+      return '00:00 AM';
+    }
+    
+    // Get time components in IST timezone
+    const timeStr = date.toLocaleString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    });
+    
+    // Validate result
+    if (!timeStr || timeStr.includes('NaN')) {
+      return '00:00 AM';
+    }
+    
+    // Format: HH:MM:SS AM/PM → H:MM:SS AM/PM (remove leading zero from hours)
+    const parts = timeStr.split(':');
+    if (parts.length < 3) {
+      return '00:00 AM';
+    }
+    
+    const hours = parts[0].replace(/^0/, '') || '12'; // Remove leading 0 from hours
+    const minutes = parts[1];
+    const secondsAndAmpm = parts[2]; // "45PM" or "32AM"
+    
+    return `${hours}:${minutes}:${secondsAndAmpm}`;
+  } catch (err) {
+    console.warn('Error formatting time:', err);
+    return '00:00 AM';
+  }
 };
 
 const groupByAssignee = (tasks) => {
@@ -70,6 +103,9 @@ export default function DailyEmployeeTasks() {
   const [error, setError] = useState(null);
   const [remarks, setRemarks] = useState({}); // Store remarks by taskId
   const [approvedTasks, setApprovedTasks] = useState({}); // Store approval status by taskId
+  const [pauseModalOpen, setPauseModalOpen] = useState(false); // Pause modal state
+  const [pauseTaskId, setPauseTaskId] = useState(null); // Current task being paused
+  const [expandedPauseHistories, setExpandedPauseHistories] = useState({}); // Track expanded pause panels
 
   const load = useCallback(async () => {
     try {
@@ -150,6 +186,25 @@ export default function DailyEmployeeTasks() {
     console.log(`✅ Task ${taskId} approved with remark: ${remark}`);
     // Optional: Send to backend API
     // api.patch(`/tasks/${taskId}`, { hoExceededApproved: true, exceedRemarks: remark });
+  };
+
+  // Handle pause task
+  const handlePauseTask = (taskId) => {
+    setPauseTaskId(taskId);
+    setPauseModalOpen(true);
+  };
+
+  // Submit pause with remarks
+  const handleSubmitPause = async (taskId, pauseRemarks, pauseReason) => {
+    try {
+      await pauseTaskWithRemarks(taskId, pauseRemarks, pauseReason);
+      console.log(`✅ Task ${taskId} paused with remarks: ${pauseRemarks}`);
+      await load(); // Reload tasks to show pause status
+      setPauseModalOpen(false);
+      setPauseTaskId(null);
+    } catch (err) {
+      console.error('Error pausing task:', err);
+    }
   };
 
   const members = useMemo(() => {
@@ -412,7 +467,16 @@ export default function DailyEmployeeTasks() {
                               <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{t.description || '—'}</div>
                             </div>
                             <div className="text-right text-xs flex-shrink-0">
-                              <div className="font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600">{t.status || 'new'}</div>
+                              {/* Premium Status Message Badge */}
+                              {(() => {
+                                const statusMsg = getTaskStatusMessage(t);
+                                const styles = getStatusMessageStyles(statusMsg.type, statusMsg.emphasis, statusMsg.isWarning);
+                                return (
+                                  <div className={`font-bold px-2.5 py-1.5 rounded-full border text-xs whitespace-nowrap ${styles.bg} ${styles.text} ${styles.border}`}>
+                                    {statusMsg.icon} {statusMsg.label}
+                                  </div>
+                                );
+                              })()}
                               {t.startedAt && <div className="text-slate-500 text-xs mt-1 font-semibold">🕐 {formatToIST12Hour(t.startedAt)}</div>}
                             </div>
                           </div>
@@ -517,6 +581,44 @@ export default function DailyEmployeeTasks() {
                               )}
                             </div>
                           )}
+
+                          {/* Pause Button - For In-Progress tasks */}
+                          {t.status === 'in-progress' && !t.isPaused && (
+                            <div className="mt-4">
+                              <button
+                                onClick={() => handlePauseTask(t._id)}
+                                className="w-full px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-semibold text-sm border border-orange-300 dark:border-orange-700 transition"
+                              >
+                                ⏸️ Pause Task (New Priority Task Assigned?)
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Currently Paused Badge */}
+                          {t.isPaused && (
+                            <div className="mt-4 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-orange-700 dark:text-orange-300">⏸️ Task Paused</span>
+                                <span className="text-xs text-orange-600 dark:text-orange-400">HR can extend deadline</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Pause History Panel - For HR to see */}
+                          <PauseHistoryPanel
+                            task={t}
+                            isExpanded={expandedPauseHistories[t._id] || false}
+                            onToggle={() => setExpandedPauseHistories(prev => ({
+                              ...prev,
+                              [t._id]: !prev[t._id]
+                            }))}
+                            onTaskUpdated={(updatedTask) => {
+                              // Update the task in the current tasks list
+                              setTasks(prevTasks =>
+                                prevTasks.map(task => task._id === updatedTask._id ? updatedTask : task)
+                              );
+                            }}
+                          />
                         </div>
                       );
                     })}
@@ -527,6 +629,19 @@ export default function DailyEmployeeTasks() {
           )}
         </div>
       </div>
+
+      {/* Pause Task Modal */}
+      {pauseTaskId && filteredGroups.reduce((found, g) => found || g.tasks.find(t => t._id === pauseTaskId), null) && (
+        <PauseTaskModal
+          task={filteredGroups.reduce((found, g) => found || g.tasks.find(t => t._id === pauseTaskId), null)}
+          isOpen={pauseModalOpen}
+          onClose={() => {
+            setPauseModalOpen(false);
+            setPauseTaskId(null);
+          }}
+          onPause={handleSubmitPause}
+        />
+      )}
     </Card>
   );
 }

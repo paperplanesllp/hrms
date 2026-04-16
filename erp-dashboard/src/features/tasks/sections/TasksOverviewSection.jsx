@@ -3,6 +3,7 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Loader } from 'lucide-react';
 import { taskService } from '../taskService.js';
+import api from '../../../lib/api.js';
 import { toast } from '../../../store/toastStore.js';
 import { getSocket } from '../../../lib/socket.js';
 import TimerChip from '../components/TimerChip.jsx';
@@ -74,6 +75,13 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
     completionRate: 0
   });
   const [recentTasks, setRecentTasks] = useState([]);
+  const [teamStatus, setTeamStatus] = useState({
+    totalMembers: 0,
+    activeMembers: 0,
+    capacityUsed: 0,
+    projectsOnTrack: 0,
+    totalProjects: 0
+  });
 
   // Fetch functions wrapped in useCallback to avoid infinite loops
   const fetchStats = useCallback(async () => {
@@ -95,15 +103,40 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
     }
   }, []);
 
-  // Fetch stats and recent tasks on mount
+  const fetchTeamStatus = useCallback(async () => {
+    try {
+      const response = await api.get('/tasks/team-status');
+      const data = response.data?.data || response.data;
+      setTeamStatus({
+        totalMembers: data.totalMembers || 0,
+        activeMembers: data.activeMembers || 0,
+        capacityUsed: data.capacityUsed || 0,
+        projectsOnTrack: data.projectsOnTrack || 0,
+        totalProjects: data.totalProjects || 0
+      });
+    } catch (error) {
+      console.error('Error fetching team status:', error);
+      // Set reasonable defaults if API not available
+      setTeamStatus({
+        totalMembers: 0,
+        activeMembers: 0,
+        capacityUsed: 0,
+        projectsOnTrack: 0,
+        totalProjects: 0
+      });
+    }
+  }, []);
+
+  // Fetch stats, recent tasks, and team status on mount
   useEffect(() => {
     const timerId = setTimeout(() => {
       fetchStats();
       fetchRecentTasks();
+      fetchTeamStatus();
     }, 0);
 
     return () => clearTimeout(timerId);
-  }, [fetchStats, fetchRecentTasks]);
+  }, [fetchStats, fetchRecentTasks, fetchTeamStatus]);
 
   // Setup real-time socket listeners for task updates
   useEffect(() => {
@@ -424,30 +457,43 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Team Members</span>
-                  <span className="font-bold text-slate-900 dark:text-white">8/8 Active</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {teamStatus.activeMembers || 0}/{teamStatus.totalMembers || 0} Active
+                  </span>
                 </div>
                 <div className="w-full h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                  <div className="w-full h-full rounded-full bg-emerald-500" />
+                  <div 
+                    className="h-full rounded-full bg-emerald-500 transition-all" 
+                    style={{ width: teamStatus.totalMembers > 0 ? `${(teamStatus.activeMembers / teamStatus.totalMembers) * 100}%` : '0%' }}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Monthly Capacity</span>
-                  <span className="font-bold text-slate-900 dark:text-white">78%</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{teamStatus.capacityUsed || 0}%</span>
                 </div>
                 <div className="w-full h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                  <div className="w-3/4 h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-accent/80" />
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-accent/80 transition-all" 
+                    style={{ width: `${Math.min(teamStatus.capacityUsed || 0, 100)}%` }}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-400">Projects on Track</span>
-                  <span className="font-bold text-slate-900 dark:text-white">6/7</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {teamStatus.projectsOnTrack || 0}/{teamStatus.totalProjects || 0}
+                  </span>
                 </div>
                 <div className="w-full h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                  <div className="w-5/6 h-full rounded-full bg-amber-500" />
+                  <div 
+                    className="h-full rounded-full bg-amber-500 transition-all" 
+                    style={{ width: teamStatus.totalProjects > 0 ? `${(teamStatus.projectsOnTrack / teamStatus.totalProjects) * 100}%` : '0%' }}
+                  />
                 </div>
               </div>
             </div>

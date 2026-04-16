@@ -80,12 +80,42 @@ export default function MyTasksPage() {
       }
       
       console.log('📥 Loading tasks with params:', params);
-      const response = await api.get('/tasks/my', { params });
+      
+      // Try to get all tasks including self-assigned with includeSelfAssigned flag
+      const response = await api.get('/tasks/my', { params: { ...params, includeSelfAssigned: true } });
       console.log('✅ Tasks loaded:', response.data);
       
       // Handle both response formats
-      const tasksData = response.data?.data || response.data || [];
-      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      let tasksData = response.data?.data || response.data || [];
+      tasksData = Array.isArray(tasksData) ? tasksData : [];
+      
+      // If empty and it's the first load, also try fetching tasks created by current user
+      if (tasksData.length === 0 && !filters.search) {
+        console.log('📥 No tasks found, checking for self-created tasks...');
+        try {
+          const createdResponse = await api.get('/tasks', { 
+            params: { 
+              createdBy: 'me',
+              ...params 
+            } 
+          });
+          const createdTasks = Array.isArray(createdResponse.data?.data || createdResponse.data) 
+            ? (createdResponse.data?.data || createdResponse.data) 
+            : [];
+          
+          // Merge both lists and remove duplicates
+          const allTasksMap = new Map();
+          tasksData.forEach(t => allTasksMap.set(t._id, t));
+          createdTasks.forEach(t => allTasksMap.set(t._id, t));
+          tasksData = Array.from(allTasksMap.values());
+          
+          console.log('✅ Added ', createdTasks.length, ' self-created tasks');
+        } catch (err) {
+          console.warn('Could not fetch self-created tasks:', err.message);
+        }
+      }
+      
+      setTasks(tasksData);
       console.log('✅ Set tasks:', tasksData.length, 'items');
     } catch (err) {
       console.error('❌ Error loading tasks:', err.response?.data || err.message);

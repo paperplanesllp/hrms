@@ -4,7 +4,9 @@ import {
   ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck,
 } from 'lucide-react';
 import { useTaskCountdown } from '../hooks/useTaskTimer.js';
+import { useEstimatedTimeCountdown } from '../hooks/useEstimatedTimeCountdown.js';
 import TimerChip from './TimerChip.jsx';
+import EstimatedTimeTimer from './EstimatedTimeTimer.jsx';
 import TaskAnalysisPanel from './TaskAnalysisPanel.jsx';
 import { calcPausedSeconds, formatSecondsHuman, getTimerState } from '../utils/taskTimerUtils.js';
 import { useAuthStore } from '../../../store/authStore.js';
@@ -70,6 +72,7 @@ export default function TaskTimerCard({
 }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const countdown = useTaskCountdown(task);
+  const estimatedCountdown = useEstimatedTimeCountdown(task);
   const timerState = getTimerState(task);
   const pausedSeconds = calcPausedSeconds(task);
   const isLoading = loadingAction === task._id;
@@ -144,8 +147,11 @@ export default function TaskTimerCard({
             )}
           </div>
 
-          {/* Live digital timer */}
-          <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+          {/* Live digital timer & Estimated time countdown */}
+          <div className="flex items-center gap-2">
+            <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+            <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+          </div>
         </div>
 
         {/* ── Title ── */}

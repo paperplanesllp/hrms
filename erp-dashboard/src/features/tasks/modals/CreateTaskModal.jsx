@@ -37,6 +37,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
     status: 'pending',
     dueDate: '',
     estimatedHours: '',
+    estimatedMinutes: '',
     assignedTo: '',
     department: '',
     tags: [],
@@ -189,13 +190,19 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       setIsLoading(true);
       console.log('🚀 [CreateTaskModal] Sending POST request to /tasks');
 
+      const hours = formData.estimatedHours ? parseInt(formData.estimatedHours) : 0;
+      const minutes = formData.estimatedMinutes ? parseInt(formData.estimatedMinutes) : 0;
+      const totalMinutes = hours * 60 + minutes;
+
       const taskPayload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         priority: formData.priority,
         status: formData.status,
         dueDate: formData.dueDate,
-        estimatedHours: formData.estimatedHours ? parseInt(formData.estimatedHours) : undefined,
+        estimatedHours: hours,
+        estimatedMinutes: minutes,
+        estimatedTotalMinutes: totalMinutes,
         assignedTo: formData.assignedTo,
         department: formData.department || undefined,
         tags: formData.tags,
@@ -224,6 +231,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         status: 'pending',
         dueDate: '',
         estimatedHours: '',
+        estimatedMinutes: '',
         assignedTo: '',
         department: '',
         tags: [],
@@ -360,17 +368,43 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Estimated Hours
+                  Estimated Time
                 </label>
-                <Input
-                  type="number"
-                  placeholder="e.g., 4"
-                  value={formData.estimatedHours}
-                  onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
-                  min="0"
-                  step="0.5"
-                  className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
-                />
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      placeholder="Hours (e.g., 4)"
+                      value={formData.estimatedHours}
+                      onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+                      min="0"
+                      className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                    />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Hours</p>
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      placeholder="Minutes (0-59)"
+                      value={formData.estimatedMinutes}
+                      onChange={(e) => {
+                        let val = parseInt(e.target.value) || 0;
+                        if (val > 59) val = 59;
+                        if (val < 0) val = 0;
+                        setFormData({ ...formData, estimatedMinutes: val })
+                      }}
+                      min="0"
+                      max="59"
+                      className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                    />
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Minutes</p>
+                  </div>
+                </div>
+                {formData.estimatedHours || formData.estimatedMinutes ? (
+                  <p className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                    Total: {formData.estimatedHours || 0}h {formData.estimatedMinutes || 0}m
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -534,7 +568,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   <p><span className="font-semibold">Assigned To:</span> {selectedAssignee?.name || 'Not selected'}</p>
                   <p><span className="font-semibold">Priority:</span> <span className={`px-2 py-1 rounded text-xs font-bold ${PRIORITY_COLORS[formData.priority]}`}>{getPriorityIcon(formData.priority)} {formData.priority}</span></p>
                   <p><span className="font-semibold">Due Date:</span> {formData.dueDate || 'Not set'}</p>
-                  <p><span className="font-semibold">Estimated Hours:</span> {formData.estimatedHours || '0'}</p>
+                  <p><span className="font-semibold">Estimated Time:</span> {formData.estimatedHours || '0'}h {formData.estimatedMinutes || '0'}m</p>
                 </div>
               </div>
             )}

@@ -1393,7 +1393,7 @@ function HRMeetingModal({ onClose, onSuccess, hrTeam }) {
                 onChange={(e) =>
                   setFormData({ ...formData, time: e.target.value })
                 }
-                className={inputClass()}
+                className={`${inputClass()} [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert`}
                 required
               />
             </InputField>
