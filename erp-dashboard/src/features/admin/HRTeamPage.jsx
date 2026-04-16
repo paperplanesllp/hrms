@@ -2,7 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { getSocket } from "../../lib/socket.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import api from "../../lib/api.js";
-import { getDerivedPresenceStatus, getAvatarDotStyle, sortItemsByPresence, formatExactTimestamp } from "../../lib/presenceUtils.js";
+import {
+  getDerivedPresenceStatus,
+  getAvatarDotStyle,
+  sortItemsByPresence,
+  formatExactTimestamp,
+} from "../../lib/presenceUtils.js";
 import { toast } from "../../store/toastStore.js";
 import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
@@ -22,19 +27,14 @@ import {
   Send,
   Phone,
   X,
-  ShieldCheck,
   Mail,
   UserPlus,
   Sparkles,
-  CheckCircle2,
-  MapPin,
-  Briefcase,
-  Building2,
   Heart,
   Lock,
-  Droplet,
   Eye,
   EyeOff,
+  Briefcase,
 } from "lucide-react";
 import HRDiscussionPanel from "./HRDiscussionPanel.jsx";
 import HRMeetingPanel from "./HRMeetingPanel.jsx";
@@ -42,32 +42,36 @@ import HRActivityFeed from "./HRActivityFeed.jsx";
 import HRTimelineFeed from "./HRTimelineFeed.jsx";
 
 const initialHRForm = {
-  // Basic Details
   name: "",
   email: "",
   phone: "",
   gender: "",
   address: "",
   bloodGroup: "",
-  
-  // Personal Details
   dateOfBirth: "",
   maritalStatus: "",
   nationality: "",
   emergencyContact: "",
-  
-  // Employment Details
   department: "",
   designation: "",
   joiningDate: "",
   employeeType: "",
   workLocation: "",
   reportingManager: "",
-  
-  // Account Details
   password: "",
   confirmPassword: "",
   status: "Active",
+};
+
+const palette = {
+  bg: "from-[#0b1020] via-[#0f172a] to-[#111827]",
+  panel: "bg-[#0f172a]/72",
+  panelSoft: "bg-white/[0.04]",
+  border: "border-white/10",
+  textMain: "text-slate-50",
+  textSoft: "text-slate-300",
+  textMuted: "text-slate-400",
+  textFaint: "text-slate-500",
 };
 
 export default function HRTeamPage() {
@@ -79,7 +83,7 @@ export default function HRTeamPage() {
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const presenceUsers = usePresenceStore(s => s.users);
+  const presenceUsers = usePresenceStore((s) => s.users);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [showCreateHRModal, setShowCreateHRModal] = useState(false);
   const [createHRLoading, setCreateHRLoading] = useState(false);
@@ -164,7 +168,9 @@ export default function HRTeamPage() {
       setActivity((prev) => [
         {
           type: "discussion",
-          message: `${discussion?.createdBy?.name || "A member"} started discussion: "${discussion?.title || "Untitled"}"`,
+          message: `${discussion?.createdBy?.name || "A member"} started discussion: "${
+            discussion?.title || "Untitled"
+          }"`,
           timestamp: new Date(),
           user: discussion?.createdBy,
         },
@@ -197,7 +203,9 @@ export default function HRTeamPage() {
       setActivity((prev) => [
         {
           type: "meeting",
-          message: `${meeting?.organizer?.name || "A member"} scheduled a meeting: "${meeting?.title || "Untitled"}"`,
+          message: `${meeting?.organizer?.name || "A member"} scheduled a meeting: "${
+            meeting?.title || "Untitled"
+          }"`,
           timestamp: new Date(),
           user: meeting?.organizer,
         },
@@ -227,42 +235,62 @@ export default function HRTeamPage() {
   }, [socket]);
 
   const onlineCount = useMemo(
-    () => Object.values(presenceUsers).filter(m => m?.isOnline).length,
+    () => Object.values(presenceUsers).filter((m) => m?.isOnline).length,
     [presenceUsers]
   );
 
-  // Sort HR team by presence (online members first)
-  const sortedHrTeam = useMemo(() =>
-    sortItemsByPresence(hrTeam, (member) => presenceUsers[member._id]),
+  const sortedHrTeam = useMemo(
+    () => sortItemsByPresence(hrTeam, (member) => presenceUsers[member._id]),
     [hrTeam, presenceUsers]
   );
 
-  const getMemberPresence = (memberId) => getDerivedPresenceStatus(presenceUsers[memberId]);
+  const getMemberPresence = (memberId) =>
+    getDerivedPresenceStatus(presenceUsers[memberId]);
+
   const getMemberDotClass = (memberId) => {
     const d = getAvatarDotStyle(getMemberPresence(memberId).status);
-    return `${d.bg} ring-2 ${d.ring}${d.pulse ? ' animate-pulse' : ''}`;
+    return `${d.bg} ring-2 ${d.ring}${d.pulse ? " animate-pulse" : ""}`;
   };
+
   const getMemberPresenceLabel = (memberId) => {
     const presence = getMemberPresence(memberId);
     const data = presenceUsers[memberId];
-    const rawDate = presence.status === 'offline' ? data?.lastSeen : presence.status === 'away' ? data?.lastActivityAt : null;
-    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : '';
-    if (presence.status === 'offline') {
-      const label = presence.lastSeen && presence.lastSeen !== 'never' ? `Last seen ${presence.lastSeen}` : 'Offline';
+    const rawDate =
+      presence.status === "offline"
+        ? data?.lastSeen
+        : presence.status === "away"
+        ? data?.lastActivityAt
+        : null;
+    const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : "";
+
+    if (presence.status === "offline") {
+      const label =
+        presence.lastSeen && presence.lastSeen !== "never"
+          ? `Last seen ${presence.lastSeen}`
+          : "Offline";
       return { label, tooltip };
     }
+
     return { label: presence.label, tooltip };
   };
+
   const getMemberPresenceTextColor = (memberId) => {
     const { status } = getMemberPresence(memberId);
-    if (status === 'online' || status === 'active-now' || status === 'active-recently' || status === 'typing') return 'text-emerald-400';
-    if (status === 'away') return 'text-amber-400';
-    return 'text-slate-500';
+    if (
+      status === "online" ||
+      status === "active-now" ||
+      status === "active-recently" ||
+      status === "typing"
+    ) {
+      return "text-teal-300";
+    }
+    if (status === "away") return "text-amber-300";
+    return "text-slate-500";
   };
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-fadeIn">
+      <div className="space-y-8 animate-fadeIn">
         <PageTitle
           title="HR Team Hub"
           subtitle="Premium HR management and collaboration workspace"
@@ -271,7 +299,7 @@ export default function HRTeamPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card
               key={i}
-              className="h-40 border rounded-3xl animate-pulse border-white/10 bg-gradient-to-br from-slate-800/70 to-slate-900/70"
+              className={`h-40 rounded-3xl animate-pulse border ${palette.border} bg-gradient-to-br from-[#111827]/80 to-[#0b1020]/90`}
             />
           ))}
         </div>
@@ -280,36 +308,39 @@ export default function HRTeamPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn">
       <PageTitle
         title="HR Team Hub"
         subtitle="Unified HR collaboration, team management, discussions, and meetings"
       />
 
-      {/* Premium Hero */}
-      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-6 md:p-8 shadow-[0_25px_80px_rgba(0,0,0,0.25)]">
-        <div className="absolute right-0 w-40 h-40 rounded-full -top-10 bg-emerald-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 rounded-full h-44 w-44 bg-blue-500/10 blur-3xl" />
+      <div
+        className={`relative overflow-hidden rounded-[30px] border ${palette.border} bg-gradient-to-br ${palette.bg} p-7 shadow-[0_28px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl md:p-10`}
+      >
+        <div className="absolute rounded-full -right-10 -top-10 h-72 w-72 bg-indigo-500/18 blur-3xl" />
+        <div className="absolute w-64 h-64 rounded-full -bottom-10 -left-10 bg-violet-500/14 blur-3xl" />
+        <div className="absolute -translate-y-1/2 rounded-full right-1/3 top-1/2 h-44 w-44 bg-teal-400/10 blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 border rounded-full border-white/10 bg-white/10 text-white/80 backdrop-blur-xl">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <Sparkles className="w-4 h-4 text-violet-300" />
               <span className="text-sm font-medium">Collaboration Control Center</span>
             </div>
 
-            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
               Manage your HR team from one premium workspace
             </h2>
-            <p className="max-w-xl mt-3 text-sm leading-6 text-slate-300 md:text-base">
-              View HR staff, start discussions, schedule meetings, and track live team activity in real time.
+            <p className="max-w-xl mt-3 text-sm leading-7 text-slate-300 md:text-base">
+              View HR staff, start discussions, schedule meetings, and track live
+              team activity in real time.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={() => setShowCreateHRModal(true)}
-              className="rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-3 text-white shadow-[0_10px_30px_rgba(16,185,129,0.30)] hover:scale-[1.02]"
+              className="px-5 py-3 font-semibold text-white transition-all duration-300 shadow-lg rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-violet-900/40 hover:scale-105 hover:shadow-violet-700/30"
             >
               <UserPlus className="w-4 h-4 mr-2" />
               Add Team Member
@@ -317,7 +348,7 @@ export default function HRTeamPage() {
 
             <Button
               onClick={() => setShowNewMeeting(true)}
-              className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 text-white shadow-[0_10px_30px_rgba(59,130,246,0.28)] hover:scale-[1.02]"
+              className="px-5 py-3 font-semibold transition-all duration-300 shadow-lg rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-teal-900/30 hover:scale-105 hover:shadow-teal-500/30"
             >
               <Calendar className="w-4 h-4 mr-2" />
               Schedule Meeting
@@ -326,15 +357,13 @@ export default function HRTeamPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <PremiumStatCard
           title="Team Members"
           value={hrTeam.length}
           icon={Users}
-          from="from-blue-500"
-          to="to-cyan-500"
-          soft="from-blue-500/10"
+          from="from-indigo-500"
+          to="to-violet-500"
         />
         <PremiumStatCard
           title="Discussions"
@@ -342,28 +371,24 @@ export default function HRTeamPage() {
           icon={MessageCircle}
           from="from-violet-500"
           to="to-fuchsia-500"
-          soft="from-violet-500/10"
         />
         <PremiumStatCard
           title="Meetings"
           value={meetings.length}
           icon={Calendar}
-          from="from-pink-500"
-          to="to-rose-500"
-          soft="from-pink-500/10"
+          from="from-amber-400"
+          to="to-orange-500"
         />
         <PremiumStatCard
           title="Online Now"
           value={onlineCount}
           icon={Zap}
-          from="from-emerald-500"
-          to="to-lime-500"
-          soft="from-emerald-500/10"
+          from="from-teal-400"
+          to="to-emerald-500"
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 p-2 border rounded-2xl border-white/10 bg-slate-900/60 backdrop-blur-xl">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#0b1020]/80 p-1.5 backdrop-blur-xl">
         {[
           { id: "overview", label: "Overview", icon: Users },
           { id: "discussions", label: "Discussions", icon: MessageCircle },
@@ -380,7 +405,7 @@ export default function HRTeamPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
                 active
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg"
+                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/30"
                   : "text-slate-400 hover:bg-white/5 hover:text-white"
               }`}
             >
@@ -391,22 +416,20 @@ export default function HRTeamPage() {
         })}
       </div>
 
-      {/* Content */}
       <div className="space-y-6">
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            {/* Team Members */}
             <div className="space-y-4 xl:col-span-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-bold text-[var(--text-main)]">
-                  <Users className="w-5 h-5 text-emerald-500" />
+                <h3 className={`flex items-center gap-2 text-lg font-bold ${palette.textMain}`}>
+                  <Users className="w-5 h-5 text-violet-400" />
                   Team Members
                 </h3>
 
                 <div className="flex gap-2">
                   <Button
                     onClick={() => setShowCreateHRModal(true)}
-                    className="px-4 py-2 text-white rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                    className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-violet-700/30"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Member
@@ -414,7 +437,7 @@ export default function HRTeamPage() {
 
                   <Button
                     onClick={() => setShowNewMeeting(true)}
-                    className="px-4 py-2 text-white bg-blue-600 rounded-xl hover:bg-blue-700"
+                    className="rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-cyan-500/20"
                   >
                     <Calendar className="w-4 h-4 mr-2" />
                     Meeting
@@ -422,7 +445,7 @@ export default function HRTeamPage() {
                 </div>
               </div>
 
-              <Card className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/60 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+              <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-[#0f172a]/72 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl transition-all duration-300 hover:border-white/15">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px]">
                     <thead className="border-b border-white/10 bg-white/[0.03]">
@@ -449,28 +472,32 @@ export default function HRTeamPage() {
                       {sortedHrTeam.map((member) => (
                         <tr
                           key={member._id}
-                          className="border-b border-white/5 transition-colors hover:bg-white/[0.03]"
+                          className="border-b border-white/5 transition-all duration-200 hover:bg-white/[0.04]"
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="relative">
-                                <div className="flex items-center justify-center text-sm font-bold text-white shadow-lg h-11 w-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600">
+                                <div className="flex items-center justify-center text-sm font-bold text-white shadow-lg h-11 w-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600">
                                   {member?.name?.charAt(0)?.toUpperCase() || "H"}
                                 </div>
                                 <span
-                                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-[2px] border-slate-900 transition-colors duration-300 ${getMemberDotClass(member._id)}`}
+                                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-[2px] border-slate-900 transition-colors duration-300 ${getMemberDotClass(
+                                    member._id
+                                  )}`}
                                 />
                               </div>
 
                               <div>
-                                <p className="font-semibold text-white">
-                                  {member.name}
-                                </p>
+                                <p className="font-semibold text-white">{member.name}</p>
                                 <p className="text-xs text-slate-400">
                                   {member.phone || "No phone"}
                                 </p>
-                                <p className={`text-[11px] mt-0.5 cursor-default ${getMemberPresenceTextColor(member._id)}`}
-                                   title={getMemberPresenceLabel(member._id).tooltip}>
+                                <p
+                                  className={`mt-0.5 cursor-default text-[11px] ${getMemberPresenceTextColor(
+                                    member._id
+                                  )}`}
+                                  title={getMemberPresenceLabel(member._id).tooltip}
+                                >
                                   {getMemberPresenceLabel(member._id).label}
                                 </p>
                               </div>
@@ -482,7 +509,7 @@ export default function HRTeamPage() {
                           </td>
 
                           <td className="px-6 py-4">
-                            <Badge className="px-3 py-1 text-xs border rounded-full border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+                            <Badge className="px-3 py-1 text-xs border rounded-full border-violet-400/20 bg-violet-500/10 text-violet-200">
                               {member.role || "HR"}
                             </Badge>
                           </td>
@@ -491,7 +518,7 @@ export default function HRTeamPage() {
                             <Badge
                               className={`rounded-full px-3 py-1 text-xs ${
                                 (member.status || "Active") === "Active"
-                                  ? "border border-green-400/20 bg-green-500/10 text-green-300"
+                                  ? "border border-teal-400/20 bg-teal-500/10 text-teal-200"
                                   : "border border-slate-400/20 bg-slate-500/10 text-slate-300"
                               }`}
                             >
@@ -501,13 +528,13 @@ export default function HRTeamPage() {
 
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
-                              <button className="p-2 transition rounded-xl text-emerald-400 hover:bg-emerald-500/10">
+                              <button className="p-2 text-teal-300 transition rounded-xl hover:bg-teal-500/10">
                                 <MessageCircle className="w-4 h-4" />
                               </button>
-                              <button className="p-2 text-blue-400 transition rounded-xl hover:bg-blue-500/10">
+                              <button className="p-2 text-indigo-300 transition rounded-xl hover:bg-indigo-500/10">
                                 <Video className="w-4 h-4" />
                               </button>
-                              <button className="p-2 transition rounded-xl text-violet-400 hover:bg-violet-500/10">
+                              <button className="p-2 transition rounded-xl text-amber-300 hover:bg-amber-500/10">
                                 <Mail className="w-4 h-4" />
                               </button>
                             </div>
@@ -534,31 +561,30 @@ export default function HRTeamPage() {
               </Card>
             </div>
 
-            {/* Quick Actions */}
             <div className="space-y-4">
-              <h3 className="flex items-center gap-2 text-lg font-bold text-[var(--text-main)]">
-                <Zap className="w-5 h-5 text-amber-500" />
+              <h3 className={`flex items-center gap-2 text-lg font-bold ${palette.textMain}`}>
+                <Zap className="w-5 h-5 text-amber-400" />
                 Quick Actions
               </h3>
 
-              <Card className="space-y-4 rounded-[28px] border border-white/10 bg-slate-900/60 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+              <Card className="space-y-4 rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl">
                 <ActionButton
                   onClick={() => setShowCreateHRModal(true)}
                   icon={UserPlus}
                   label="Add HR Staff"
-                  gradient="from-emerald-500 to-green-600"
+                  gradient="from-violet-600 to-indigo-600"
                 />
                 <ActionButton
                   onClick={() => setActiveTab("discussions")}
                   icon={MessageCircle}
                   label="Open Discussions"
-                  gradient="from-blue-600 to-cyan-500"
+                  gradient="from-indigo-600 to-blue-500"
                 />
                 <ActionButton
                   onClick={() => setShowNewMeeting(true)}
                   icon={Calendar}
                   label="Schedule Meeting"
-                  gradient="from-violet-600 to-fuchsia-500"
+                  gradient="from-teal-500 to-cyan-500"
                 />
                 <ActionButton
                   onClick={() =>
@@ -570,7 +596,7 @@ export default function HRTeamPage() {
                   }
                   icon={Video}
                   label="Start Video Call"
-                  gradient="from-pink-500 to-rose-500"
+                  gradient="from-amber-400 to-orange-500"
                 />
 
                 <div className="pt-4 border-t border-white/10">
@@ -587,7 +613,7 @@ export default function HRTeamPage() {
                           type: "success",
                         })
                       }
-                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium transition rounded-2xl bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium text-teal-200 transition rounded-2xl bg-teal-500/10 hover:bg-teal-500/20"
                     >
                       <Send className="w-4 h-4" />
                       Chat
@@ -601,7 +627,7 @@ export default function HRTeamPage() {
                           type: "success",
                         })
                       }
-                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium transition rounded-2xl bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium transition rounded-2xl bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
                     >
                       <Phone className="w-4 h-4" />
                       Call
@@ -610,9 +636,9 @@ export default function HRTeamPage() {
                 </div>
               </Card>
 
-              <Card className="rounded-[28px] border border-white/10 bg-slate-900/60 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+              <Card className="rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl">
                 <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-slate-300">
-                  <Clock className="w-4 h-4 text-blue-400" />
+                  <Clock className="w-4 h-4 text-indigo-300" />
                   Recent Activity
                 </h4>
 
@@ -624,7 +650,15 @@ export default function HRTeamPage() {
                     >
                       <p className="text-sm font-medium text-white">{item.message}</p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {new Date(item.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
+                        {new Date(item.timestamp).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                          timeZone: "Asia/Kolkata",
+                        })}
                       </p>
                     </div>
                   ))}
@@ -655,7 +689,6 @@ export default function HRTeamPage() {
         )}
 
         {activeTab === "timeline" && <HRTimelineFeed />}
-
         {activeTab === "activity" && <HRActivityFeed activity={activity} />}
       </div>
 
@@ -683,9 +716,9 @@ export default function HRTeamPage() {
   );
 }
 
-function PremiumStatCard({ title, value, icon: Icon, from, to, soft }) {
+function PremiumStatCard({ title, value, icon: Icon, from, to }) {
   return (
-    <Card className="rounded-[24px] border border-white/10 bg-slate-900/60 p-5 shadow-[0_15px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl">
+    <Card className="group cursor-default rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_15px_40px_rgba(2,6,23,0.25)] backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_20px_60px_rgba(2,6,23,0.38)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -695,7 +728,7 @@ function PremiumStatCard({ title, value, icon: Icon, from, to, soft }) {
         </div>
 
         <div
-          className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${from} ${to} shadow-lg`}
+          className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${from} ${to} shadow-lg transition-transform duration-300 group-hover:scale-110`}
         >
           <Icon className="w-6 h-6 text-white" />
         </div>
@@ -717,7 +750,14 @@ function ActionButton({ onClick, icon: Icon, label, gradient }) {
   );
 }
 
-function PremiumModalShell({ title, subtitle, icon: Icon, onClose, children, maxWidth = "max-w-2xl" }) {
+function PremiumModalShell({
+  title,
+  subtitle,
+  icon: Icon,
+  onClose,
+  children,
+  maxWidth = "max-w-2xl",
+}) {
   useEffect(() => {
     document.body.style.overflow = "hidden";
 
@@ -743,20 +783,18 @@ function PremiumModalShell({ title, subtitle, icon: Icon, onClose, children, max
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
     >
       <div
-        className={`w-full ${maxWidth} overflow-hidden rounded-[30px] border border-white/10 bg-slate-950 shadow-[0_30px_100px_rgba(0,0,0,0.35)]`}
+        className={`w-full ${maxWidth} overflow-hidden rounded-[30px] border border-white/10 bg-[#0b1020] shadow-[0_30px_100px_rgba(0,0,0,0.35)]`}
       >
-        <div className="px-6 py-5 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-950">
+        <div className="border-b border-white/10 bg-gradient-to-r from-[#111827] to-[#0b1020] px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/5 ring-1 ring-white/10">
-                <Icon className="w-6 h-6 text-emerald-400" />
+                <Icon className="w-6 h-6 text-violet-300" />
               </div>
 
               <div>
                 <h2 className="text-xl font-bold text-white">{title}</h2>
-                {subtitle && (
-                  <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
-                )}
+                {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
               </div>
             </div>
 
@@ -786,7 +824,7 @@ function InputField({ label, children, hint }) {
 }
 
 function inputClass() {
-  return "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-emerald-400/40 focus:bg-white/[0.07]";
+  return "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-violet-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-violet-400/20";
 }
 
 function CreateHRModal({
@@ -803,61 +841,61 @@ function CreateHRModal({
     setHRForm({ ...hrForm, [field]: value });
   };
 
-  const passwordsMatch = hrForm.password && hrForm.confirmPassword && hrForm.password === hrForm.confirmPassword;
+  const passwordsMatch =
+    hrForm.password &&
+    hrForm.confirmPassword &&
+    hrForm.password === hrForm.confirmPassword;
 
   return (
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
     >
-      {/* Modal Container */}
-      <div className="w-full max-w-4xl max-h-[90vh] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-slate-200">
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 px-8 py-6">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1020] shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+        <div className="sticky top-0 z-10 border-b border-white/10 bg-gradient-to-r from-[#111827] to-[#0b1020] px-8 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100">
-                <UserPlus className="h-6 w-6 text-emerald-600" />
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 ring-1 ring-violet-400/20">
+                <UserPlus className="w-6 h-6 text-violet-300" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">Add Team Member</h2>
-                <p className="mt-0.5 text-sm text-slate-600">Create a new HR staff account with complete details</p>
+                <h2 className="text-xl font-bold text-white">Add Team Member</h2>
+                <p className="mt-0.5 text-sm text-slate-400">
+                  Create a new HR staff account with complete details
+                </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="rounded-xl p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+              className="p-2 transition-colors rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleCreateHR} className="overflow-y-auto max-h-[calc(90vh-180px)] px-8 py-6">
+        <form
+          onSubmit={handleCreateHR}
+          className="max-h-[calc(90vh-160px)] overflow-y-auto bg-[#0b1020] px-8 py-6"
+        >
           <div className="space-y-8">
-            {/* SECTION 1: Basic Details */}
             <FormSection
               title="Basic Details"
               subtitle="Essential information about the employee"
               icon={Users}
-              color="emerald"
+              color="violet"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  label="Full Name"
-                  required
-                  error=""
-                >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <FormField label="Full Name" required error="">
                   <input
                     type="text"
                     placeholder="Enter full name"
                     value={hrForm.name}
                     onChange={(e) => handleFormChange("name", e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-violet-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-violet-400/20"
                   />
                 </FormField>
 
@@ -866,7 +904,7 @@ function CreateHRModal({
                     value={hrForm.gender}
                     onChange={(e) => handleFormChange("gender", e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="">Select Gender</option>
                     <option value="Male">Male</option>
@@ -882,7 +920,7 @@ function CreateHRModal({
                     value={hrForm.email}
                     onChange={(e) => handleFormChange("email", e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-violet-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-violet-400/20"
                   />
                 </FormField>
 
@@ -893,7 +931,7 @@ function CreateHRModal({
                     value={hrForm.phone}
                     onChange={(e) => handleFormChange("phone", e.target.value)}
                     required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-violet-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-violet-400/20"
                   />
                 </FormField>
 
@@ -901,7 +939,7 @@ function CreateHRModal({
                   <select
                     value={hrForm.bloodGroup}
                     onChange={(e) => handleFormChange("bloodGroup", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="">Select Blood Group</option>
                     <option value="O+">O+</option>
@@ -921,26 +959,25 @@ function CreateHRModal({
                     value={hrForm.address}
                     onChange={(e) => handleFormChange("address", e.target.value)}
                     rows="2"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-violet-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-violet-400/20"
                   />
                 </FormField>
               </div>
             </FormSection>
 
-            {/* SECTION 2: Personal Details */}
             <FormSection
               title="Personal Details"
               subtitle="Personal and family information"
               icon={Heart}
-              color="blue"
+              color="teal"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <FormField label="Date of Birth">
                   <input
                     type="date"
                     value={hrForm.dateOfBirth}
                     onChange={(e) => handleFormChange("dateOfBirth", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full px-4 py-3 text-white transition border outline-none rounded-xl border-white/10 bg-white/5 focus:border-teal-400/50 focus:ring-2 focus:ring-teal-400/20"
                   />
                 </FormField>
 
@@ -948,7 +985,7 @@ function CreateHRModal({
                   <select
                     value={hrForm.maritalStatus}
                     onChange={(e) => handleFormChange("maritalStatus", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-teal-400/50 focus:ring-2 focus:ring-teal-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="">Select Marital Status</option>
                     <option value="Single">Single</option>
@@ -964,7 +1001,7 @@ function CreateHRModal({
                     placeholder="e.g., Indian"
                     value={hrForm.nationality}
                     onChange={(e) => handleFormChange("nationality", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-teal-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-teal-400/20"
                   />
                 </FormField>
 
@@ -974,25 +1011,24 @@ function CreateHRModal({
                     placeholder="+91 9876543211"
                     value={hrForm.emergencyContact}
                     onChange={(e) => handleFormChange("emergencyContact", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-teal-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-teal-400/20"
                   />
                 </FormField>
               </div>
             </FormSection>
 
-            {/* SECTION 3: Employment Details */}
             <FormSection
               title="Employment Details"
               subtitle="Job and assignment information"
               icon={Briefcase}
-              color="purple"
+              color="indigo"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <FormField label="Department">
                   <select
                     value={hrForm.department}
                     onChange={(e) => handleFormChange("department", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="">Select Department</option>
                     <option value="HR">HR</option>
@@ -1010,7 +1046,7 @@ function CreateHRModal({
                     placeholder="e.g., Senior HR Manager"
                     value={hrForm.designation}
                     onChange={(e) => handleFormChange("designation", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-indigo-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-indigo-400/20"
                   />
                 </FormField>
 
@@ -1019,7 +1055,7 @@ function CreateHRModal({
                     type="date"
                     value={hrForm.joiningDate}
                     onChange={(e) => handleFormChange("joiningDate", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full px-4 py-3 text-white transition border outline-none rounded-xl border-white/10 bg-white/5 focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/20"
                   />
                 </FormField>
 
@@ -1027,7 +1063,7 @@ function CreateHRModal({
                   <select
                     value={hrForm.employeeType}
                     onChange={(e) => handleFormChange("employeeType", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="">Select Employee Type</option>
                     <option value="Permanent">Permanent</option>
@@ -1043,7 +1079,7 @@ function CreateHRModal({
                     placeholder="e.g., Mumbai Office"
                     value={hrForm.workLocation}
                     onChange={(e) => handleFormChange("workLocation", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-indigo-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-indigo-400/20"
                   />
                 </FormField>
 
@@ -1053,21 +1089,20 @@ function CreateHRModal({
                     placeholder="Enter manager's name"
                     value={hrForm.reportingManager}
                     onChange={(e) => handleFormChange("reportingManager", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-indigo-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-indigo-400/20"
                   />
                 </FormField>
               </div>
             </FormSection>
 
-            {/* SECTION 4: Account Details */}
             <FormSection
               title="Account Details"
               subtitle="System access and security settings"
               icon={Lock}
-              color="orange"
+              color="amber"
             >
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <FormField label="Password" required hint="Minimum 8 characters">
                     <div className="relative">
                       <input
@@ -1077,41 +1112,55 @@ function CreateHRModal({
                         onChange={(e) => handleFormChange("password", e.target.value)}
                         required
                         minLength={8}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 pr-11"
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-11 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-amber-400/20"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-200"
                       >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </FormField>
 
-                  <FormField label="Confirm Password" required hint="Must match password">
+                  <FormField
+                    label="Confirm Password"
+                    required
+                    hint="Must match password"
+                  >
                     <div className="relative">
                       <input
                         type={showConfirm ? "text" : "password"}
                         placeholder="••••••••"
                         value={hrForm.confirmPassword}
-                        onChange={(e) => handleFormChange("confirmPassword", e.target.value)}
+                        onChange={(e) =>
+                          handleFormChange("confirmPassword", e.target.value)
+                        }
                         required
                         minLength={8}
-                        className={`w-full px-4 py-2.5 rounded-xl border bg-white text-slate-900 placeholder:text-slate-400 outline-none transition pr-11 ${
+                        className={`w-full rounded-xl border bg-white/5 px-4 py-3 pr-11 text-white outline-none transition placeholder:text-slate-500 ${
                           hrForm.confirmPassword && !passwordsMatch
-                            ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                            ? "border-red-400/50 focus:border-red-400/70 focus:ring-2 focus:ring-red-400/20"
                             : hrForm.confirmPassword && passwordsMatch
-                            ? "border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
-                            : "border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                            ? "border-teal-400/50 focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                            : "border-white/10 focus:border-amber-400/50 focus:bg-white/[0.07] focus:ring-2 focus:ring-amber-400/20"
                         }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirm(!showConfirm)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-200"
                       >
-                        {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        {showConfirm ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </FormField>
@@ -1121,7 +1170,7 @@ function CreateHRModal({
                   <select
                     value={hrForm.status}
                     onChange={(e) => handleFormChange("status", e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 cursor-pointer"
+                    className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/20 [&>option]:bg-slate-900"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -1132,12 +1181,11 @@ function CreateHRModal({
           </div>
         </form>
 
-        {/* Sticky Footer */}
-        <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-8 py-4 flex gap-3 justify-end">
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-white/10 bg-[#111827] px-8 py-4">
           <Button
             type="button"
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-900 font-medium transition-colors"
+            className="rounded-xl border border-white/10 bg-white/5 px-6 py-2.5 font-medium text-slate-200 transition-colors hover:bg-white/10"
           >
             Cancel
           </Button>
@@ -1145,11 +1193,11 @@ function CreateHRModal({
             type="submit"
             disabled={createHRLoading || (hrForm.confirmPassword && !passwordsMatch)}
             onClick={handleCreateHR}
-            className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-emerald-500/30"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-8 py-2.5 font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-violet-700/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {createHRLoading ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 rounded-full animate-spin border-white/30 border-t-white" />
                 Creating...
               </>
             ) : (
@@ -1165,31 +1213,39 @@ function CreateHRModal({
   );
 }
 
-// Reusable Form Section Component
 function FormSection({ title, subtitle, icon: Icon, color, children }) {
   const colorMap = {
-    emerald: "from-emerald-50 to-teal-50 border-emerald-200",
-    blue: "from-blue-50 to-cyan-50 border-blue-200",
-    purple: "from-purple-50 to-indigo-50 border-purple-200",
-    orange: "from-orange-50 to-amber-50 border-orange-200",
+    violet: "from-violet-500/10 to-indigo-500/5 border-violet-500/20",
+    teal: "from-teal-500/10 to-cyan-500/5 border-teal-500/20",
+    indigo: "from-indigo-500/10 to-blue-500/5 border-indigo-500/20",
+    amber: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
   };
 
   const iconColorMap = {
-    emerald: "text-emerald-600",
-    blue: "text-blue-600",
-    purple: "text-purple-600",
-    orange: "text-orange-600",
+    violet: "text-violet-300",
+    teal: "text-teal-300",
+    indigo: "text-indigo-300",
+    amber: "text-amber-300",
+  };
+
+  const iconBgMap = {
+    violet: "bg-violet-500/15",
+    teal: "bg-teal-500/15",
+    indigo: "bg-indigo-500/15",
+    amber: "bg-amber-500/15",
   };
 
   return (
-    <div className={`rounded-2xl border-2 bg-gradient-to-br ${colorMap[color]} p-6`}>
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-white/50 ${iconColorMap[color]}`}>
+    <div className={`rounded-2xl border bg-gradient-to-br ${colorMap[color]} p-6 backdrop-blur-sm`}>
+      <div className="flex items-center gap-3 pb-4 mb-5 border-b border-white/10">
+        <div
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBgMap[color]} ${iconColorMap[color]}`}
+        >
           <Icon className="w-5 h-5" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900 text-base">{title}</h3>
-          <p className="text-sm text-slate-600">{subtitle}</p>
+          <h3 className="text-base font-bold text-white">{title}</h3>
+          <p className="text-sm text-slate-400">{subtitle}</p>
         </div>
       </div>
       {children}
@@ -1197,16 +1253,15 @@ function FormSection({ title, subtitle, icon: Icon, color, children }) {
   );
 }
 
-// Reusable Form Field Component
 function FormField({ label, required, hint, children, error }) {
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-semibold text-slate-700">
-        {label} {required && <span className="text-red-500 ml-1">*</span>}
+    <div className="space-y-1.5">
+      <label className="block text-sm font-semibold text-slate-200">
+        {label} {required && <span className="ml-1 text-red-400">*</span>}
       </label>
       {children}
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-      {hint && <p className="text-xs text-slate-500 mt-1">{hint}</p>}
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -1294,9 +1349,15 @@ function HRMeetingModal({ onClose, onSuccess, hrTeam }) {
                 }
                 className={inputClass()}
               >
-                <option value="discussion" className="bg-slate-900">Discussion</option>
-                <option value="video-call" className="bg-slate-900">Video Call</option>
-                <option value="onsite" className="bg-slate-900">On-site Meeting</option>
+                <option value="discussion" className="bg-slate-900">
+                  Discussion
+                </option>
+                <option value="video-call" className="bg-slate-900">
+                  Video Call
+                </option>
+                <option value="onsite" className="bg-slate-900">
+                  On-site Meeting
+                </option>
               </select>
             </InputField>
           </div>
@@ -1367,10 +1428,10 @@ function HRMeetingModal({ onClose, onSuccess, hrTeam }) {
                     type="checkbox"
                     checked={formData.attendees.includes(member._id)}
                     onChange={(e) => toggleAttendee(member._id, e.target.checked)}
-                    className="w-4 h-4 rounded accent-blue-500"
+                    className="w-4 h-4 rounded accent-violet-500"
                   />
 
-                  <div className="flex items-center justify-center text-sm font-bold text-white h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+                  <div className="flex items-center justify-center text-sm font-bold text-white h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500">
                     {member?.name?.charAt(0)?.toUpperCase() || "H"}
                   </div>
 
@@ -1395,7 +1456,7 @@ function HRMeetingModal({ onClose, onSuccess, hrTeam }) {
             <Button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 py-3 text-white shadow-[0_10px_30px_rgba(59,130,246,0.30)] disabled:opacity-50"
+              className="flex-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-white shadow-[0_10px_30px_rgba(99,102,241,0.30)] disabled:opacity-50"
             >
               {loading ? "Scheduling..." : "Schedule Meeting"}
             </Button>
