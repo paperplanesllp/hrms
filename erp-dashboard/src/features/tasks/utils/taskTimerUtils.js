@@ -72,9 +72,18 @@ export function calcProductivityRatio(activeSeconds, pausedSeconds) {
  * @returns {'running'|'paused'|'completed'|'pending'}
  */
 export function getTimerState(task) {
-  if (task.status === 'completed') return 'completed';
-  if (task.isRunning) return 'running';
-  if (task.isPaused) return 'paused';
+  const status = task?.status;
+  const timingState = task?.timingState;
+
+  if (['completed', 'rejected', 'cancelled'].includes(status)) return 'completed';
+  if (task?.isPaused || status === 'paused' || status === 'on-hold' || timingState === 'paused') return 'paused';
+  if (task?.isRunning) return 'running';
+  if (
+    ['in-progress', 'due-soon', 'overdue', 'extended'].includes(status) ||
+    ['in_progress', 'overdue'].includes(timingState)
+  ) {
+    return 'running';
+  }
   return 'pending';
 }
 

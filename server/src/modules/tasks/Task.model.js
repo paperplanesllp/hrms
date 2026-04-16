@@ -310,6 +310,28 @@ const taskSchema = new mongoose.Schema(
     // Completion timestamp
     completedAt: { type: Date, default: null },
 
+    // Legacy timer fields used by the current task timer UI/controllers.
+    // Keep these alongside the richer execution model for backward compatibility.
+    timingState: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'paused', 'completed', 'overdue'],
+      default: 'not_started',
+      index: true
+    },
+    isRunning: { type: Boolean, default: false },
+    isPaused: { type: Boolean, default: false },
+    currentSessionStartTime: { type: Date, default: null },
+    totalActiveTimeInSeconds: { type: Number, min: 0, default: 0 },
+    totalPausedTimeInSeconds: { type: Number, min: 0, default: 0 },
+    pausedDurationMs: { type: Number, min: 0, default: 0 },
+    pausedDurationMinutes: { type: Number, min: 0, default: 0 },
+    pauseEntries: [{
+      reason: { type: String, trim: true, default: '' },
+      pausedAt: { type: Date, required: true },
+      resumedAt: { type: Date, default: null },
+      pausedDurationInSeconds: { type: Number, min: 0, default: 0 }
+    }],
+
     // === TIME TRACKING ===
     estimatedMinutes: {
       type: Number,

@@ -527,17 +527,43 @@ export const tasksController = {
       if (task.status === 'completed') {
         return sendError(res, 'Cannot start a completed task', 400);
       }
+      if (['rejected', 'cancelled'].includes(task.status)) {
+        return sendError(res, `Cannot start a ${task.status} task`, 400);
+      }
       if (task.isRunning) {
         return sendError(res, 'Task is already running', 400);
       }
 
       const now = new Date();
+
+      // Legacy recovery path: task is already in an active status but running flag was not persisted.
+      const hasActiveStatus = ['in-progress', 'due-soon', 'overdue', 'extended'].includes(task.status);
+      if (hasActiveStatus && task.startedAt && !task.isPaused) {
+        task.isRunning = true;
+        task.isPaused = false;
+        task.currentSessionStartTime = now;
+        task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
+
+        syncTaskTimingFields(task, now);
+        logTaskTimingSnapshot(task, now, 'startTask:resume-legacy');
+
+        await task.save();
+        await task.populate([
+          { path: 'assignedTo', select: 'name email' },
+          { path: 'assignedBy', select: 'name email' },
+          { path: 'department', select: 'name' }
+        ]);
+        notifyTaskStatusChanged(task, req.user.id);
+        return sendSuccess(res, formatTaskResponse(task), 'Task resumed successfully');
+      }
+
       task.status = 'in-progress';
       task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
       task.isRunning = true;
       task.isPaused = false;
       task.currentSessionStartTime = now;
       task.startedAt = now;
+      task.totalActiveTimeInSeconds = 0;
 
       // Reset active timing window on fresh start
       task.totalPausedTimeInSeconds = 0;
@@ -583,11 +609,14 @@ export const tasksController = {
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can pause this task', 403);
       }
-      if (!task.isRunning) {
+      const hasRunningStatus = ['in-progress', 'due-soon', 'overdue', 'extended'].includes(task.status);
+      if (!task.isRunning && !hasRunningStatus) {
         return sendError(res, 'Task is not currently running', 400);
       }
 
       const now = new Date();
+      if (!Array.isArray(task.pauseEntries)) task.pauseEntries = [];
+      task.totalActiveTimeInSeconds = Number(task.totalActiveTimeInSeconds) || 0;
 
       // Accumulate active session time
       if (task.currentSessionStartTime) {
@@ -636,11 +665,15 @@ export const tasksController = {
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can resume this task', 403);
       }
-      if (!task.isPaused) {
+      const hasPausedStatus = task.status === 'paused' || task.status === 'on-hold';
+      if (!task.isPaused && !hasPausedStatus) {
         return sendError(res, 'Task is not paused', 400);
       }
 
       const now = new Date();
+      if (!Array.isArray(task.pauseEntries)) task.pauseEntries = [];
+      task.totalPausedTimeInSeconds = Number(task.totalPausedTimeInSeconds) || 0;
+      task.pausedDurationMs = Number(task.pausedDurationMs) || 0;
 
       // Close the last open pause entry
       const lastPause = task.pauseEntries[task.pauseEntries.length - 1];
@@ -693,6 +726,10 @@ export const tasksController = {
       }
 
       const now = new Date();
+      if (!Array.isArray(task.pauseEntries)) task.pauseEntries = [];
+      task.totalActiveTimeInSeconds = Number(task.totalActiveTimeInSeconds) || 0;
+      task.totalPausedTimeInSeconds = Number(task.totalPausedTimeInSeconds) || 0;
+      task.pausedDurationMs = Number(task.pausedDurationMs) || 0;
 
       // Finalize running session
       if (task.isRunning && task.currentSessionStartTime) {
