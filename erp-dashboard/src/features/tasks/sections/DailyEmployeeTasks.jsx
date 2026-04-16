@@ -302,6 +302,118 @@ export default function DailyEmployeeTasks() {
     return g;
   }, [groups, selectedMember, search]);
 
+  const dailyAnalytics = useMemo(() => {
+    const taskMap = new Map();
+
+    filteredGroups.forEach((group) => {
+      group.tasks.forEach((task) => {
+        if (task?._id && !taskMap.has(task._id)) {
+          taskMap.set(task._id, task);
+        }
+      });
+    });
+
+    const tasks = Array.from(taskMap.values());
+    const totalTasks = tasks.length;
+
+    if (totalTasks === 0) {
+      return {
+        totalTasks: 0,
+        completed: 0,
+        inProgress: 0,
+        pending: 0,
+        paused: 0,
+        overdue: 0,
+        completionRate: 0,
+        onTimeRate: 0,
+        totalActiveSeconds: 0,
+        avgActiveSeconds: 0,
+        totalEstimatedSeconds: 0,
+        overrunCount: 0,
+      };
+    }
+
+    let completed = 0;
+    let onTimeCompleted = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let paused = 0;
+    let overdue = 0;
+    let totalActiveSeconds = 0;
+    let totalEstimatedSeconds = 0;
+    let overrunCount = 0;
+
+    tasks.forEach((task) => {
+      const status = String(task.status || '').toLowerCase();
+
+      if (status === 'completed') {
+        completed += 1;
+
+        if (typeof task.completedOnTime === 'boolean') {
+          if (task.completedOnTime) {
+            onTimeCompleted += 1;
+          }
+        } else {
+          const completedAt = task.completedAt ? new Date(task.completedAt) : null;
+          const dueAt = task.dueAt ? new Date(task.dueAt) : task.dueDate ? new Date(task.dueDate) : null;
+          if (completedAt && dueAt && completedAt <= dueAt) {
+            onTimeCompleted += 1;
+          }
+        }
+      }
+
+      if (['in-progress', 'due-soon', 'extended'].includes(status)) {
+        inProgress += 1;
+      }
+
+      if (['new', 'pending'].includes(status)) {
+        pending += 1;
+      }
+
+      if (task.isPaused || status === 'paused' || status === 'on-hold') {
+        paused += 1;
+      }
+
+      if (status === 'overdue') {
+        overdue += 1;
+      }
+
+      const activeSeconds = calcActiveSeconds(task);
+      totalActiveSeconds += activeSeconds;
+
+      const estimatedSeconds = (task.estimatedHours || 0) * 3600 + (task.estimatedMinutes || 0) * 60;
+      totalEstimatedSeconds += estimatedSeconds;
+
+      if (estimatedSeconds > 0 && activeSeconds > estimatedSeconds) {
+        overrunCount += 1;
+      }
+    });
+
+    const completionRate = Math.round((completed / totalTasks) * 100);
+    const onTimeRate = completed > 0 ? Math.round((onTimeCompleted / completed) * 100) : 0;
+    const avgActiveSeconds = Math.round(totalActiveSeconds / totalTasks);
+
+    return {
+      totalTasks,
+      completed,
+      inProgress,
+      pending,
+      paused,
+      overdue,
+      completionRate,
+      onTimeRate,
+      totalActiveSeconds,
+      avgActiveSeconds,
+      totalEstimatedSeconds,
+      overrunCount,
+    };
+  }, [filteredGroups]);
+
+  const selectedMemberName = useMemo(() => {
+    if (selectedMember === 'all') return 'All Members';
+    return members.find((m) => m._id === selectedMember)?.name || 'Employee';
+  }, [members, selectedMember]);
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -397,6 +509,64 @@ export default function DailyEmployeeTasks() {
                   </div>
                 </div>
               )}
+
+              {/* Daily analytics snapshot */}
+              <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">
+                      Daily Performance Snapshot: {selectedMemberName}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      Date: {date} · Quick metrics for manager updates
+                    </div>
+                  </div>
+                  <div className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                    Completion {dailyAnalytics.completionRate}%
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Total</div>
+                    <div className="text-base font-bold text-slate-900 dark:text-white">{dailyAnalytics.totalTasks}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Completed</div>
+                    <div className="text-base font-bold text-green-600 dark:text-green-400">{dailyAnalytics.completed}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">In Progress</div>
+                    <div className="text-base font-bold text-blue-600 dark:text-blue-400">{dailyAnalytics.inProgress}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Pending</div>
+                    <div className="text-base font-bold text-amber-600 dark:text-amber-400">{dailyAnalytics.pending}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Paused</div>
+                    <div className="text-base font-bold text-orange-600 dark:text-orange-400">{dailyAnalytics.paused}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Overdue</div>
+                    <div className="text-base font-bold text-red-600 dark:text-red-400">{dailyAnalytics.overdue}</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">On-Time</div>
+                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{dailyAnalytics.onTimeRate}%</div>
+                  </div>
+                  <div className="p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <div className="text-[11px] text-slate-500">Avg Work</div>
+                    <div className="text-base font-bold text-violet-600 dark:text-violet-400">{formatSecondsHuman(dailyAnalytics.avgActiveSeconds)}</div>
+                  </div>
+                </div>
+
+                {dailyAnalytics.overrunCount > 0 && (
+                  <div className="mt-3 text-xs font-semibold text-red-700 dark:text-red-400">
+                    {dailyAnalytics.overrunCount} task(s) exceeded estimated time.
+                  </div>
+                )}
+              </div>
               
               {filteredGroups.length === 0 && <div className="text-center py-8 text-slate-500">No tasks found for this filter.</div>}
 
@@ -612,11 +782,8 @@ export default function DailyEmployeeTasks() {
                               ...prev,
                               [t._id]: !prev[t._id]
                             }))}
-                            onTaskUpdated={(updatedTask) => {
-                              // Update the task in the current tasks list
-                              setTasks(prevTasks =>
-                                prevTasks.map(task => task._id === updatedTask._id ? updatedTask : task)
-                              );
+                            onTaskUpdated={() => {
+                              load();
                             }}
                           />
                         </div>
