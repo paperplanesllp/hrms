@@ -3,6 +3,7 @@ import { Task } from './Task.model.js';
 import { User } from '../users/User.model.js';
 import { Department } from '../department/Department.model.js';
 import { TASK_TIMING_STATE, evaluateEmployeePerformance, syncTaskTimingFields } from './taskDeadline.utils.js';
+import { ROLES } from '../../middleware/roles.js';
 
 export const tasksService = {
   // Get my tasks (assigned to current user)
@@ -546,7 +547,10 @@ export const tasksService = {
         fromDate.setMonth(now.getMonth() - 1);
     }
 
-    const query = { isDeleted: false };
+    const query = {
+      isDeleted: false,
+      createdAt: { $gte: fromDate, $lte: now }
+    };
 
     // Get all tasks
     const allTasks = await Task.find(query);
@@ -623,9 +627,36 @@ export const tasksService = {
   },
 
   // Get team performance analytics (admin/HR only)
-  async getTeamPerformanceAnalytics() {
+  async getTeamPerformanceAnalytics(dateRange = 'month') {
+    const now = new Date();
+    const fromDate = new Date();
+
+    switch (dateRange) {
+      case 'week':
+        fromDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        fromDate.setMonth(now.getMonth() - 1);
+        break;
+      case 'quarter':
+        fromDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'year':
+        fromDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        fromDate.setMonth(now.getMonth() - 1);
+    }
+
+    const taskQueryBase = {
+      isDeleted: false,
+      createdAt: { $gte: fromDate, $lte: now }
+    };
+
     // Get all users with tasks
-    const teamMembers = await User.find({ isDeleted: false }).select('_id name userName email');
+    const teamMembers = await User.find({
+      role: { $in: [ROLES.USER, ROLES.HR] }
+    }).select('_id name userName email');
     
     const performance = await Promise.all(
       teamMembers.map(async (member) => {
@@ -633,26 +664,26 @@ export const tasksService = {
 
         const totalTasks = await Task.countDocuments({
           assignedTo: userId,
-          isDeleted: false
+          ...taskQueryBase
         });
 
         const completedOnTime = await Task.countDocuments({
           assignedTo: userId,
           status: 'completed',
           completedOnTime: true,
-          isDeleted: false
+          ...taskQueryBase
         });
 
         const completedLate = await Task.countDocuments({
           assignedTo: userId,
           status: 'completed',
           completedOnTime: false,
-          isDeleted: false
+          ...taskQueryBase
         });
 
         const overdueCount = await Task.countDocuments({
           assignedTo: userId,
-          isDeleted: false,
+          ...taskQueryBase,
           startedAt: { $ne: null },
           status: { $nin: ['completed', 'rejected', 'cancelled'] },
           $or: [
@@ -665,7 +696,7 @@ export const tasksService = {
           {
             $match: {
               assignedTo: userId,
-              isDeleted: false
+              ...taskQueryBase
             }
           },
           {
@@ -679,14 +710,14 @@ export const tasksService = {
         const rejectedTasks = await Task.countDocuments({
           assignedTo: userId,
           status: 'rejected',
-          isDeleted: false
+          ...taskQueryBase
         });
 
         const extensionRequestMetrics = await Task.aggregate([
           {
             $match: {
               assignedTo: userId,
-              isDeleted: false
+              ...taskQueryBase
             }
           },
           {
@@ -746,7 +777,7 @@ export const tasksService = {
         const completedTasksData = await Task.find({
           assignedTo: userId,
           status: 'completed',
-          isDeleted: false,
+          ...taskQueryBase,
           completedAt: { $exists: true }
         }).select('createdAt completedAt');
 

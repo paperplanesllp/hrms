@@ -64,6 +64,8 @@ export const tasksController = {
         status: req.query.status,
         department: req.query.department,
         priority: req.query.priority,
+        from: req.query.from,
+        to: req.query.to,
         search: req.query.search,
         limit: parseInt(req.query.limit) || 100
       };
@@ -351,7 +353,8 @@ export const tasksController = {
   // Get team performance analytics (admin/HR only)
   async getTeamPerformanceAnalytics(req, res) {
     try {
-      const performance = await tasksService.getTeamPerformanceAnalytics();
+      const dateRange = req.query.dateRange || 'month';
+      const performance = await tasksService.getTeamPerformanceAnalytics(dateRange);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);

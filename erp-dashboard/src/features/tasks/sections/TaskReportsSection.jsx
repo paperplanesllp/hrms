@@ -7,6 +7,15 @@ import DailyEmployeeTasks from './DailyEmployeeTasks.jsx';
 import { useAuthStore } from '../../../store/authStore.js';
 import { toast } from '../../../store/toastStore.js';
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '../utils/exportReports.js';
+import { ROLES } from '../../../app/constants.js';
+
+const unwrapApiData = (payload) => {
+  if (!payload || typeof payload !== 'object') return payload;
+  if (Object.prototype.hasOwnProperty.call(payload, 'data')) {
+    return unwrapApiData(payload.data);
+  }
+  return payload;
+};
 
 export default function TaskReportsSection() {
   const user = useAuthStore(s => s.user);
@@ -16,8 +25,9 @@ export default function TaskReportsSection() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check if user has admin/hr role
-  const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
+  // Check if user has admin/hr role (case-insensitive for safety across environments)
+  const normalizedRole = String(user?.role || '').toUpperCase();
+  const isAdminOrHR = normalizedRole === ROLES.ADMIN || normalizedRole === ROLES.HR;
 
   const loadAnalytics = useCallback(async () => {
     try {
@@ -41,7 +51,7 @@ export default function TaskReportsSection() {
       const analyticsResponse = await api.get('/tasks/analytics/all', {
         params: { dateRange }
       });
-      const data = analyticsResponse.data.data || analyticsResponse.data;
+      const data = unwrapApiData(analyticsResponse.data) || null;
       setAnalyticsData(data);
       console.log('✅ Analytics data loaded:', data);
 
@@ -49,7 +59,7 @@ export default function TaskReportsSection() {
       const teamResponse = await api.get('/tasks/analytics/team-performance', {
         params: { dateRange }
       });
-      const teamData = teamResponse.data.data || teamResponse.data || [];
+      const teamData = unwrapApiData(teamResponse.data) || [];
       setTeamPerformance(Array.isArray(teamData) ? teamData : []);
       console.log('✅ Team performance data loaded:', teamData);
     } catch (error) {
