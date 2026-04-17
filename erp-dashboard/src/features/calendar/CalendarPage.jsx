@@ -25,17 +25,17 @@ function purposeLabel(purpose) {
 }
 
 function purposeTone(purpose) {
-  if (purpose === "PUBLIC_HOLIDAY") return "text-red-700 bg-red-100";
-  if (purpose === "REMINDER") return "text-amber-700 bg-amber-100";
-  if (purpose === "MEETING") return "text-indigo-700 bg-indigo-100";
-  return "text-slate-700 bg-slate-100";
+  if (purpose === "PUBLIC_HOLIDAY") return "text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30";
+  if (purpose === "REMINDER") return "text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30";
+  if (purpose === "MEETING") return "text-indigo-700 bg-indigo-100 dark:text-indigo-400 dark:bg-indigo-900/30";
+  return "text-slate-700 bg-slate-100 dark:text-slate-400 dark:bg-slate-800";
 }
 
 function statusTone(status) {
-  if (status === "PRESENT") return "text-green-600";
-  if (status === "SHORT_HOURS") return "text-yellow-600";
-  if (status === "HALF_DAY") return "text-indigo-600";
-  return "text-red-600";
+  if (status === "PRESENT") return "text-green-600 dark:text-green-400";
+  if (status === "SHORT_HOURS") return "text-yellow-600 dark:text-yellow-400";
+  if (status === "HALF_DAY") return "text-indigo-600 dark:text-indigo-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 export default function CalendarPage() {
@@ -227,7 +227,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="min-h-screen px-6 py-8 space-y-10 bg-gradient-to-br from-[#f7f9fc] via-white to-[#eef3fb]">
+    <div className="min-h-screen px-6 py-8 space-y-10 bg-gradient-to-br from-[#f7f9fc] via-white to-[#eef3fb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
       <PageTitle
         title="Attendance Calendar"
         subtitle="Track attendance, events and productivity"
@@ -242,22 +242,22 @@ export default function CalendarPage() {
         <StatCard title="Attendance" value={`${percentage}%`} icon={"★"} color="purple" />
       </div>
 
-      <Card className="p-6 bg-white border shadow-xl rounded-3xl border-slate-200">
+      <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{monthName}</h2>
-            <p className="text-sm text-slate-500">Click a date to see details</p>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{monthName}</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Click a date to see details</p>
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => changeMonth(-1)} className="p-2 transition rounded-xl hover:bg-slate-100">
-              <ChevronLeft size={18} />
+            <button onClick={() => changeMonth(-1)} className="p-2 transition rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700">
+              <ChevronLeft size={18} className="dark:text-slate-300" />
             </button>
-            <button onClick={goToToday} className="px-4 py-2 text-sm font-semibold text-indigo-700 rounded-xl bg-indigo-50">
+            <button onClick={goToToday} className="px-4 py-2 text-sm font-semibold text-indigo-700 rounded-xl bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30">
               Today
             </button>
-            <button onClick={() => changeMonth(1)} className="p-2 transition rounded-xl hover:bg-slate-100">
-              <ChevronRight size={18} />
+            <button onClick={() => changeMonth(1)} className="p-2 transition rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700">
+              <ChevronRight size={18} className="dark:text-slate-300" />
             </button>
           </div>
         </div>
@@ -268,7 +268,7 @@ export default function CalendarPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-7 mb-4 text-xs font-semibold tracking-wide text-center uppercase text-slate-500">
+            <div className="grid grid-cols-7 mb-4 text-xs font-semibold tracking-wide text-center uppercase text-slate-500 dark:text-slate-400">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                 <div key={d}>{d}</div>
               ))}
@@ -287,8 +287,8 @@ export default function CalendarPage() {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                 const dayEvents = events.filter((e) => e.date === dateStr);
 
-                const weekendBgClass = isWeekend ? "bg-slate-50 opacity-60" : "bg-white";
-                const weekendBorderClass = isWeekend ? "border-slate-300" : "border-slate-200";
+                const weekendBgClass = isWeekend ? "bg-slate-50 dark:bg-slate-800/50 opacity-60" : "bg-white dark:bg-slate-800";
+                const weekendBorderClass = isWeekend ? "border-slate-300 dark:border-slate-600" : "border-slate-200 dark:border-slate-700";
 
                 return (
                   <div
@@ -296,12 +296,12 @@ export default function CalendarPage() {
                     onMouseEnter={() => setHoveringDate(day)}
                     onMouseLeave={() => setHoveringDate(null)}
                     onClick={() => handleDayClick(day)}
-                    className={`relative group p-3 transition border shadow-sm cursor-pointer rounded-xl hover:shadow-lg hover:-translate-y-[2px] ${weekendBgClass} ${weekendBorderClass}`}
+                    className={`relative group p-3 transition border shadow-sm cursor-pointer rounded-xl hover:shadow-lg hover:-translate-y-[2px] dark:hover:shadow-slate-700/50 ${weekendBgClass} ${weekendBorderClass}`}
                   >
                     <div className="flex items-start justify-between mb-1">
-                      <div className="font-semibold text-slate-800">{day}</div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">{day}</div>
                       {isWeekend && (
-                        <div className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                        <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                           Week Off
                         </div>
                       )}
@@ -315,7 +315,7 @@ export default function CalendarPage() {
                     )}
 
                     {status?.eventName && (
-                      <div className="mt-1 text-xs font-medium text-blue-600">{status.eventName}</div>
+                      <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">{status.eventName}</div>
                     )}
 
                     {status?.status === "ABSENT" && !isWeekend && (
@@ -323,18 +323,18 @@ export default function CalendarPage() {
                     )}
 
                     {dayEvents.length > 0 && (
-                      <div className="mt-1 text-xs text-purple-600">
+                      <div className="mt-1 text-xs text-purple-600 dark:text-purple-400">
                         {dayEvents.length} event{dayEvents.length > 1 ? "s" : ""}
                       </div>
                     )}
 
                     {hoveringDate === day && (
                       <div className="absolute z-30 w-64 mb-3 transition duration-150 ease-out -translate-x-1/2 pointer-events-none left-1/2 bottom-full">
-                        <div className="absolute w-3 h-3 rotate-45 -translate-x-1/2 bg-white border -bottom-1 left-1/2 border-slate-200" />
+                        <div className="absolute w-3 h-3 rotate-45 -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 -bottom-1 left-1/2" />
 
-                        <div className={`p-4 space-y-3 bg-white border shadow-2xl border-slate-200 rounded-xl ${isWeekend ? "opacity-75" : ""}`}>
+                        <div className={`p-4 space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-xl ${isWeekend ? "opacity-75" : ""}`}>
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-slate-900">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-white">
                               {new Date(dateStr).toLocaleDateString("en-US", {
                                 weekday: "short",
                                 month: "short",
@@ -342,7 +342,7 @@ export default function CalendarPage() {
                               })}
                             </div>
                             {isWeekend && (
-                              <div className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                                 Week Off
                               </div>
                             )}
@@ -350,26 +350,26 @@ export default function CalendarPage() {
 
                           {status?.checkIn && (
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-500">Check-in</span>
-                              <span className="font-semibold text-slate-900">{status.checkIn}</span>
+                              <span className="text-slate-500 dark:text-slate-400">Check-in</span>
+                              <span className="font-semibold text-slate-900 dark:text-white">{status.checkIn}</span>
                             </div>
                           )}
 
                           {status?.status && !isWeekend && (
                             <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-500">Status</span>
+                              <span className="text-slate-500 dark:text-slate-400">Status</span>
                               <span className={`font-semibold ${statusTone(status.status)}`}>{status.status}</span>
                             </div>
                           )}
 
                           {dayEvents.length > 0 && (
-                            <div className="pt-2 space-y-2 border-t border-slate-200">
-                              <div className="text-xs font-semibold tracking-wide uppercase text-slate-500">Events</div>
+                            <div className="pt-2 space-y-2 border-t border-slate-200 dark:border-slate-700">
+                              <div className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">Events</div>
                               {dayEvents.slice(0, 2).map((e) => (
                                 <div key={e._id} className="space-y-1">
                                   <div className="flex items-start justify-between gap-2 text-sm">
-                                    <span className="font-medium text-slate-600 whitespace-nowrap">{e.startTime}</span>
-                                    <span className="flex-1 text-right truncate text-slate-700">{e.title}</span>
+                                    <span className="font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">{e.startTime}</span>
+                                    <span className="flex-1 text-right truncate text-slate-700 dark:text-slate-300">{e.title}</span>
                                   </div>
                                   <div className="flex justify-end">
                                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${purposeTone(e.purpose)}`}>
@@ -391,24 +391,24 @@ export default function CalendarPage() {
         )}
       </Card>
 
-      <Card className="p-6 bg-white border shadow-xl rounded-3xl border-slate-200">
+      <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
         <div className="overflow-x-auto">
           <div className="flex gap-1 pb-2">
             {heatmapData.slice(-84).map((day, idx) => {
               const intensity = day.intensity;
               const colorMap = {
-                0: "bg-slate-100",
-                1: "bg-green-200",
-                2: "bg-green-400",
-                3: "bg-green-500",
-                4: "bg-green-600"
+                0: "bg-slate-200 dark:bg-slate-700",
+                1: "bg-green-200 dark:bg-green-900/40",
+                2: "bg-green-400 dark:bg-green-700/60",
+                3: "bg-green-500 dark:bg-green-600/70",
+                4: "bg-green-600 dark:bg-green-500/80"
               };
 
               return (
                 <div
                   key={idx}
                   title={`${day.date}: ${day.status || "No data"}`}
-                  className={`w-3 h-3 rounded-sm ${colorMap[intensity]} hover:ring-2 hover:ring-indigo-400 cursor-pointer transition`}
+                  className={`w-3 h-3 rounded-sm ${colorMap[intensity]} hover:ring-2 hover:ring-indigo-400 dark:hover:ring-indigo-500 cursor-pointer transition`}
                 />
               );
             })}
@@ -417,19 +417,19 @@ export default function CalendarPage() {
       </Card>
 
       {events.length > 0 && (
-        <Card className="p-6 bg-white border shadow-xl rounded-3xl border-slate-200">
+        <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
           <div className="mb-6">
-            <h3 className="text-lg font-bold text-slate-900">Upcoming Events</h3>
-            <p className="text-sm text-slate-500">{events.length} events this month</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upcoming Events</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{events.length} events this month</p>
           </div>
 
           <div className="space-y-3">
             {events.slice(0, 8).map((event) => (
-              <div key={event._id} className="flex items-start gap-3 p-3 transition border rounded-lg bg-slate-50 border-slate-200 hover:bg-slate-100">
+              <div key={event._id} className="flex items-start gap-3 p-3 transition border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/50">
                 <div className={`w-3 h-3 rounded-full mt-1 bg-${event.color || "blue"}-500`} />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate text-slate-900">{event.title}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="font-semibold truncate text-slate-900 dark:text-white">{event.title}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {event.date} • {event.startTime} - {event.endTime}
                   </div>
                   <div className="mt-1">
@@ -438,7 +438,7 @@ export default function CalendarPage() {
                     </span>
                   </div>
                   {event.description && (
-                    <div className="mt-1 text-xs text-slate-600 line-clamp-2">{event.description}</div>
+                    <div className="mt-1 text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{event.description}</div>
                   )}
                 </div>
               </div>
@@ -449,10 +449,10 @@ export default function CalendarPage() {
 
       {showEventModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <Card className="w-full max-w-md p-8 space-y-6 bg-white shadow-2xl rounded-2xl">
+          <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">Create Event</h2>
-              <button onClick={() => setShowEventModal(false)}>
+              <h2 className="text-xl font-bold dark:text-white">Create Event</h2>
+              <button onClick={() => setShowEventModal(false)} className="dark:text-slate-300">
                 <X />
               </button>
             </div>
@@ -461,14 +461,14 @@ export default function CalendarPage() {
               placeholder="Event title"
               value={eventForm.title}
               onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-              className="w-full px-4 py-3 border rounded-xl"
+              className="w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
             />
 
             <textarea
               placeholder="Description"
               value={eventForm.description}
               onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-              className="w-full px-4 py-3 border rounded-xl"
+              className="w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
             />
 
             <div className="grid grid-cols-2 gap-3">
@@ -476,13 +476,13 @@ export default function CalendarPage() {
                 type="date"
                 value={eventForm.date}
                 onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
-                className="px-4 py-3 border rounded-xl"
+                className="px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
               />
 
               <select
                 value={eventForm.purpose}
                 onChange={(e) => setEventForm({ ...eventForm, purpose: e.target.value })}
-                className="px-4 py-3 border rounded-xl"
+                className="px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
               >
                 {purposeOptions.map((purpose) => (
                   <option key={purpose} value={purpose}>
@@ -496,7 +496,7 @@ export default function CalendarPage() {
               <select
                 value={eventForm.color}
                 onChange={(e) => setEventForm({ ...eventForm, color: e.target.value })}
-                className="px-4 py-3 border rounded-xl"
+                className="px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
               >
                 <option value="blue">Blue</option>
                 <option value="green">Green</option>
@@ -505,9 +505,9 @@ export default function CalendarPage() {
                 <option value="yellow">Yellow</option>
               </select>
 
-              <div className="px-3 py-2 border rounded-xl bg-slate-50">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Access Rule</div>
-                <div className="text-xs mt-1 text-slate-700">
+              <div className="px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Access Rule</div>
+                <div className="text-xs mt-1 text-slate-700 dark:text-slate-300">
                   {canManagePublicHolidays
                     ? "HR/Admin can create public holidays and personal events."
                     : "You can create only your own reminder, meeting, and personal events."}
@@ -517,29 +517,29 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block mb-1 text-xs font-semibold text-slate-700">Start Time</label>
+                <label className="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">Start Time</label>
                 <input
                   type="time"
                   value={eventForm.startTime}
                   onChange={(e) => setEventForm({ ...eventForm, startTime: e.target.value })}
-                  className="w-full px-4 py-3 border rounded-xl"
+                  className="w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block mb-1 text-xs font-semibold text-slate-700">End Time</label>
+                <label className="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">End Time</label>
                 <input
                   type="time"
                   value={eventForm.endTime}
                   onChange={(e) => setEventForm({ ...eventForm, endTime: e.target.value })}
-                  className="w-full px-4 py-3 border rounded-xl"
+                  className="w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
               </div>
             </div>
 
             <button
               onClick={handleCreateEvent}
-              className="w-full py-3 font-semibold text-white rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-800"
+              className="w-full py-3 font-semibold text-white rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 dark:from-indigo-700 dark:to-indigo-900 dark:hover:from-indigo-600 dark:hover:to-indigo-800"
             >
               Create Event
             </button>
@@ -557,7 +557,7 @@ export default function CalendarPage() {
             }));
             setShowEventModal(true);
           }}
-          className="flex items-center gap-2 px-6 py-4 font-semibold text-white transition rounded-full shadow-xl bg-gradient-to-r from-indigo-600 to-indigo-800 hover:shadow-2xl hover:scale-105"
+          className="flex items-center gap-2 px-6 py-4 font-semibold text-white transition rounded-full shadow-xl bg-gradient-to-r from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 hover:shadow-2xl dark:hover:shadow-indigo-900/50 hover:scale-105"
         >
           <Plus size={20} />
           New Event
@@ -571,11 +571,11 @@ export default function CalendarPage() {
             onClick={() => setShowWorksheetPanel(false)}
           />
 
-          <div className="fixed top-0 right-0 z-50 w-full h-screen max-w-md overflow-y-auto transition-transform duration-300 ease-out transform translate-x-0 bg-white shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between p-6 bg-white border-b border-slate-200">
+          <div className="fixed top-0 right-0 z-50 w-full h-screen max-w-md overflow-y-auto transition-transform duration-300 ease-out transform translate-x-0 bg-white dark:bg-slate-900 shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between p-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Worksheet</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Worksheet</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {selectedDate &&
                     new Date(selectedDate).toLocaleDateString("en-US", {
                       weekday: "long",
@@ -587,9 +587,9 @@ export default function CalendarPage() {
               </div>
               <button
                 onClick={() => setShowWorksheetPanel(false)}
-                className="p-2 transition rounded-lg hover:bg-slate-100"
+                className="p-2 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                <X size={20} className="text-slate-500" />
+                <X size={20} className="text-slate-500 dark:text-slate-400" />
               </button>
             </div>
 
@@ -601,21 +601,21 @@ export default function CalendarPage() {
               ) : worksheetData ? (
                 <>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border border-green-200 rounded-lg bg-green-50">
-                      <div className="mb-1 text-xs font-semibold tracking-wide text-green-700 uppercase">Check In</div>
-                      <div className="text-2xl font-bold text-green-900">{worksheetData.checkIn || "—"}</div>
+                    <div className="p-4 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20">
+                      <div className="mb-1 text-xs font-semibold tracking-wide text-green-700 dark:text-green-400 uppercase">Check In</div>
+                      <div className="text-2xl font-bold text-green-900 dark:text-green-300">{worksheetData.checkIn || "—"}</div>
                     </div>
 
-                    <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
-                      <div className="mb-1 text-xs font-semibold tracking-wide text-blue-700 uppercase">Check Out</div>
-                      <div className="text-2xl font-bold text-blue-900">{worksheetData.checkOut || "—"}</div>
+                    <div className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                      <div className="mb-1 text-xs font-semibold tracking-wide text-blue-700 dark:text-blue-400 uppercase">Check Out</div>
+                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-300">{worksheetData.checkOut || "—"}</div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border border-purple-200 rounded-lg bg-purple-50">
-                      <div className="mb-1 text-xs font-semibold tracking-wide text-purple-700 uppercase">Total Hours</div>
-                      <div className="text-2xl font-bold text-purple-900">
+                    <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                      <div className="mb-1 text-xs font-semibold tracking-wide text-purple-700 dark:text-purple-400 uppercase">Total Hours</div>
+                      <div className="text-2xl font-bold text-purple-900 dark:text-purple-300">
                         {worksheetData.totalHours
                           ? `${worksheetData.totalHours}h`
                           : worksheetData.hours
@@ -625,8 +625,8 @@ export default function CalendarPage() {
                     </div>
 
                     {worksheetData.status && (
-                      <div className="p-4 border border-indigo-200 rounded-lg bg-indigo-50">
-                        <div className="mb-1 text-xs font-semibold tracking-wide text-indigo-700 uppercase">Status</div>
+                      <div className="p-4 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+                        <div className="mb-1 text-xs font-semibold tracking-wide text-indigo-700 dark:text-indigo-400 uppercase">Status</div>
                         <div className={`text-xl font-bold capitalize ${statusTone(worksheetData.status)}`}>
                           {worksheetData.status}
                         </div>
@@ -636,28 +636,28 @@ export default function CalendarPage() {
 
                   {worksheetData.task && (
                     <div>
-                      <h3 className="mb-3 text-sm font-semibold tracking-wide uppercase text-slate-900">Task</h3>
-                      <div className="p-3 border rounded-lg bg-slate-50 border-slate-200">
-                        <p className="text-sm text-slate-700">{worksheetData.task}</p>
+                      <h3 className="mb-3 text-sm font-semibold tracking-wide uppercase text-slate-900 dark:text-white">Task</h3>
+                      <div className="p-3 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{worksheetData.task}</p>
                       </div>
                     </div>
                   )}
 
                   {worksheetData.notes && (
                     <div>
-                      <h3 className="mb-2 text-sm font-semibold tracking-wide uppercase text-slate-900">Notes</h3>
-                      <div className="p-4 border rounded-lg bg-slate-50 border-slate-200">
-                        <p className="text-sm leading-relaxed text-slate-700">{worksheetData.notes}</p>
+                      <h3 className="mb-2 text-sm font-semibold tracking-wide uppercase text-slate-900 dark:text-white">Notes</h3>
+                      <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">{worksheetData.notes}</p>
                       </div>
                     </div>
                   )}
                 </>
               ) : (
                 <div className="py-12 text-center">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100">
-                    <Calendar size={32} className="text-slate-400" />
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800">
+                    <Calendar size={32} className="text-slate-400 dark:text-slate-500" />
                   </div>
-                  <p className="text-sm text-slate-500">No data found for this date</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No data found for this date</p>
                 </div>
               )}
             </div>
@@ -670,18 +670,18 @@ export default function CalendarPage() {
 
 function StatCard({ title, value, color, icon }) {
   const colors = {
-    green: "text-green-700 bg-green-50",
-    orange: "text-orange-700 bg-orange-50",
-    blue: "text-blue-700 bg-blue-50",
-    purple: "text-purple-700 bg-purple-50"
+    green: "text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20",
+    orange: "text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20",
+    blue: "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20",
+    purple: "text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20"
   };
 
   return (
-    <Card className="p-6 transition border shadow-lg rounded-2xl bg-white hover:shadow-xl hover:-translate-y-[2px]">
+    <Card className="p-6 transition border shadow-lg rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:shadow-xl dark:hover:shadow-slate-700/50 hover:-translate-y-[2px]">
       <div className="flex items-start justify-between">
         <div>
-          <div className="mb-1 text-xs font-semibold tracking-wide uppercase text-slate-500">{title}</div>
-          <div className="text-3xl font-bold text-slate-800">{value}</div>
+          <div className="mb-1 text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">{title}</div>
+          <div className="text-3xl font-bold text-slate-800 dark:text-white">{value}</div>
         </div>
 
         <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${colors[color]}`}>
