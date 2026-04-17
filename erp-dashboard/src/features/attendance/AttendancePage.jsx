@@ -390,21 +390,21 @@ export default function AttendancePage() {
   const getStatusBadge = (status) => {
     switch(status) {
       case "PRESENT":
-        return { bg: "bg-[#E6F4EA]", border: "border-[#137333]", text: "text-[var(--text-success)]", icon: CheckCircle2 };
+        return { bg: "bg-[#E6F4EA] dark:bg-green-900/30", border: "border-[#137333] dark:border-green-700", text: "text-[var(--text-success)] dark:text-green-400", icon: CheckCircle2 };
       case "HOLIDAY":
-        return { bg: "bg-blue-50", border: "border-blue-400", text: "text-blue-700", icon: Calendar };
+        return { bg: "bg-blue-50 dark:bg-blue-900/30", border: "border-blue-400 dark:border-blue-700", text: "text-blue-700 dark:text-blue-400", icon: Calendar };
       case "SHORT_HOURS":
-        return { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", icon: AlertCircle };
+        return { bg: "bg-orange-50 dark:bg-orange-900/30", border: "border-orange-400 dark:border-orange-700", text: "text-orange-700 dark:text-orange-400", icon: AlertCircle };
       case "HALF_DAY":
-        return { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-700", icon: Clock };
+        return { bg: "bg-amber-50 dark:bg-amber-900/30", border: "border-amber-400 dark:border-amber-700", text: "text-amber-700 dark:text-amber-400", icon: Clock };
       case "LATE":
-        return { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-700", icon: Clock };
+        return { bg: "bg-yellow-50 dark:bg-yellow-900/30", border: "border-yellow-400 dark:border-yellow-700", text: "text-yellow-700 dark:text-yellow-400", icon: Clock };
       case "INVALID_LOCATION":
-        return { bg: "bg-red-50", border: "border-red-400", text: "text-red-700", icon: AlertCircle };
+        return { bg: "bg-red-50 dark:bg-red-900/30", border: "border-red-400 dark:border-red-700", text: "text-red-700 dark:text-red-400", icon: AlertCircle };
       case "ABSENT":
-        return { bg: "bg-[#FCE8E6]", border: "border-[#C5221F]", text: "text-[var(--text-error)]", icon: AlertCircle };
+        return { bg: "bg-[#FCE8E6] dark:bg-red-900/30", border: "border-[#C5221F] dark:border-red-700", text: "text-[var(--text-error)] dark:text-red-400", icon: AlertCircle };
       default:
-        return { bg: "bg-gray-50", border: "border-gray-300", text: "text-gray-700", icon: Clock };
+        return { bg: "bg-gray-50 dark:bg-slate-800", border: "border-gray-300 dark:border-slate-600", text: "text-gray-700 dark:text-slate-300", icon: Clock };
     }
   };
 
@@ -598,10 +598,10 @@ export default function AttendancePage() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-4 py-2 border-2 border-[#B3CFE5] rounded-lg bg-white text-[var(--text-main)] font-medium focus:border-[#4A7FA7] focus:shadow-md transition-all"
+              className="px-4 py-2 border-2 border-[#B3CFE5] rounded-lg bg-white dark:bg-slate-800 text-[var(--text-main)] dark:text-white font-medium focus:border-[#4A7FA7] focus:shadow-md transition-all dark:border-slate-600"
             />
 
-            <div className="flex items-center gap-3 px-4 py-2 bg-white border-2 border-[#B3CFE5] rounded-lg hover:border-[#4A7FA7] transition-colors cursor-pointer">
+            <div className="flex items-center gap-3 px-4 py-2 bg-white dark:bg-slate-800 border-2 border-[#B3CFE5] dark:border-slate-600 rounded-lg hover:border-[#4A7FA7] dark:hover:border-slate-500 transition-colors cursor-pointer">
               <input
                 type="checkbox"
                 id="hrFilter"
@@ -626,46 +626,46 @@ export default function AttendancePage() {
       )}
 
       {/* Attendance Table */}
-      <Card className="p-6 bg-white border shadow-lg border-slate-100">
+      <Card className="p-6 bg-white dark:bg-slate-900 border shadow-lg border-slate-100 dark:border-slate-700">
         {loading ? (
           <div className="flex justify-center p-10">
             <Spinner />
           </div>
         ) : (
           <div>
-            <div className="pb-6 mb-6 border-b border-slate-200">
+            <div className="pb-6 mb-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-[#4A7FA7] to-[#2A5F87] rounded-lg flex items-center justify-center">
                   <Calendar className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-[var(--text-main)]">
+                  <h3 className="text-lg font-bold text-[var(--text-main)] dark:text-white">
                     {isAdmin ? `Attendance Records (${filteredRows.length})` : "My Attendance"}
                   </h3>
-                  <p className="text-xs text-[var(--text-light)]">
+                  <p className="text-xs text-[var(--text-light)] dark:text-slate-400">
                     {isAdmin ? `Showing ${filteredRows.length} of ${rows.length} records for ${selectedDate}` : "Track your attendance history"}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="border border-[#B3CFE5] rounded-lg overflow-hidden shadow-sm">
+            <div className="border border-[#B3CFE5] dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#0A1931]" style={{ backgroundColor: '#0A1931' }}>
+                  <tr className="bg-[#0A1931] dark:bg-slate-800" style={{ backgroundColor: '#0A1931' }}>
                     {isAdmin && (
                       <>
-                        <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Staff Name</th>
-                        <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Role</th>
+                        <th className="px-6 py-4 font-bold text-left text-white dark:text-slate-100">Staff Name</th>
+                        <th className="px-6 py-4 font-bold text-left text-white dark:text-slate-100">Role</th>
                       </>
                     )}
-                    <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Date</th>
-                    <th className="px-6 py-4 font-bold text-left" style={{ color: 'white' }}>Shift Hours</th>
-                    <th className="px-6 py-4 font-bold text-center" style={{ color: 'white' }}>Clock In</th>
-                    <th className="px-6 py-4 font-bold text-center" style={{ color: 'white' }}>Clock Out</th>
-                    <th className="px-6 py-4 font-bold text-center" style={{ color: 'white' }}>Total Worked</th>
-                    <th className="px-6 py-4 font-bold text-center" style={{ color: 'white' }}>Status</th>
-                    {isEditor && <th className="px-6 py-4 font-bold text-center" style={{ color: 'white' }}>Actions</th>}
+                    <th className="px-6 py-4 font-bold text-left text-white dark:text-slate-100">Date</th>
+                    <th className="px-6 py-4 font-bold text-left text-white dark:text-slate-100">Shift Hours</th>
+                    <th className="px-6 py-4 font-bold text-center text-white dark:text-slate-100">Clock In</th>
+                    <th className="px-6 py-4 font-bold text-center text-white dark:text-slate-100">Clock Out</th>
+                    <th className="px-6 py-4 font-bold text-center text-white dark:text-slate-100">Total Worked</th>
+                    <th className="px-6 py-4 font-bold text-center text-white dark:text-slate-100">Status</th>
+                    {isEditor && <th className="px-6 py-4 font-bold text-center text-white dark:text-slate-100">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -675,10 +675,10 @@ export default function AttendancePage() {
                     return (
                       <tr
                         key={record._id}
-                        className={`border-t border-[#B3CFE5] transition-colors duration-200 ${
+                        className={`border-t border-[#B3CFE5] dark:border-slate-700 transition-colors duration-200 ${
                           forgotCheckOut 
                             ? 'bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 border-l-4 border-l-red-600' 
-                            : idx % 2 === 0 ? 'bg-white hover:bg-[#E6F4EA]' : 'bg-[#F9FCFD] hover:bg-[#E6F4EA]'
+                            : idx % 2 === 0 ? 'bg-white hover:bg-[#E6F4EA] dark:bg-slate-900 dark:hover:bg-slate-800' : 'bg-[#F9FCFD] hover:bg-[#E6F4EA] dark:bg-slate-800/50 dark:hover:bg-slate-800'
                         }`}
                       >
                         {isAdmin && (
@@ -689,30 +689,30 @@ export default function AttendancePage() {
                                   {(record.userName || "?").slice(0, 1).toUpperCase()}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-[var(--text-main)]">{record.userName || "Unknown"}</p>
-                                  <p className="text-xs text-[var(--text-light)]">{record.email || "—"}</p>
+                                  <p className="font-semibold text-[var(--text-main)] dark:text-white">{record.userName || "Unknown"}</p>
+                                  <p className="text-xs text-[var(--text-light)] dark:text-slate-400">{record.email || "—"}</p>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="inline-block px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-300 rounded-full">
+                              <span className="inline-block px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-300 rounded-full dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700">
                                 {record.userRole || "Employee"}
                               </span>
                             </td>
                           </>
                         )}
-                        <td className="px-6 py-4 font-semibold text-[var(--text-main)]">
+                        <td className="px-6 py-4 font-semibold text-[var(--text-main)] dark:text-white">
                           <div className="text-sm">{formatDateForDisplay(record.date)}</div>
                           {record.checkInDistanceFromOffice > 50 || record.checkOutDistanceFromOffice > 50 ? (
-                            <div className="flex items-center gap-1 mt-1 text-xs font-semibold text-orange-600">
+                            <div className="flex items-center gap-1 mt-1 text-xs font-semibold text-orange-600 dark:text-orange-400">
                               <MapPin className="w-3 h-3" />
                               Out of range
                             </div>
                           ) : null}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm font-semibold text-[var(--text-main)]">{record.shiftStart} - {record.shiftEnd}</div>
-                          <div className="text-xs text-[var(--text-light)] mt-1 flex items-center gap-1">
+                          <div className="text-sm font-semibold text-[var(--text-main)] dark:text-white">{record.shiftStart} - {record.shiftEnd}</div>
+                          <div className="text-xs text-[var(--text-light)] dark:text-slate-400 mt-1 flex items-center gap-1">
                             <TrendingUp className="w-3 h-3" />
                             {record.shiftHours || "8h"} expected
                           </div>
@@ -720,36 +720,36 @@ export default function AttendancePage() {
                         <td className="px-6 py-4 text-center">
                           {record.checkIn ? (
                             <div>
-                              <p className="font-semibold text-[var(--text-main)] flex items-center justify-center gap-2">
+                              <p className="font-semibold text-[var(--text-main)] dark:text-white flex items-center justify-center gap-2">
                                 <LogIn className="w-4 h-4 text-green-600" />
                                 {convertTo12HourFormat(record.checkIn)}
                               </p>
                               {record.checkInDistanceFromOffice !== undefined && record.checkInDistanceFromOffice > 0 && (
-                                <p className="mt-1 text-xs text-slate-500 flex items-center justify-center gap-1">
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
                                   <MapPin className="w-3 h-3" />
                                   {Math.round(record.checkInDistanceFromOffice)}m away
                                 </p>
                               )}
-                              {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600">Late</p>}
+                              {record.status === "LATE" && <p className="mt-1 text-xs font-semibold text-orange-600 dark:text-orange-400">Late</p>}
                             </div>
                           ) : (
-                            <p className="text-[var(--text-light)]">—</p>
+                            <p className="text-[var(--text-light)] dark:text-slate-400">—</p>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {record.checkOut ? (
                             <div>
-                              <p className="font-semibold text-[var(--text-main)] flex items-center justify-center gap-2">
+                              <p className="font-semibold text-[var(--text-main)] dark:text-white flex items-center justify-center gap-2">
                                 <LogOut className="w-4 h-4 text-orange-600" />
                                 {convertTo12HourFormat(record.checkOut)}
                               </p>
                               {record.checkOutDistanceFromOffice !== undefined && record.checkOutDistanceFromOffice > 0 && (
-                                <p className="mt-1 text-xs text-slate-500 flex items-center justify-center gap-1">
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">
                                   <MapPin className="w-3 h-3" />
                                   {Math.round(record.checkOutDistanceFromOffice)}m away
                                 </p>
                               )}
-                              {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600">Early</p>}
+                              {record.status === "SHORT_HOURS" && <p className="mt-1 text-xs font-semibold text-orange-600 dark:text-orange-400">Early</p>}
                             </div>
                           ) : forgotCheckOut ? (
                             <div className="text-center">
@@ -760,10 +760,10 @@ export default function AttendancePage() {
                               <p className="mt-1 text-xs font-semibold text-red-600 dark:text-red-400">Check-out</p>
                             </div>
                           ) : (
-                            <p className="text-[var(--text-light)]">—</p>
+                            <p className="text-[var(--text-light)] dark:text-slate-400">—</p>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-center font-bold text-[#4A7FA7]">
+                        <td className="px-6 py-4 text-center font-bold text-[#4A7FA7] dark:text-blue-400">
                           {record.checkIn && record.checkOut
                             ? `${calculateWorkedHours(record.checkIn, record.checkOut)}h`
                             : "—"}
@@ -775,7 +775,7 @@ export default function AttendancePage() {
                               ⚠️ Forgot Check-out
                             </div>
                           ) : (
-                            <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm border-2 ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
+                            <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg font-semibold text-sm border-2 ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text} dark:${statusStyle.darkBg} dark:${statusStyle.darkBorder} dark:${statusStyle.darkText}`}>
                               {statusStyle.icon && <statusStyle.icon className="w-4 h-4" />}
                               {record.status || "—"}
                             </div>
@@ -783,7 +783,7 @@ export default function AttendancePage() {
                         </td>
                         {isEditor && (
                           <td className="px-6 py-4 text-center">
-                            <Button size="sm" onClick={() => handleEdit(record)} variant="ghost" className="text-[#4A7FA7] font-semibold hover:bg-[#E6F4EA]">
+                            <Button size="sm" onClick={() => handleEdit(record)} variant="ghost" className="text-[#4A7FA7] dark:text-blue-400 font-semibold hover:bg-[#E6F4EA] dark:hover:bg-slate-700">
                               Edit
                             </Button>
                           </td>
@@ -795,9 +795,9 @@ export default function AttendancePage() {
               </table>
               {filteredRows.length === 0 && (
                 <div className="px-6 py-16 text-center">
-                  <Calendar className="w-12 h-12 text-[var(--text-light)] mx-auto mb-3 opacity-50" />
-                  <p className="text-[var(--text-light)] font-medium">No attendance records found</p>
-                  <p className="text-xs text-[var(--text-light)] mt-1">Try adjusting your filters</p>
+                  <Calendar className="w-12 h-12 text-[var(--text-light)] dark:text-slate-500 mx-auto mb-3 opacity-50" />
+                  <p className="text-[var(--text-light)] dark:text-slate-400 font-medium">No attendance records found</p>
+                  <p className="text-xs text-[var(--text-light)] dark:text-slate-500 mt-1">Try adjusting your filters</p>
                 </div>
               )}
             </div>
