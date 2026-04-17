@@ -74,10 +74,16 @@ async function refreshAccessToken() {
         ...existing,
         accessToken,
         user: response.data?.user || existing.user,
+        rememberMe: response.data?.rememberMe || existing.rememberMe,
       };
 
       setSession(next);
       return accessToken;
+    })
+    .catch((err) => {
+      // Clear session on refresh failure
+      logout();
+      throw err;
     })
     .finally(() => {
       refreshPromise = null;

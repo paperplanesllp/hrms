@@ -35,6 +35,7 @@ export const postSignup = asyncHandler(async (req, res) => {
   
   try {
     const data = signupSchema.parse(req.body);
+    const { rememberMe } = req.body;
     console.log("✅ VALIDATION PASSED:", data);
 
     const result = await signup({
@@ -42,16 +43,21 @@ export const postSignup = asyncHandler(async (req, res) => {
       email: data.email,
       phone: data.phone,
       password: data.password,
+      rememberMe: rememberMe || false,
     });
 
     console.log("✅ USER CREATED SUCCESSFULLY:", result.user);
 
+    const cookieMaxAge = rememberMe 
+      ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
+      : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal signup
+
     res.cookie("refreshToken", result.refreshToken, {
       ...cookieBase,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: cookieMaxAge,
     });
 
-    res.status(201).json({ accessToken: result.accessToken, user: result.user });
+    res.status(201).json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
   } catch (error) {
     console.error("❌ SIGNUP ERROR CAUGHT:", error.message);
     throw error;
@@ -60,14 +66,20 @@ export const postSignup = asyncHandler(async (req, res) => {
 
 export const postLogin = asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
-  const result = await login(data.email, data.password);
+  const { rememberMe } = req.body;
+  const result = await login(data.email, data.password, rememberMe || false);
+
+  // Set refresh token cookie with expiry based on rememberMe preference
+  const cookieMaxAge = rememberMe 
+    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
+    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal login
 
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: cookieMaxAge,
   });
 
-  res.json({ accessToken: result.accessToken, user: result.user });
+  res.json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
 });
 
 export const postRefresh = asyncHandler(async (req, res) => {
@@ -78,7 +90,22 @@ export const postRefresh = asyncHandler(async (req, res) => {
   console.log("🔄 Refresh token received, validating...");
   const result = await refresh(token);
   console.log("✅ Refresh successful for user:", result.user.id);
-  res.json(result);
+  
+  // ✅ REFRESH TOKEN ROTATION: Set the new refresh token in cookie
+  const cookieMaxAge = result.rememberMe 
+    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
+    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal session
+
+  res.cookie("refreshToken", result.refreshToken, {
+    ...cookieBase,
+    maxAge: cookieMaxAge,
+  });
+
+  res.json({ 
+    accessToken: result.accessToken, 
+    user: result.user,
+    rememberMe: result.rememberMe 
+  });
 });
 
 export const postLogout = asyncHandler(async (req, res) => {
@@ -113,12 +140,17 @@ export const postTemporaryRequestOtp = asyncHandler(async (req, res) => {
 
 export const postTemporaryVerifyOtp = asyncHandler(async (req, res) => {
   const data = temporaryOtpVerifySchema.parse(req.body);
-  const result = await verifyTemporaryOtp(data.email, data.otp);
+  const { rememberMe } = req.body;
+  const result = await verifyTemporaryOtp(data.email, data.otp, rememberMe || false);
+
+  const cookieMaxAge = rememberMe 
+    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
+    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal session
 
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: cookieMaxAge,
   });
 
-  res.json({ accessToken: result.accessToken, user: result.user });
+  res.json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
 });

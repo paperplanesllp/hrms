@@ -29,7 +29,7 @@ function hashOtp(code) {
   return crypto.createHash("sha256").update(code).digest("hex");
 }
 
-export async function signup({ name, email, phone, password }) {
+export async function signup({ name, email, phone, password, rememberMe = false }) {
   console.log("🔄 SIGNUP SERVICE STARTED with:", { name, email, phone });
   
   const normalizedEmail = email.toLowerCase().trim();
@@ -64,10 +64,11 @@ export async function signup({ name, email, phone, password }) {
 
     console.log("🔑 Generating tokens...");
     const accessToken = signAccessToken(payload);
-    const refreshToken = signRefreshToken(payload);
+    const refreshToken = signRefreshToken(payload, rememberMe);
     console.log("✅ Tokens generated");
 
     user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    user.rememberMeEnabled = rememberMe || false;
     await user.save();
     console.log("✅ Refresh token hash saved");
 
@@ -75,6 +76,7 @@ export async function signup({ name, email, phone, password }) {
     return {
       accessToken,
       refreshToken,
+      rememberMe,
       user: {
         id: String(user._id),
         name: user.name,
@@ -89,7 +91,7 @@ export async function signup({ name, email, phone, password }) {
   }
 }
 
-export async function login(email, password) {
+export async function login(email, password, rememberMe = false) {
   const user = await User.findOne({ email: email.toLowerCase().trim() });
   if (!user) throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
 
@@ -133,9 +135,10 @@ export async function login(email, password) {
   const payload = { id: String(user._id), role: user.role, name: user.name };
 
   const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
+  const refreshToken = signRefreshToken(payload, rememberMe);
 
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  user.rememberMeEnabled = rememberMe || false;
   await user.save();
 
   // Log the login activity
@@ -145,13 +148,14 @@ export async function login(email, password) {
     actorRole: user.role,
     actionType: "LOGIN",
     module: "AUTH",
-    description: `${user.role} ${user.name} logged in`,
-    metadata: { email: user.email },
+    description: `${user.role} ${user.name} logged in${rememberMe ? ' (Remember Me enabled)' : ''}`,
+    metadata: { email: user.email, rememberMe },
   });
 
   return {
     accessToken,
     refreshToken,
+    rememberMe,
     user: {
       id: String(user._id),
       name: user.name,
@@ -179,8 +183,16 @@ export async function refresh(refreshToken) {
 
   const newPayload = { id: String(user._id), role: user.role, name: user.name };
   const newAccess = signAccessToken(newPayload);
+  
+  // ✅ REFRESH TOKEN ROTATION: Generate new refresh token on each refresh
+  const newRefreshToken = signRefreshToken(newPayload, user.rememberMeEnabled);
+  user.refreshTokenHash = await bcrypt.hash(newRefreshToken, 12);
+  await user.save();
+
   return { 
     accessToken: newAccess,
+    refreshToken: newRefreshToken,
+    rememberMe: user.rememberMeEnabled,
     user: { id: user._id, name: user.name, email: user.email, role: user.role }
   };
 }
@@ -379,7 +391,7 @@ export async function requestTemporaryOtp(email) {
   return payload;
 }
 
-export async function verifyTemporaryOtp(email, otp) {
+export async function verifyTemporaryOtp(email, otp, rememberMe = false) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const user = await User.findOne({
     email: normalizedEmail,
@@ -417,9 +429,10 @@ export async function verifyTemporaryOtp(email, otp) {
 
   const payload = { id: String(user._id), role: user.role, name: user.name };
   const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
+  const refreshToken = signRefreshToken(payload, rememberMe);
 
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  user.rememberMeEnabled = rememberMe || false;
   await user.save();
 
   await createActivityLog({
@@ -428,13 +441,14 @@ export async function verifyTemporaryOtp(email, otp) {
     actorRole: user.role,
     actionType: "LOGIN",
     module: "AUTH",
-    description: `${user.name} logged in with email OTP`,
-    metadata: { email: user.email, method: "OTP" },
+    description: `${user.name} logged in with email OTP${rememberMe ? ' (Remember Me enabled)' : ''}`,
+    metadata: { email: user.email, method: "OTP", rememberMe },
   });
 
   return {
     accessToken,
     refreshToken,
+    rememberMe,
     user: {
       id: String(user._id),
       name: user.name,

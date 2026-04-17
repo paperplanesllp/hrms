@@ -17,6 +17,7 @@ import {
   calculateActiveMinutes,
   calculatePausedMinutes
 } from './taskExecution.utils.js';
+import { TASK_TIMING_STATE } from './taskDeadline.utils.js';
 
 export const taskExecutionService = {
   /**
@@ -50,6 +51,14 @@ export const taskExecutionService = {
 
       // Start first work session
       startWorkSession(task, now);
+
+      // Update legacy fields for frontend compatibility
+      task.status = 'in-progress';
+      task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
+      task.isRunning = true;
+      task.isPaused = false;
+      task.currentSessionStartTime = now;
+      task.totalActiveTimeInSeconds = task.totalActiveTimeInSeconds || 0;
 
       // Add activity log
       addActivityLogEntry(task, 'started', user, {
@@ -95,6 +104,13 @@ export const taskExecutionService = {
       task.executionStatus = 'paused';
       addPause(task, reason, now);
 
+      // Update legacy fields for frontend compatibility
+      task.status = 'paused';
+      task.timingState = TASK_TIMING_STATE.PAUSED;
+      task.isRunning = false;
+      task.isPaused = true;
+      task.currentSessionStartTime = null;
+
       // Add activity log
       addActivityLogEntry(task, 'paused', user, {
         reason,
@@ -136,6 +152,13 @@ export const taskExecutionService = {
       // Start new work session
       task.executionStatus = 'in_progress';
       startWorkSession(task, now);
+
+      // Update legacy fields for frontend compatibility
+      task.status = 'in-progress';
+      task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
+      task.isRunning = true;
+      task.isPaused = false;
+      task.currentSessionStartTime = now;
 
       // Add activity log
       addActivityLogEntry(task, 'resumed', user, {
@@ -193,6 +216,13 @@ export const taskExecutionService = {
       task.totalActiveMinutes = calculateActiveMinutes(task.sessions);
       task.totalPausedMinutes = calculatePausedMinutes(task.pauses);
 
+      // Update legacy fields for frontend compatibility
+      task.status = 'completed';
+      task.timingState = TASK_TIMING_STATE.COMPLETED;
+      task.isRunning = false;
+      task.isPaused = false;
+      task.currentSessionStartTime = null;
+
       // Add activity log
       addActivityLogEntry(task, 'completed', user, {
         isLate,
@@ -240,6 +270,12 @@ export const taskExecutionService = {
       // Add blocker
       task.executionStatus = 'blocked';
       addBlocker(task, reason, now);
+
+      // Update legacy fields for frontend compatibility
+      task.status = 'paused'; // or 'on-hold', frontend expects paused
+      task.isPaused = true;
+      task.isRunning = false;
+      task.currentSessionStartTime = null;
 
       // Add activity log
       addActivityLogEntry(task, 'blocked', user, {

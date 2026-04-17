@@ -6,9 +6,11 @@ export function signAccessToken(payload) {
   return jwt.sign(payload, env.ACCESS_TOKEN_SECRET, { expiresIn: env.ACCESS_TOKEN_EXPIRES });
 }
 
-export function signRefreshToken(payload) {
+export function signRefreshToken(payload, rememberMe = false) {
   if (!env.REFRESH_TOKEN_SECRET) throw new Error("REFRESH_TOKEN_SECRET missing");
-  return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, { expiresIn: env.REFRESH_TOKEN_EXPIRES });
+  // ✅ Extend expiry to 90 days if rememberMe is enabled
+  const expiresIn = rememberMe ? "90d" : env.REFRESH_TOKEN_EXPIRES;
+  return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, { expiresIn });
 }
 
 export function verifyAccessToken(token) {

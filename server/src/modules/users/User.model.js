@@ -101,6 +101,7 @@ const userSchema = new mongoose.Schema(
     },
 
     refreshTokenHash: { type: String, default: "" },
+    rememberMeEnabled: { type: Boolean, default: false }, // ✅ "Stay logged in" preference
     resetPasswordToken: { type: String, default: "" },
     resetPasswordExpires: { type: Date },
     failedLoginAttempts: { type: Number, default: 0 },
