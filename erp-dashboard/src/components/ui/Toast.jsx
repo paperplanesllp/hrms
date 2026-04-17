@@ -6,10 +6,10 @@ export default function ToastHost() {
 const { items } = useToastStore((s) => s);
 
   const tone = (type) => {
-    if (type === "success") return "border-emerald-500 bg-emerald-50 text-emerald-900";
-    if (type === "error") return "border-red-500 bg-red-50 text-red-900";
-    if (type === "warn") return "border-orange-500 bg-orange-50 text-orange-900";
-    return "border-blue-500 bg-blue-50 text-blue-900";
+    if (type === "success") return "border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700";
+    if (type === "error") return "border-red-500 bg-red-50 text-red-900 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700";
+    if (type === "warn") return "border-orange-500 bg-orange-50 text-orange-900 dark:bg-orange-900/30 dark:text-orange-200 dark:border-orange-700";
+    return "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700";
   };
 
   const icon = (type) => {

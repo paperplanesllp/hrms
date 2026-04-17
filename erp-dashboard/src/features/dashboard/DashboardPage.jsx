@@ -424,7 +424,7 @@ export default function DashboardPage() {
                       disabled={hasCheckedInToday || attendanceLoading}
                       className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 ${
                         hasCheckedInToday
-                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed"
+                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed dark:bg-green-900/30 dark:text-green-400 dark:border-green-700/50"
                           : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white hover:shadow-lg active:scale-95"
                       }`}
                     >
@@ -448,9 +448,9 @@ export default function DashboardPage() {
                       disabled={!hasCheckedInToday || hasCheckedOutToday || attendanceLoading}
                       className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 ${
                         hasCheckedOutToday
-                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed"
+                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed dark:bg-green-900/30 dark:text-green-400 dark:border-green-700/50"
                           : !hasCheckedInToday
-                          ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                          ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500 dark:border-slate-600"
                           : "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white hover:shadow-lg active:scale-95"
                       }`}
                     >

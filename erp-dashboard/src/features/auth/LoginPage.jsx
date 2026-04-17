@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import api from "../../lib/api.js";
 import Button from "../../components/ui/Button.jsx";
@@ -33,9 +33,24 @@ export default function LoginPage() {
     email: "",
     phone: "",
   });
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    // Initialize from localStorage
+    try {
+      const saved = localStorage.getItem("rememberMe");
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
 
-  if (authed) return <Navigate to="/" replace />;
+  // Save rememberMe preference to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("rememberMe", JSON.stringify(rememberMe));
+    } catch (err) {
+      console.error("Failed to save remember me preference:", err);
+    }
+  }, [rememberMe]);
 
   const submit = async (e) => {
     e.preventDefault();
