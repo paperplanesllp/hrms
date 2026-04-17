@@ -372,6 +372,11 @@ export const updateCurrentLocation = asyncHandler(async (req, res) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid latitude or longitude");
   }
 
+  // Validate latitude and longitude ranges
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid latitude or longitude values");
+  }
+
   // Update current user's location
   const user = await updateUser(req.user.id, {
     currentLatitude: latitude,
@@ -380,6 +385,10 @@ export const updateCurrentLocation = asyncHandler(async (req, res) => {
     lastLocationUpdate: timestamp || new Date(),
     isActive: true,
   });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
 
   res.json({ 
     message: "Location updated successfully",

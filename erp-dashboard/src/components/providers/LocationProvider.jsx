@@ -138,6 +138,9 @@ export default function LocationProvider({ children }) {
           timestamp: new Date().toISOString(),
         };
 
+        console.log("📍 Raw GPS position received:", position.coords);
+        console.log("📍 Formatted location object:", nextLocation);
+
         setLocationPermission("granted");
         setLocationError(null);
         setCurrentLocation(nextLocation);
@@ -148,8 +151,16 @@ export default function LocationProvider({ children }) {
 
         try {
           isSendingRef.current = true;
-          await api.post("/users/location/update", nextLocation);
+          console.log("📤 Sending location update:", {
+            latitude: nextLocation.latitude,
+            longitude: nextLocation.longitude,
+            accuracy: nextLocation.accuracy,
+            timestamp: nextLocation.timestamp
+          });
+          const response = await api.post("/users/location/update", nextLocation);
+          console.log("✅ Location updated successfully:", response.data);
         } catch (error) {
+          console.error("❌ Location update failed:", error?.response?.data || error.message);
           setLocationError(error?.response?.data?.message || "Failed to send live location update.");
         } finally {
           isSendingRef.current = false;
@@ -184,6 +195,7 @@ export default function LocationProvider({ children }) {
 
     watchIdRef.current = watchId;
     setIsTracking(true);
+    console.log("📍 Location tracking started with watchPosition");
   }, [isAuthReady, stopLocationTracking]);
 
   const checkLocationPermission = useCallback(async () => {
