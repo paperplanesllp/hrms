@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { corsOptions } from "./config/cors.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 import { noCache } from "./middleware/noCache.js";
+import { authErrorLogger } from "./middleware/errorLogging.js";
 
 import authRoutes from "./modules/auth/auth.routes.js";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
@@ -106,6 +107,7 @@ export function createApp() {
   app.use("/api/calls", callsRoutes);
 
   app.use(notFound);
+  app.use(authErrorLogger);  // ✅ Log auth errors before global error handler
   app.use(errorHandler);
 
   return app;
