@@ -318,6 +318,67 @@ export async function notifyTaskOverdue(taskId) {
 }
 
 /**
+ * Enhanced task completion notification - notify Admin, HR, and task assigner
+ * @param {string} taskId - Task ID
+ * @param {string} completedByUserId - User ID who completed the task
+ * @param {string} assignedByUserId - User ID who assigned the task
+ * @param {string} completionRemarks - Completion remarks from the employee
+ * @returns {Promise<Array>} - Array of created notifications
+ */
+export async function notifyTaskCompletedWithRemarks(taskId, completedByUserId, assignedByUserId, completionRemarks = "") {
+  const task = await Task.findById(taskId).populate(["assignedBy", "assignedTo", "completedBy"], "name role").lean();
+  if (!task) return [];
+
+  const notifications = [];
+
+  // Helper to get all admin and HR users
+  const getAdminAndHRUsers = async () => {
+    try {
+      const adminsAndHR = await User.find({ role: { $in: ["ADMIN", "HR"] } }).select("_id").lean();
+      return adminsAndHR.map(u => u._id.toString());
+    } catch (error) {
+      console.error("Error fetching admin/HR users:", error);
+      return [];
+    }
+  };
+
+  const remarkText = completionRemarks ? `\n\n📝 Remarks: ${completionRemarks}` : "";
+  const completedByName = task.completedBy?.name || task.assignedTo?.name || "User";
+
+  // Notify task assigner
+  if (task.assignedBy?._id && assignedByUserId) {
+    const notif = await createTaskNotification({
+      userId: assignedByUserId,
+      taskId,
+      eventType: "task-completed",
+      title: `✅ Task Completed: ${task.title}`,
+      message: `Task "${task.title}" has been completed by ${completedByName}.${remarkText}`,
+      triggeredBy: completedByUserId
+    });
+    if (notif) notifications.push(notif);
+  }
+
+  // Notify Admin and HR users
+  const adminHRUserIds = await getAdminAndHRUsers();
+  for (const userId of adminHRUserIds) {
+    // Don't duplicate notification to assigner if they are already admin/HR
+    if (userId.toString() === assignedByUserId?.toString?.()) continue;
+
+    const notif = await createTaskNotification({
+      userId,
+      taskId,
+      eventType: "task-completed",
+      title: `✅ Task Completed: ${task.title}`,
+      message: `Task "${task.title}" assigned to ${task.assignedTo?.name || "Employee"} has been completed by ${completedByName}.${remarkText}`,
+      triggeredBy: completedByUserId
+    });
+    if (notif) notifications.push(notif);
+  }
+
+  return notifications;
+}
+
+/**
  * Mark notification as read
  * @param {string} notificationId - Notification ID
  * @returns {Promise<object>}

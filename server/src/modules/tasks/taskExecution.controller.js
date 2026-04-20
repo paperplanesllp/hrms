@@ -121,16 +121,31 @@ export const taskExecutionController = {
 
   /**
    * POST /tasks/:id/complete
-   * Complete a task
+   * Complete a task with mandatory completion remark
    */
   async completeTask(req, res) {
     try {
       const { id } = req.params;
+      const { completionRemark } = req.body;
       const userId = req.user.id;
+
+      // Validate completion remark
+      if (!completionRemark || typeof completionRemark !== 'string') {
+        return sendError(res, 'Completion remark is required', 400);
+      }
+
+      const trimmedRemark = completionRemark.trim();
+      if (trimmedRemark.length < 25) {
+        return sendError(res, 'Completion remark must be at least 25 characters long', 400);
+      }
+
+      if (trimmedRemark.length > 5000) {
+        return sendError(res, 'Completion remark cannot exceed 5000 characters', 400);
+      }
 
       console.log(`✅ [completeTask] Completing task ${id} by user ${userId}`);
 
-      const task = await taskExecutionService.completeTask(id, userId);
+      const task = await taskExecutionService.completeTask(id, userId, trimmedRemark);
 
       // Emit socket event
       notifyTaskStatusChanged(task, userId).catch(() => {});
@@ -143,7 +158,7 @@ export const taskExecutionController = {
         actionType: 'TASK_EXECUTION_COMPLETE',
         module: 'TASK',
         description: `Completed task "${task.title}" - ${task.executionStatus}`,
-        metadata: { taskId: task._id, title: task.title, executionStatus: task.executionStatus },
+        metadata: { taskId: task._id, title: task.title, executionStatus: task.executionStatus, hasRemark: !!trimmedRemark },
         ipAddress: req.ip,
         visibility: 'PUBLIC',
       }).catch(() => {});

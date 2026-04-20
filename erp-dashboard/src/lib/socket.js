@@ -13,6 +13,7 @@ let lastConnectErrorAt = 0;
 
 const HEARTBEAT_INTERVAL = 25000; // 25 seconds
 const ACTIVITY_THROTTLE = 10000; // 10 seconds
+const MAX_RECONNECTION_ATTEMPTS = 5;
 
 const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
@@ -23,6 +24,34 @@ const normalizeSocketPath = (value) => {
 
 const getResolvedSocketPath = () => normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH);
 
+/**
+ * Get production-safe socket URL - NEVER hardcode localhost for production
+ */
+const getProductionSafeSocketUrl = () => {
+  const envUrl = import.meta.env.VITE_SOCKET_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim().replace(/\/$/, "");
+  }
+  
+  const serverUrl = import.meta.env.VITE_SERVER_URL;
+  if (serverUrl && serverUrl.trim()) {
+    return serverUrl.trim().replace(/\/$/, "");
+  }
+  
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (apiUrl && apiUrl.trim()) {
+    return apiUrl.replace(/\/api\/?$/, "");
+  }
+  
+  // In production, use window.location.origin for same-domain socket connection
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
+  
+  // Development fallback only
+  return "http://localhost:5000";
+};
+
 export const getSocketDebugInfo = () => ({
   socketBaseUrl: SOCKET_BASE_URL,
   socketPath: getResolvedSocketPath(),
@@ -30,27 +59,43 @@ export const getSocketDebugInfo = () => ({
   serverBaseUrl: SERVER_BASE_URL,
   status: socketStatus,
   connected: Boolean(socket?.connected),
+  productionSafeUrl: getProductionSafeSocketUrl(),
 });
+
+/**
+ * Validate JWT token expiration
+ */
+const isTokenExpired = (token) => {
+  try {
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) return true;
+    
+    const payload = JSON.parse(atob(tokenParts[1]));
+    const currentTime = Math.floor(Date.now() / 1000);
+    
+    // If token expires within next 60 seconds, consider it expired
+    return payload.exp && payload.exp < (currentTime + 60);
+  } catch (error) {
+    console.warn("⚠️ Could not parse token:", error.message);
+    return true;
+  }
+};
 
 export const initializeSocket = () => {
   const auth = getAuth();
   
   // Check if token exists and is valid
   if (!auth?.accessToken) {
-    console.warn("⚠️ Socket init skipped: No auth token available");
+    console.warn("⚠️ Socket init skipped: No auth token available", {
+      hasAuth: !!auth,
+      hasAccessToken: !!auth?.accessToken
+    });
     return null;
   }
 
-  // Check if token is expired (basic check)
-  try {
-    const tokenPayload = JSON.parse(atob(auth.accessToken.split('.')[1]));
-    const currentTime = Date.now() / 1000;
-    if (tokenPayload.exp && tokenPayload.exp < currentTime) {
-      console.warn("⚠️ Socket init skipped: Token expired");
-      return null;
-    }
-  } catch (error) {
-    console.warn("⚠️ Socket init skipped: Invalid token format");
+  // Check if token is expired
+  if (isTokenExpired(auth.accessToken)) {
+    console.warn("⚠️ Socket init skipped: Token expired or expiring soon");
     return null;
   }
 
@@ -60,14 +105,19 @@ export const initializeSocket = () => {
     return socket;
   }
 
-  const socketBaseUrl = SOCKET_BASE_URL;
+  // Use production-safe URL that never hardcodes localhost
+  const socketBaseUrl = getProductionSafeSocketUrl();
   const socketPath = getResolvedSocketPath();
   
   console.log("🔌 Initializing socket connection", {
     socketBaseUrl,
     socketPath,
-    apiBaseUrl: API_BASE_URL,
-    serverBaseUrl: SERVER_BASE_URL,
+    environment: import.meta.env.MODE,
+    isDev: import.meta.env.DEV,
+    isProd: import.meta.env.PROD,
+    envSocketUrl: import.meta.env.VITE_SOCKET_URL,
+    envServerUrl: import.meta.env.VITE_SERVER_URL,
+    envApiUrl: import.meta.env.VITE_API_BASE_URL,
   });
   
   socket = io(socketBaseUrl, {
@@ -79,10 +129,13 @@ export const initializeSocket = () => {
     reconnection: true,
     reconnectionDelay: 1500,
     reconnectionDelayMax: 10000,
-    reconnectionAttempts: 4,
+    reconnectionAttempts: MAX_RECONNECTION_ATTEMPTS,
     timeout: 20000,
     path: socketPath,
-    withCredentials: true
+    withCredentials: true,
+    // For HTTPS domains, use secure websocket
+    secure: import.meta.env.PROD && window.location.protocol === 'https:',
+    rejectUnauthorized: false
   });
 
   socketStatus = "connecting";
@@ -117,14 +170,21 @@ export const initializeSocket = () => {
     }
   });
 
-  // Connection error
+  // Connection error with improved auth diagnostics
   socket.on("connect_error", (error) => {
     connectionAttempts++;
     socketStatus = "error";
 
     const now = Date.now();
-    if (now - lastConnectErrorAt > 3000) {
+    // Log errors less frequently to avoid console spam
+    const shouldLog = now - lastConnectErrorAt > 3000 || connectionAttempts <= 2;
+    
+    if (shouldLog) {
       lastConnectErrorAt = now;
+      
+      const auth = getAuth();
+      const isAuthError = error.message && error.message.includes("AUTH_");
+      
       console.error("❌ Socket connection error", {
         attempt: connectionAttempts,
         message: error.message,
@@ -132,12 +192,30 @@ export const initializeSocket = () => {
         context: error.context,
         socketBaseUrl,
         socketPath,
+        isAuthError,
+        hasToken: !!auth?.accessToken,
+        tokenExpired: auth?.accessToken ? isTokenExpired(auth.accessToken) : 'N/A',
       });
+      
+      if (isAuthError) {
+        console.error("   💡 Authentication failed:", {
+          errorType: error.message,
+          hint: auth?.accessToken 
+            ? "Token validation failed on server - may need to re-login"
+            : "No token found - user not logged in"
+        });
+      } else {
+        console.error("   💡 Connection failed:", {
+          hint: `Cannot reach ${socketBaseUrl} - check if server is running and CORS is configured`
+        });
+      }
     }
     
-    if (error.message.includes("AUTH_")) {
-      console.error("   💡 Authentication failed - stopping reconnection attempts");
+    // Stop reconnecting if auth error
+    if (error.message && error.message.includes("AUTH_")) {
+      console.error("   🛑 Stopping reconnection attempts due to auth error");
       socket.disconnect();
+      socketStatus = "auth_failed";
       return;
     }
   });

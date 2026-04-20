@@ -277,6 +277,15 @@ export const tasksService = {
       pausedDurationMs: 0,
       pausedDurationMinutes: 0
     };
+
+    // Handle completion remarks if task is being created with completed status
+    if (data.status === 'completed') {
+      taskData.progress = 100;
+      taskData.completedAt = new Date();
+      if (data.completionRemarks) {
+        taskData.completionRemarks = data.completionRemarks.trim();
+      }
+    }
     
     const task = await Task.create(taskData);
     await task.populate('assignedTo assignedBy department');
@@ -284,7 +293,7 @@ export const tasksService = {
   },
 
   // Update task status (complete/mark in-progress)
-  async updateTaskStatus(taskId, userId, status) {
+  async updateTaskStatus(taskId, userId, status, completionData = {}) {
     const validStatuses = ['pending', 'in-progress', 'paused', 'on-hold', 'completed', 'rejected', 'cancelled'];
     
     if (!validStatuses.includes(status)) {
@@ -303,18 +312,39 @@ export const tasksService = {
     
     task.status = status;
     
+    // Set startedAt when task is first marked as in-progress
+    if (status === 'in-progress' && !task.startedAt) {
+      task.startedAt = new Date();
+    }
+    
     if (status === 'completed') {
+      // Validate completion remark is provided and meets minimum length
+      if (!completionData.completionRemarks || completionData.completionRemarks.trim().length < 25) {
+        throw new Error('Completion remarks must be at least 25 characters');
+      }
+      
       task.completedAt = new Date();
+      task.completedBy = new mongoose.Types.ObjectId(userId);
+      task.completionRemarks = completionData.completionRemarks.trim();
       task.progress = 100;
-    } else if (status === 'in-progress' && !task.completedAt) {
-      // Only reset completedAt if task is being marked back to in-progress
-      if (task.status !== 'in-progress') {
+      
+      // Store time tracking data if provided
+      if (completionData.totalWorkedMilliseconds !== undefined) {
+        task.totalWorkedMilliseconds = completionData.totalWorkedMilliseconds;
+      }
+      if (completionData.totalPausedMilliseconds !== undefined) {
+        task.totalPausedMilliseconds = completionData.totalPausedMilliseconds;
+      }
+    } else if (status !== 'completed' && status !== 'in-progress') {
+      // Only reset completedAt if task is being marked back to non completed status
+      if (task.status === 'completed') {
         task.completedAt = null;
+        task.completedBy = null;
       }
     }
     
     await task.save();
-    await task.populate('assignedTo assignedBy department');
+    await task.populate('assignedTo assignedBy department completedBy');
     return task;
   },
 
@@ -354,16 +384,20 @@ export const tasksService = {
     }
     
     // Update fields
-    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'dueDate', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern'];
+    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'dueDate', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
     allowedFields.forEach(field => {
       if (field in data) {
         task[field] = data[field];
       }
     });
     
+    // Handle completion timestamp and remarks
     if (data.status === 'completed') {
       task.completedAt = new Date();
       task.progress = 100;
+      if (data.completionRemarks) {
+        task.completionRemarks = data.completionRemarks.trim();
+      }
     }
     
     await task.save();
@@ -1209,5 +1243,171 @@ export const tasksService = {
       updatedCount: overdueTasks.modifiedCount,
       message: `${overdueTasks.modifiedCount} tasks marked as overdue`
     };
+  },
+
+  // Get task completion trends for last N days
+  async getTaskCompletionTrends(userId, days = 7) {
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // For admin/HR, get all tasks. For employees, get only their tasks
+    const query = {
+      isDeleted: false,
+      status: 'completed',
+      completedAt: { $gte: startDate, $lte: now }
+    };
+
+    // If userId is provided and not admin, filter by assigned user
+    if (userId) {
+      query.assignedTo = new mongoose.Types.ObjectId(userId);
+    }
+
+    // Aggregate tasks by date
+    const trendData = await Task.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$completedAt' }
+          },
+          count: { $sum: 1 },
+          onTimeCount: {
+            $sum: { $cond: [{ $eq: ['$completedOnTime', true] }, 1, 0] }
+          },
+          lateCount: {
+            $sum: { $cond: [{ $eq: ['$completedOnTime', false] }, 1, 0] }
+          }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Fill in missing dates with zero counts
+    const dateMap = new Map();
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const dateStr = date.toISOString().split('T')[0];
+      dateMap.set(dateStr, { date: dateStr, completed: 0, onTime: 0, late: 0 });
+    }
+
+    // Populate with actual data
+    trendData.forEach(item => {
+      if (dateMap.has(item._id)) {
+        const entry = dateMap.get(item._id);
+        entry.completed = item.count;
+        entry.onTime = item.onTimeCount;
+        entry.late = item.lateCount;
+      }
+    });
+
+    // Convert map to array and sort
+    const chartData = Array.from(dateMap.values()).sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    );
+
+    // Calculate summary stats
+    const totalCompleted = chartData.reduce((sum, d) => sum + d.completed, 0);
+    const totalOnTime = chartData.reduce((sum, d) => sum + d.onTime, 0);
+    const onTimePercentage = totalCompleted > 0 ? Math.round((totalOnTime / totalCompleted) * 100) : 0;
+
+    return {
+      period: `Last ${days} days`,
+      summary: {
+        totalCompleted,
+        totalOnTime,
+        totalLate: totalCompleted - totalOnTime,
+        onTimePercentage
+      },
+      data: chartData
+    };
+  },
+
+  // Send daily reminders for incomplete tasks
+  async sendDailyIncompleteTasksReminder() {
+    console.log('📅 [DAILY_REMINDER] Starting daily incomplete tasks reminder process...');
+    
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      // Find all users with incomplete tasks
+      const users = await User.find({ isDeleted: false }).select('_id name email');
+      
+      let remindersCount = 0;
+      const reminders = [];
+      
+      for (const user of users) {
+        // Get incomplete tasks for this user
+        const incompleteTasks = await Task.find({
+          assignedTo: user._id,
+          isDeleted: false,
+          status: { $nin: ['completed', 'rejected', 'cancelled'] }
+        }).select('_id title priority status dueDate dueAt');
+        
+        if (incompleteTasks.length > 0) {
+          // Categorize tasks
+          const overdueTasks = incompleteTasks.filter(t => {
+            const dueDate = t.dueAt || t.dueDate;
+            return dueDate && new Date(dueDate) < now;
+          });
+          
+          const dueTodayTasks = incompleteTasks.filter(t => {
+            const dueDate = t.dueAt || t.dueDate;
+            return dueDate && new Date(dueDate) >= startOfDay && new Date(dueDate) <= endOfDay;
+          });
+          
+          const urgentTasks = incompleteTasks.filter(t => t.priority === 'URGENT');
+          
+          // Only send reminder if user has tasks worth reminding about
+          if (overdueTasks.length > 0 || dueTodayTasks.length > 0 || urgentTasks.length > 0) {
+            const reminderData = {
+              userId: user._id,
+              userName: user.name,
+              email: user.email,
+              taskCounts: {
+                total: incompleteTasks.length,
+                overdue: overdueTasks.length,
+                dueToday: dueTodayTasks.length,
+                urgent: urgentTasks.length
+              },
+              tasks: {
+                overdue: overdueTasks.map(t => ({ id: t._id, title: t.title, priority: t.priority })),
+                dueToday: dueTodayTasks.map(t => ({ id: t._id, title: t.title, priority: t.priority })),
+                urgent: urgentTasks.map(t => ({ id: t._id, title: t.title, dueDate: t.dueAt || t.dueDate }))
+              },
+              sentAt: now,
+              type: 'DAILY_INCOMPLETE_TASKS_REMINDER'
+            };
+            
+            reminders.push(reminderData);
+            remindersCount++;
+            
+            console.log(`✅ [DAILY_REMINDER] Prepared reminder for ${user.name} (${overdueTasks.length} overdue, ${dueTodayTasks.length} due today, ${urgentTasks.length} urgent)`);
+          }
+        }
+      }
+      
+      console.log(`📊 [DAILY_REMINDER] Total reminders prepared: ${remindersCount}`);
+      
+      return {
+        success: true,
+        remindersCount,
+        timestamp: now,
+        message: `Daily reminder process completed. ${remindersCount} reminders sent to users with incomplete tasks.`,
+        reminders
+      };
+    } catch (error) {
+      console.error('❌ [DAILY_REMINDER] Error in daily reminder process:', error);
+      throw error;
+    }
   }
 };
+
+export default tasksService;

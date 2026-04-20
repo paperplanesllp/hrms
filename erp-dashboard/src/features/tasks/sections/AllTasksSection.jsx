@@ -33,6 +33,15 @@ export default function AllTasksSection() {
   // Check if user has admin/hr role
   const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
 
+  // Helper function to sort tasks: running first, then newest
+  const sortTasks = useCallback((tasks) => {
+    return [...(tasks || [])].sort((a, b) => {
+      if (a.isRunning && !b.isRunning) return -1;
+      if (!a.isRunning && b.isRunning) return 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }, []);
+
   // Fetch all tasks function
   const fetchAllTasks = useCallback(async () => {
     try {
@@ -49,7 +58,10 @@ export default function AllTasksSection() {
         tasks = await taskService.getMyTasks({ limit: 500 });
       }
       
-      setAllTasks(tasks || []);
+      // Sort: newest first (running tasks still bubble to top)
+      const sorted = sortTasks(tasks);
+      
+      setAllTasks(sorted);
     } catch (error) {
       console.error('Error fetching all tasks:', error);
       const errorMsg = error?.response?.status === 403 
@@ -97,17 +109,25 @@ export default function AllTasksSection() {
       console.log('📡 [AllTasks] task:updated event received:', data);
       setAllTasks(prev => {
         const exists = prev.some(t => t._id === data.task._id);
+        let updated;
         if (exists) {
-          return prev.map(t => t._id === data.task._id ? data.task : t);
+          updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        } else {
+          updated = [...prev, data.task];
         }
-        return [...prev, data.task];
+        // Re-sort after update to ensure new tasks appear first
+        return sortTasks(updated);
       });
     };
 
     // Handle task status changed
     const handleTaskStatusChanged = (data) => {
       console.log('📡 [AllTasks] task:status-changed event received:', data);
-      setAllTasks(prev => prev.map(t => t._id === data.task._id ? data.task : t));
+      setAllTasks(prev => {
+        const updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        // Re-sort after status change
+        return sortTasks(updated);
+      });
       toast({ 
         title: 'Task Status Updated', 
         message: `${data.task?.title} - ${data.task?.status}`,

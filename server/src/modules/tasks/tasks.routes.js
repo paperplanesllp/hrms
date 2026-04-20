@@ -15,6 +15,7 @@ router.get('/debug/diagnostics', tasksController.getTasksDiagnostics);
 // Analytics routes (admin/HR only)
 router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
 router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
+router.get('/analytics/completion-trends', tasksController.getTaskCompletionTrends);
 
 // My tasks routes
 router.get('/my', tasksController.getMyTasks);
@@ -76,5 +77,15 @@ router.post('/:id/complete', tasksController.completeTask);
 router.post('/:id/request-extension', tasksController.requestTaskExtension);
 router.post('/:id/reject', tasksController.rejectTask);
 router.get('/:id/analysis', tasksController.getTaskAnalysis);
+
+// ─── TASK REMINDER ROUTES ───────────────────────────────────────────────────────────
+// Get incomplete tasks summary for current user
+router.get('/my/summary/incomplete', tasksController.getIncompleteSummary);
+
+// Trigger daily reminders manually (admin/HR only)
+router.post('/reminders/trigger', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.triggerDailyReminder);
+
+// Get reminder system status (admin/HR only)
+router.get('/reminders/status', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getReminderStatus);
 
 export default router;

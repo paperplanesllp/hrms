@@ -132,8 +132,10 @@ export const taskService = {
     return normalizeResponse(res);
   },
 
-  async completeTask(taskId) {
-    const res = await api.post(`/tasks/${taskId}/complete`);
+  async completeTask(taskId, completionRemark = '') {
+    const res = await api.post(`/tasks/${taskId}/complete`, { 
+      completionRemark: completionRemark.trim() 
+    });
     return normalizeResponse(res);
   },
 
@@ -218,6 +220,13 @@ export const taskService = {
 
   async getDashboardMetrics() {
     const res = await api.get('/tasks/dashboard/metrics');
+    return normalizeResponse(res);
+  },
+
+  async getTaskCompletionTrends(days = 7) {
+    const res = await api.get('/tasks/analytics/completion-trends', {
+      params: { days }
+    });
     return normalizeResponse(res);
   }
 };

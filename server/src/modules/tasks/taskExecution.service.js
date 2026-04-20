@@ -181,10 +181,11 @@ export const taskExecutionService = {
    * - Changes executionStatus to 'completed' or 'completed_late'
    * - Ends active work session
    * - Sets completedAt timestamp
+   * - Saves completion remark (mandatory)
    * - Calculates final metrics
    * - Adds activity log entry
    */
-  async completeTask(taskId, userId) {
+  async completeTask(taskId, userId, completionRemark) {
     try {
       const task = await Task.findById(taskId);
       if (!task) throw new Error('Task not found');
@@ -196,6 +197,16 @@ export const taskExecutionService = {
         throw new Error('Cannot complete a blocked task. Resolve all blockers first.');
       }
 
+      // Validate completion remark
+      if (!completionRemark || typeof completionRemark !== 'string') {
+        throw new Error('Completion remark is required');
+      }
+      
+      const trimmedRemark = completionRemark.trim();
+      if (trimmedRemark.length < 25) {
+        throw new Error('Completion remark must be at least 25 characters long');
+      }
+
       const now = new Date();
 
       // End active work session if running
@@ -203,8 +214,10 @@ export const taskExecutionService = {
         endWorkSession(task, now);
       }
 
-      // Set completion time
+      // Set completion time and remark
       task.completedAt = now;
+      task.completionRemarks = trimmedRemark;
+      task.completedBy = userId;
 
       // Determine if completed on time or late
       const isLate = now > new Date(task.dueDate);
@@ -226,6 +239,7 @@ export const taskExecutionService = {
       // Add activity log
       addActivityLogEntry(task, 'completed', user, {
         isLate,
+        remark: trimmedRemark,
         message: isLate ? 'Task completed late' : 'Task completed on time'
       });
 

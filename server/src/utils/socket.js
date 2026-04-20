@@ -36,9 +36,14 @@ export const initializeSocket = (server) => {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
+      const origin = socket.handshake.headers.origin;
       
       if (!token) {
-        console.error("❌ Socket auth failed: Missing token");
+        console.error("❌ Socket auth failed: Missing token", {
+          origin,
+          hasAuth: !!socket.handshake.auth,
+          authKeys: Object.keys(socket.handshake.auth || {})
+        });
         return next(new Error("AUTH_REQUIRED"));
       }
 
@@ -46,14 +51,23 @@ export const initializeSocket = (server) => {
       try {
         decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
       } catch (err) {
-        console.error("❌ Socket auth failed: Invalid token -", err.message);
+        console.error("❌ Socket auth failed: Invalid token verification", {
+          error: err.message,
+          tokenLength: token ? token.length : 0,
+          tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
+          secret: env.JWT_ACCESS_SECRET ? 'configured' : 'MISSING!',
+          origin
+        });
         return next(new Error("AUTH_INVALID"));
       }
 
       const user = await User.findById(decoded.id).select("-passwordHash -refreshTokenHash");
       
       if (!user) {
-        console.error("❌ Socket auth failed: User not found -", decoded.id);
+        console.error("❌ Socket auth failed: User not found", {
+          userId: decoded.id,
+          origin
+        });
         return next(new Error("AUTH_USER_NOT_FOUND"));
       }
 
@@ -63,10 +77,19 @@ export const initializeSocket = (server) => {
       socket.userEmail = user.email;
       socket.userImage = user.profileImageUrl;
       
-      console.log(`✅ Socket auth succeeded: ${user.name} (${user.role})`);
+      console.log(`✅ Socket auth succeeded`, {
+        userName: user.name,
+        userRole: user.role,
+        userId: user._id,
+        origin
+      });
       next();
     } catch (err) {
-      console.error("❌ Socket auth error:", err.message);
+      console.error("❌ Socket auth error:", {
+        message: err.message,
+        stack: err.stack,
+        hasJwtSecret: !!env.JWT_ACCESS_SECRET
+      });
       next(new Error("AUTH_ERROR"));
     }
   });

@@ -14,12 +14,6 @@ const PRIORITY_COLORS = {
   CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
 };
 
-const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in-progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' }
-];
-
 export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users = [], departments = [] }) {
   const currentUser = useAuthStore(s => s.user);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,18 +24,26 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   const [subtaskInput, setSubtaskInput] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
+  // Set default due date and time to 6:30 PM today
+  const getDefaultDueDate = () => {
+    const now = new Date();
+    now.setHours(18, 30, 0, 0); // 6:30 PM in 24-hour format
+    return now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+  };
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     priority: 'MEDIUM',
     status: 'pending',
-    dueDate: '',
+    dueDate: getDefaultDueDate(),
     estimatedHours: '',
     estimatedMinutes: '',
     assignedTo: '',
     department: '',
     tags: [],
-    subtasks: []
+    subtasks: [],
+    remarks: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -156,6 +158,19 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       newErrors.assignedTo = 'Please assign the task to someone';
     }
 
+    // Validate remarks for completed tasks
+    if (formData.status === 'completed') {
+      const remarksText = formData.remarks.trim();
+      if (!remarksText) {
+        newErrors.remarks = 'Remarks are required when marking task as completed';
+      } else {
+        const wordCount = remarksText.split(/\s+/).filter(word => word.length > 0).length;
+        if (wordCount < 25) {
+          newErrors.remarks = `Remarks must contain at least 25 words (current: ${wordCount} words)`;
+        }
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -209,7 +224,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         subtasks: subtasks,
         assignedBy: currentUser?.id,
         createdAt: new Date(),
-        attachments: uploadedFiles.map(f => f.name)
+        attachments: uploadedFiles.map(f => f.name),
+        ...(formData.status === 'completed' && { completionRemarks: formData.remarks.trim() })
       };
 
       console.log('📋 [CreateTaskModal] Task payload:', taskPayload);
@@ -224,18 +240,25 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       });
 
       // Reset form
+      const defaultDate = (() => {
+        const now = new Date();
+        now.setHours(18, 30, 0, 0);
+        return now.toISOString().slice(0, 16);
+      })();
+      
       setFormData({
         title: '',
         description: '',
         priority: 'MEDIUM',
         status: 'pending',
-        dueDate: '',
+        dueDate: defaultDate,
         estimatedHours: '',
         estimatedMinutes: '',
         assignedTo: '',
         department: '',
         tags: [],
-        subtasks: []
+        subtasks: [],
+        remarks: ''
       });
       setUploadedFiles([]);
       setSubtasks([]);
@@ -267,8 +290,24 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
   if (!isOpen) return null;
 
+  // Ensure current user is always in the list
+  const usersForDropdown = (users.length > 0 ? users : []).filter(u => 
+    !u.name?.includes('Voice Call Test') && !u.name?.includes('Debug User')
+  );
+  const currentUserExists = usersForDropdown.some(u => u._id === currentUser?.id || u._id === currentUser?._id);
+  
+  // If current user not in list, add them at the top
+  if (currentUser && !currentUserExists) {
+    usersForDropdown.unshift({
+      _id: currentUser.id || currentUser._id,
+      name: currentUser.name,
+      email: currentUser.email,
+      department: currentUser.department
+    });
+  }
+
   // Get selected assignee info
-  const selectedAssignee = users.find(u => u._id === formData.assignedTo);
+  const selectedAssignee = usersForDropdown.find(u => u._id === formData.assignedTo);
   const selectedDept = departments.find(d => d._id === formData.department);
 
   return (
@@ -353,16 +392,25 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Due Date & Time <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  type="datetime-local"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg transition ${
-                    errors.dueDate 
-                      ? 'border-red-500 dark:border-red-400' 
-                      : 'border-slate-200 dark:border-slate-600'
-                  } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={formData.dueDate.slice(0, 10)}
+                    onChange={(e) => {
+                      const dateOnly = e.target.value;
+                      const dateWithTime = dateOnly + 'T18:30'; // Always 6:30 PM (18:30)
+                      setFormData({ ...formData, dueDate: dateWithTime });
+                    }}
+                    className={`flex-1 px-4 py-2.5 border-2 rounded-lg transition ${
+                      errors.dueDate 
+                        ? 'border-red-500 dark:border-red-400' 
+                        : 'border-slate-200 dark:border-slate-600'
+                    } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                  />
+                  <div className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-lg text-sm font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                    6:30 PM
+                  </div>
+                </div>
                 {errors.dueDate && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.dueDate}</p>}
               </div>
 
@@ -401,7 +449,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   </div>
                 </div>
                 {formData.estimatedHours || formData.estimatedMinutes ? (
-                  <p className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
                     Total: {formData.estimatedHours || 0}h {formData.estimatedMinutes || 0}m
                   </p>
                 ) : null}
@@ -424,7 +472,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   }`}
                 >
                   <option value="">Select a user...</option>
-                  {users.map((u) => {
+                  {usersForDropdown.map((u) => {
                     const isYou = u._id === currentUser?.id || u._id === currentUser?._id;
                     return (
                       <option key={u._id} value={u._id}>
@@ -448,9 +496,51 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white bg-slate-100 cursor-not-allowed"
                 />
               </div>
-
-              
             </div>
+
+            {/* Row 4.5: Conditional Remarks Field for Completed Tasks */}
+            {formData.status === 'completed' && (
+              <div className="p-4 border-2 rounded-lg border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
+                <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                  Completion Remarks <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                    (Minimum 25 words required)
+                  </span>
+                </label>
+                <textarea
+                  placeholder="Please provide completion details, outcomes, challenges faced, and any notes about the task completion... (minimum 25 words)"
+                  value={formData.remarks}
+                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                  className={`w-full px-4 py-3 transition border-2 rounded-lg resize-none dark:bg-slate-700 dark:text-white focus:ring-2 focus:ring-blue-200 ${
+                    errors.remarks 
+                      ? 'border-red-500 dark:border-red-400' 
+                      : 'border-slate-300 dark:border-slate-600'
+                  } focus:border-blue-500`}
+                  rows="4"
+                />
+                <div className="flex justify-between mt-2">
+                  <div>
+                    {errors.remarks && (
+                      <p className="flex items-center gap-1 text-xs text-red-500">
+                        <AlertCircle size={12} /> {errors.remarks}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-xs font-medium">
+                    {formData.remarks.trim() ? (
+                      <span className={formData.remarks.trim().split(/\s+/).filter(w => w.length > 0).length >= 25 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-orange-600 dark:text-orange-400'
+                      }>
+                        {formData.remarks.trim().split(/\s+/).filter(w => w.length > 0).length} / 25 words
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 dark:text-slate-400">0 / 25 words</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Row 5: Remarks */}
             <div>

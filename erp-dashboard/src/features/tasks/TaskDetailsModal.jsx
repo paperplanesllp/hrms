@@ -6,6 +6,7 @@ import { taskService } from './taskService.js';
 import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
 import { getAuth } from '../../lib/auth.js';
+import { useAuthStore } from '../../store/authStore.js';
 import TimerChip from './components/TimerChip.jsx';
 import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
@@ -32,13 +33,39 @@ export default function TaskDetailsModal({
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [holdReason, setHoldReason] = useState('');
   const [reassignReason, setReassignReason] = useState('');
+  const [completionRemark, setCompletionRemark] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState(null);
   const [timeline, setTimeline] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // Get current user for permission checks
+  const currentUser = useAuthStore((s) => s.user);
+
+  // Helper function to check if current user can view completion remarks
+  const canViewCompletionRemarks = () => {
+    if (!currentUser || !task) return false;
+    
+    const isAdmin = currentUser.role === 'ADMIN';
+    const isHR = currentUser.role === 'HR';
+    const isTaskAssigner = task.assignedBy?._id === currentUser._id || task.assignedBy?.id === currentUser._id;
+    const isCompletingEmployee = task.completedBy?._id === currentUser._id || task.completedBy?.id === currentUser._id;
+    const isCurrentEmployee = task.assignedTo?._id === currentUser._id || task.assignedTo?.id === currentUser._id;
+    
+    return isAdmin || isHR || isTaskAssigner || isCompletingEmployee || isCurrentEmployee;
+  };
+  const quickRemarkChips = [
+    'Work completed',
+    'Shared with client',
+    'Tested and verified',
+    'Pending review',
+    'Ready for deployment'
+  ];
+
   const countdown = useTaskCountdown(task || {});
   const estimatedCountdown = useEstimatedTimeCountdown(task || {});
   const remaining = calculateRemainingTime(task || {});
@@ -129,11 +156,72 @@ export default function TaskDetailsModal({
     }
   };
 
+  const countWords = (text) => {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
   const handleStatusChange = async () => {
-    const nextStatus = task.status === 'completed' ? 'pending' : 'completed';
-    if (onStatusChange) {
-      await onStatusChange(task._id, nextStatus);
+    if (task.status === 'completed') {
+      // If already completed, allow marking back to pending
+      const nextStatus = 'pending';
+      if (onStatusChange) {
+        await onStatusChange(task._id, nextStatus);
+      }
+    } else {
+      // If not completed, show remark modal
+      setShowCompleteModal(true);
     }
+  };
+
+  const handleCompleteTask = async () => {
+    const remarkLength = completionRemark.trim().length;
+    
+    if (remarkLength < 10) {
+      toast({ 
+        title: `Remark must be at least 10 characters (currently ${remarkLength})`, 
+        type: 'error' 
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // Call the proper complete endpoint with completion remark
+      await api.post(`/tasks/${task._id}/complete`, {
+        completionRemark: completionRemark.trim()
+      });
+
+      toast({ 
+        title: 'Task completed successfully',
+        description: 'Task marked as done with completion summary.',
+        type: 'success' 
+      });
+      
+      setShowCompleteModal(false);
+      setCompletionRemark('');
+      
+      if (onStatusChange) {
+        await onStatusChange(task._id, 'completed');
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast({ 
+        title: 'Failed to complete task',
+        description: error.response?.data?.message || error.message, 
+        type: 'error' 
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleQuickRemark = (chip) => {
+    setCompletionRemark(prev => {
+      if (prev.trim()) {
+        return prev + ' ' + chip;
+      }
+      return chip;
+    });
   };
 
   const handleHoldTask = async () => {
@@ -368,6 +456,52 @@ export default function TaskDetailsModal({
               <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
                 {task.description}
               </p>
+            </div>
+          )}
+
+          {/* Completion Summary - Show for completed tasks with permission check */}
+          {task.status === 'completed' && task.completionRemarks && canViewCompletionRemarks() && (
+            <div className="p-4 rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="text-green-600 dark:text-green-400" size={20} />
+                <h3 className="text-sm font-bold text-green-900 dark:text-green-200">Completion Summary</h3>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {task.completedBy && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Completed By</p>
+                    <p className="text-green-900 dark:text-green-100">{task.completedBy?.name || task.completedBy?.email || 'Unknown'}</p>
+                  </div>
+                )}
+                {task.completedAt && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Completed At</p>
+                    <p className="text-green-900 dark:text-green-100">{formatToIST(new Date(task.completedAt))}</p>
+                  </div>
+                )}
+                {task.totalWorkedMilliseconds > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Total Worked Time</p>
+                    <p className="text-green-900 dark:text-green-100 font-medium">
+                      {Math.floor(task.totalWorkedMilliseconds / (1000 * 3600))}h {Math.floor((task.totalWorkedMilliseconds % (1000 * 3600)) / (1000 * 60))}m
+                    </p>
+                  </div>
+                )}
+                {task.totalPausedMilliseconds > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Total Paused Time</p>
+                    <p className="text-green-900 dark:text-green-100">{Math.floor(task.totalPausedMilliseconds / (1000 * 60))}m</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">Work Summary</p>
+                <p className="text-sm text-green-900 dark:text-green-100 leading-relaxed bg-white dark:bg-slate-800/50 p-3 rounded border border-green-200 dark:border-green-700">
+                  {task.completionRemarks}
+                </p>
+              </div>
             </div>
           )}
 
@@ -714,6 +848,138 @@ export default function TaskDetailsModal({
                       className="bg-blue-500 hover:bg-blue-600"
                     >
                       {isProcessing ? 'Reassigning...' : 'Reassign'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Complete Task Modal */}
+          {showCompleteModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+              <Card className="w-full max-w-2xl my-8">
+                <div className="p-6 space-y-4">
+                  {/* Header */}
+                  <div className="border-b border-slate-200 dark:border-slate-700 pb-4">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Complete Task</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Provide a work summary (minimum 10 characters)
+                    </p>
+                  </div>
+
+                  {/* Task Details Summary */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Task</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{task.title}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Assigned By</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {task.assignedBy?.name || task.assignedBy?.email || 'Unknown'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Work Started</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {task.startedAt ? formatToIST(new Date(task.startedAt)) : 'Not started'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Lifecycle Duration</p>
+                        <p className="text-sm text-slate-900 dark:text-white font-medium">
+                          {task.startedAt ? (() => {
+                            const start = new Date(task.startedAt);
+                            const end = task.completedAt ? new Date(task.completedAt) : new Date();
+                            const totalMs = end - start;
+                            const totalMinutes = Math.floor(totalMs / (1000 * 60));
+                            const hours = Math.floor(totalMinutes / 60);
+                            const minutes = totalMinutes % 60;
+                            return `${hours}h ${minutes}m`;
+                          })() : 'Not started'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Estimated Time</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {task.estimatedMinutes && task.estimatedMinutes > 0 
+                            ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`
+                            : 'No estimate set'
+                          }
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Worked Time</p>
+                        <p className="text-sm text-slate-900 dark:text-white font-medium">
+                          {task.totalActiveTimeInSeconds ? `${Math.floor(task.totalActiveTimeInSeconds / 3600)}h ${Math.floor((task.totalActiveTimeInSeconds % 3600) / 60)}m` : '0m'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Paused Time</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {task.totalPausedTimeInSeconds ? `${Math.floor(task.totalPausedTimeInSeconds / 60)}m` : '0m'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Summary */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      Work Summary / Completion Remark <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={completionRemark}
+                      onChange={(e) => setCompletionRemark(e.target.value)}
+                      placeholder="Describe what work was completed, outcomes, any challenges faced, etc..."
+                      className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      rows="4"
+                    />
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Characters: <span className={`font-semibold ${completionRemark.trim().length < 10 ? 'text-red-500' : 'text-green-500'}`}>
+                          {completionRemark.trim().length}/10 minimum
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick Chips */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Quick Suggestions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {quickRemarkChips.map((chip) => (
+                        <button
+                          key={chip}
+                          onClick={() => handleQuickRemark(chip)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowCompleteModal(false);
+                        setCompletionRemark('');
+                      }}
+                      disabled={isProcessing}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCompleteTask}
+                      disabled={isProcessing || completionRemark.trim().length < 10}
+                      className="bg-green-500 hover:bg-green-600"
+                    >
+                      {isProcessing ? 'Completing...' : 'Submit & Complete'}
                     </Button>
                   </div>
                 </div>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
-import { BarChart3, LineChart, PieChart, Download, Calendar, TrendingUp, Loader, AlertCircle, RefreshCw } from 'lucide-react';
+import { BarChart3, LineChart, PieChart, Download, Calendar, TrendingUp, Loader, AlertCircle, RefreshCw, Clipboard } from 'lucide-react';
 import api from '../../../lib/api.js';
 import DailyEmployeeTasks from './DailyEmployeeTasks.jsx';
+import TaskProgressReports from './TaskProgressReports.jsx';
 import { useAuthStore } from '../../../store/authStore.js';
 import { toast } from '../../../store/toastStore.js';
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '../utils/exportReports.js';
@@ -40,8 +41,8 @@ export default function TaskReportsSection() {
         return;
       }
       
-      // Skip API calls for daily view (DailyEmployeeTasks handles its own data)
-      if (dateRange === 'daily') {
+      // Skip API calls for daily and progress views (they handle their own data)
+      if (dateRange === 'daily' || dateRange === 'progress') {
         setAnalyticsData(null);
         setTeamPerformance([]);
         return;
@@ -167,19 +168,26 @@ export default function TaskReportsSection() {
 
         {/* Date Range Selector */}
         <div className="flex flex-wrap gap-2 items-center">
-          {['daily', 'week', 'month', 'quarter', 'year'].map((range) => (
+          {['daily', 'week', 'month', 'quarter', 'year', 'progress'].map((range) => (
             <button
               key={range}
               onClick={() => setDateRange(range)}
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300
+                px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2
                 ${dateRange === range
                   ? 'bg-brand-accent text-slate-900 shadow-lg shadow-brand-accent/30'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
                 }
               `}
             >
-              {range.charAt(0).toUpperCase() + range.slice(1)}
+              {range === 'progress' ? (
+                <>
+                  <Clipboard size={14} />
+                  Progress
+                </>
+              ) : (
+                range.charAt(0).toUpperCase() + range.slice(1)
+              )}
             </button>
           ))}
           
@@ -196,7 +204,7 @@ export default function TaskReportsSection() {
       </Card>
 
       {/* Key Metrics */}
-      {dateRange !== 'daily' && (
+      {dateRange !== 'daily' && dateRange !== 'progress' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {reports.map((report, idx) => {
           const Icon = report.icon;
@@ -237,7 +245,7 @@ export default function TaskReportsSection() {
       )}
 
       {/* Charts Placeholder */}
-      {dateRange !== 'daily' && (
+      {dateRange !== 'daily' && dateRange !== 'progress' && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Completion Trend Chart */}
         <Card className="p-6">
@@ -380,8 +388,15 @@ export default function TaskReportsSection() {
         <DailyEmployeeTasks />
       )}
 
-      {/* Export Options - Hide in daily view */}
-      {dateRange !== 'daily' && (
+      {/* Task Progress Reports - Show when Progress tab is selected */}
+      {dateRange === 'progress' && (
+        <Card className="p-6">
+          <TaskProgressReports />
+        </Card>
+      )}
+
+      {/* Export Options - Hide in daily and progress views */}
+      {dateRange !== 'daily' && dateRange !== 'progress' && (
       <Card className="p-6 bg-gradient-to-br from-brand-accent/5 to-transparent dark:from-brand-accent/10">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
           Export Reports

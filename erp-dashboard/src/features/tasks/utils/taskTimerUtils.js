@@ -25,6 +25,29 @@ export function formatSecondsHuman(totalSeconds) {
   return `${sec}s`;
 }
 
+/** Format milliseconds into human-readable string (canonical formatter) */
+export function formatMilliseconds(totalMs) {
+  if (!totalMs || totalMs <= 0) return '0m';
+  const seconds = Math.max(0, Math.floor(totalMs / 1000));
+  return formatSecondsHuman(seconds);
+}
+
+/** Format minutes into human-readable string. Use for fields stored as minutes in database */
+export function formatMinutes(totalMinutes) {
+  if (!totalMinutes || totalMinutes <= 0) return '0m';
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
+/** Format estimated time. Use this to display estimated minutes. */
+export function formatEstimatedTime(estimatedMinutes) {
+  if (!estimatedMinutes || estimatedMinutes === 0) return 'No estimate';
+  return formatMinutes(estimatedMinutes);
+}
+
 /**
  * Calculate total active seconds for a task, including the current running session.
  * Uses server-stored currentSessionStartTime so it's accurate after page refresh.

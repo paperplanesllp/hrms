@@ -5,12 +5,20 @@ import { Clock, AlertTriangle, AlertCircle } from 'lucide-react';
  * Displays countdown timer based on estimated time
  * Shows HH:MM:SS format counting DOWN from estimated time
  * Animates and changes color when expired
+ * Shows "No estimate set" if no estimate is defined
  */
 export default function EstimatedTimeTimer({ countdown, task }) {
   if (!countdown || !task) return null;
   
-  // Don't show if no estimated time set
-  if (countdown.estimatedSeconds === 0) return null;
+  // Show "No estimate set" if no estimated time is set
+  if (countdown.estimatedSeconds === 0 || (task.estimatedMinutes === 0 && task.estimatedHours === 0)) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+        <Clock className="w-4 h-4" />
+        <span>No estimate set</span>
+      </div>
+    );
+  }
 
   // If task not started, show just the estimated time
   if (task.status === 'pending' && !task.isRunning) {

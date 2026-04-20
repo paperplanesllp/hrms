@@ -19,9 +19,11 @@ export function useEstimatedTimeCountdown(task) {
   // Calculate initial estimated seconds
   const getEstimatedSeconds = () => {
     if (!task) return 0;
-    const hours = task.estimatedHours || 0;
-    const minutes = task.estimatedMinutes || 0;
-    return hours * 3600 + minutes * 60;
+    // Check for both possible field names: estimatedHours/estimatedMinutes or estimatedTime variants
+    const hours = parseInt(task.estimatedHours) || 0;
+    const minutes = parseInt(task.estimatedMinutes) || 0;
+    const totalSeconds = hours * 3600 + minutes * 60;
+    return Math.max(0, totalSeconds); // Ensure non-negative
   };
 
   // Calculate elapsed time in seconds

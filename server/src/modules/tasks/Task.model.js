@@ -310,6 +310,35 @@ const taskSchema = new mongoose.Schema(
     // Completion timestamp
     completedAt: { type: Date, default: null },
 
+    // Completed by user reference
+    completedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    // Completion remarks (captured when task is marked as completed)
+    completionRemarks: {
+      type: String,
+      trim: true,
+      maxlength: [5000, 'Completion remarks cannot exceed 5000 characters'],
+      default: null,
+      minlength: [25, 'Completion remarks must be at least 25 characters']
+    },
+
+    // Time tracking for completion metrics
+    totalWorkedMilliseconds: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
+    totalPausedMilliseconds: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+
     // Legacy timer fields used by the current task timer UI/controllers.
     // Keep these alongside the richer execution model for backward compatibility.
     timingState: {

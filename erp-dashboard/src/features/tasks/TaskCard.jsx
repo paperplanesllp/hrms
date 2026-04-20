@@ -37,7 +37,15 @@ export default function TaskCard({
   
   const handleStatusToggle = async (e) => {
     e.stopPropagation();
-    const nextStatus = task.status === 'completed' ? 'pending' : 'completed';
+    
+    // If trying to complete, open task details instead (to show completion remark modal)
+    if (task.status !== 'completed') {
+      onViewDetails && onViewDetails(task);
+      return;
+    }
+    
+    // If already completed, allow marking as pending
+    const nextStatus = 'pending';
     if (onStatusChange) {
       await onStatusChange(task._id, nextStatus);
     }
@@ -87,6 +95,18 @@ export default function TaskCard({
                   {Math.abs(getDaysUntilDue(task.dueDate))} days overdue
                 </span>
               )}
+
+              {/* Completion Remark Badge */}
+              {task.status === 'completed' && (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${
+                  task.completionRemarks
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-300 dark:border-green-700'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                }`}>
+                  <MessageSquare size={12} />
+                  {task.completionRemarks ? 'Remark Added' : 'No Remark'}
+                </span>
+              )}
             </div>
           </div>
 
@@ -99,7 +119,7 @@ export default function TaskCard({
                   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                   : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
-              title={task.status === 'completed' ? 'Mark incomplete' : 'Mark complete'}
+              title={task.status === 'completed' ? 'Mark incomplete' : 'Open task to complete with summary'}
             >
               <CheckCircle2 size={20} />
             </button>

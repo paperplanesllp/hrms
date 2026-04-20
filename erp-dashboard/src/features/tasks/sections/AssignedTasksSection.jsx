@@ -21,6 +21,15 @@ export default function AssignedTasksSection() {
   const [extensionRejectModal, setExtensionRejectModal] = useState(null);
   const [extensionRejectionReason, setExtensionRejectionReason] = useState('');
 
+  // Helper function to sort tasks: running first, then newest
+  const sortTasks = useCallback((tasks) => {
+    return [...(tasks || [])].sort((a, b) => {
+      if (a.isRunning && !b.isRunning) return -1;
+      if (!a.isRunning && b.isRunning) return 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }, []);
+
   const fetchAssignedTasks = useCallback(async () => {
     try {
       console.log('🔄 [AssignedTasks] Starting fetch with filter:', filter);
@@ -38,7 +47,10 @@ export default function AssignedTasksSection() {
         console.warn('⚠️ [AssignedTasks] No tasks returned from API');
       }
       
-      setAssignedTasks(tasks || []);
+      // Sort: newest first (running tasks still bubble to top)
+      const sorted = sortTasks(tasks);
+      
+      setAssignedTasks(sorted);
     } catch (error) {
       console.error('❌ [AssignedTasks] ERROR FETCHING TASKS');
       console.error('Error:', error);
@@ -82,17 +94,25 @@ export default function AssignedTasksSection() {
       console.log('📡 [AssignedTasks] task:updated event received:', data);
       setAssignedTasks(prev => {
         const exists = prev.some(t => t._id === data.task._id);
+        let updated;
         if (exists) {
-          return prev.map(t => t._id === data.task._id ? data.task : t);
+          updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        } else {
+          updated = [...prev, data.task];
         }
-        return [...prev, data.task];
+        // Re-sort after update to ensure new tasks appear first
+        return sortTasks(updated);
       });
     };
 
     // Handle task status changed
     const handleTaskStatusChanged = (data) => {
       console.log('📡 [AssignedTasks] task:status-changed event received:', data);
-      setAssignedTasks(prev => prev.map(t => t._id === data.task._id ? data.task : t));
+      setAssignedTasks(prev => {
+        const updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        // Re-sort after status change
+        return sortTasks(updated);
+      });
     };
 
     // Handle task deleted

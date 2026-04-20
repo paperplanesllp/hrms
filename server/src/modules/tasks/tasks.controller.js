@@ -8,7 +8,7 @@ import {
   notifyTaskDeleted
 } from '../../utils/socket.js';
 import { createActivityLog } from '../activity/activity.service.js';
-import { createTaskNotification } from '../../utils/notificationHelper.js';
+import { createTaskNotification, notifyTaskCompletedWithRemarks } from '../../utils/notificationHelper.js';
 import {
   TASK_TIMING_STATE,
   calculateDueTime,
@@ -120,6 +120,8 @@ export const tasksController = {
         department: req.body.department || undefined,
         progress: req.body.progress || 0,
         tags: req.body.tags || [],
+        estimatedHours: req.body.estimatedHours ? parseInt(req.body.estimatedHours) : 0,
+        estimatedMinutes: req.body.estimatedMinutes ? parseInt(req.body.estimatedMinutes) : 0,
         attachments: []
       };
       
@@ -164,9 +166,32 @@ export const tasksController = {
   async updateTaskStatus(req, res) {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, completionRemarks, totalWorkedMilliseconds, totalPausedMilliseconds } = req.body;
       
-      const task = await tasksService.updateTaskStatus(id, req.user.id, status);
+      // For completion, require remarks and validate minimum length
+      if (status === 'completed') {
+        if (!completionRemarks || completionRemarks.trim().length < 25) {
+          return sendError(res, 'Completion remarks must be at least 25 characters', 400);
+        }
+      }
+      
+      const completionData = {
+        completionRemarks,
+        totalWorkedMilliseconds,
+        totalPausedMilliseconds
+      };
+      
+      const task = await tasksService.updateTaskStatus(id, req.user.id, status, completionData);
+      
+      // 🔔 Send notifications for task completion
+      if (status === 'completed' && completionRemarks) {
+        notifyTaskCompletedWithRemarks(
+          id,
+          req.user.id,
+          task.assignedBy?._id || task.assignedBy,
+          completionRemarks
+        ).catch(err => console.error('Notification error:', err));
+      }
       
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:status-changed event');
@@ -179,13 +204,13 @@ export const tasksController = {
         actorRole: req.user.role,
         actionType: 'TASK_STATUS_CHANGE',
         module: 'TASK',
-        description: `${req.user.name || 'User'} changed task "${task.title}" status to ${status}`,
-        metadata: { taskId: task._id, title: task.title, status },
+        description: `${req.user.name || 'User'} completed task "${task.title}"${completionRemarks ? ' with completion remark' : ''}`,
+        metadata: { taskId: task._id, title: task.title, status, hasRemark: !!completionRemarks },
         ipAddress: req.ip,
         visibility: 'PUBLIC',
       }).catch(() => {});
       
-      sendSuccess(res, formatTaskResponse(task), `Task updated to ${status}`);
+      sendSuccess(res, formatTaskResponse(task), `Task marked as ${status}`);
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -357,6 +382,20 @@ export const tasksController = {
       const performance = await tasksService.getTeamPerformanceAnalytics(dateRange);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get task completion trends
+  async getTaskCompletionTrends(req, res) {
+    try {
+      const { days = 7 } = req.query;
+      const userId = req.query.userId || req.user.id;
+      
+      const trends = await tasksService.getTaskCompletionTrends(userId, parseInt(days));
+      sendSuccess(res, trends, 'Task completion trends fetched successfully');
+    } catch (error) {
+      console.error('Error fetching trends:', error);
       sendError(res, error.message, 400);
     }
   },
@@ -714,10 +753,26 @@ export const tasksController = {
     }
   },
 
-  // Complete task with timer finalization
+  // Complete task with timer finalization and mandatory completion remark
   async completeTask(req, res) {
     try {
       const { id } = req.params;
+      const { completionRemark } = req.body;
+
+      // Validate completion remark
+      if (!completionRemark || typeof completionRemark !== 'string') {
+        return sendError(res, 'Completion remark is required', 400);
+      }
+
+      const trimmedRemark = completionRemark.trim();
+      if (trimmedRemark.length < 25) {
+        return sendError(res, 'Completion remark must be at least 25 characters long', 400);
+      }
+
+      if (trimmedRemark.length > 5000) {
+        return sendError(res, 'Completion remark cannot exceed 5000 characters', 400);
+      }
+
       const task = await Task.findOne({ _id: id, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
@@ -759,6 +814,10 @@ export const tasksController = {
         }
       }
 
+      // Save completion remark
+      task.completionRemarks = trimmedRemark;
+      task.completedBy = req.user.id;
+
       task.status = 'completed';
       task.timingState = TASK_TIMING_STATE.COMPLETED;
       task.completedAt = now;
@@ -773,10 +832,24 @@ export const tasksController = {
 
       logTaskTimingSnapshot(task, now, 'completeTask');
 
+      // Log activity
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_COMPLETION',
+        module: 'TASK',
+        description: `Completed task "${task.title}" with summary`,
+        metadata: { taskId: task._id, title: task.title, hasRemark: !!trimmedRemark },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
       await task.save();
       await task.populate([
         { path: 'assignedTo', select: 'name email' },
         { path: 'assignedBy', select: 'name email' },
+        { path: 'completedBy', select: 'name email' },
         { path: 'department', select: 'name' }
       ]);
       notifyTaskStatusChanged(task, req.user.id);
@@ -1089,6 +1162,115 @@ export const tasksController = {
         isPaused: task.isPaused
       }, 'Task analysis fetched');
     } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Trigger daily task reminders manually (for testing/on-demand)
+  async triggerDailyReminder(req, res) {
+    try {
+      console.log('🔔 [Controller] Manual trigger of daily task reminders');
+      
+      // Check if user is admin/HR
+      if (!req.user || req.user.role !== 'HR') {
+        return sendError(res, 'Only HR/Admin can trigger reminders', 403);
+      }
+      
+      const { triggerTaskReminderManually } = await import('./task.reminder.js');
+      const result = await triggerTaskReminderManually();
+      
+      sendSuccess(res, result, 'Daily task reminders triggered successfully');
+    } catch (error) {
+      console.error('❌ [Controller] Error triggering daily reminders:', error);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get task reminder system status
+  async getReminderStatus(req, res) {
+    try {
+      console.log('📊 [Controller] Getting task reminder system status');
+      
+      // Check if user is admin/HR
+      if (!req.user || req.user.role !== 'HR') {
+        return sendError(res, 'Only HR/Admin can view reminder status', 403);
+      }
+      
+      const { getTaskReminderStatus } = await import('./task.reminder.js');
+      const status = getTaskReminderStatus();
+      
+      sendSuccess(res, status, 'Reminder system status retrieved');
+    } catch (error) {
+      console.error('❌ [Controller] Error getting reminder status:', error);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // Get incomplete tasks summary for current user
+  async getIncompleteSummary(req, res) {
+    try {
+      const userId = req.user.id;
+      
+      if (!userId) {
+        return sendError(res, 'User ID not found', 401);
+      }
+      
+      // Get incomplete tasks
+      const incompleteTasks = await Task.find({
+        assignedTo: userId,
+        isDeleted: false,
+        status: { $nin: ['completed', 'rejected', 'cancelled'] }
+      }).select('title priority status dueDate dueAt');
+      
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      // Categorize tasks
+      const overdue = incompleteTasks.filter(t => {
+        const dueDate = t.dueAt || t.dueDate;
+        return dueDate && new Date(dueDate) < now;
+      });
+      
+      const dueToday = incompleteTasks.filter(t => {
+        const dueDate = t.dueAt || t.dueDate;
+        return dueDate && new Date(dueDate) >= startOfDay && new Date(dueDate) <= endOfDay;
+      });
+      
+      const urgent = incompleteTasks.filter(t => t.priority === 'URGENT');
+      
+      sendSuccess(res, {
+        taskCounts: {
+          total: incompleteTasks.length,
+          overdue: overdue.length,
+          dueToday: dueToday.length,
+          urgent: urgent.length
+        },
+        tasks: {
+          overdue: overdue.map(t => ({
+            id: t._id,
+            title: t.title,
+            priority: t.priority,
+            dueDate: t.dueAt || t.dueDate
+          })),
+          dueToday: dueToday.map(t => ({
+            id: t._id,
+            title: t.title,
+            priority: t.priority,
+            dueDate: t.dueAt || t.dueDate
+          })),
+          urgent: urgent.map(t => ({
+            id: t._id,
+            title: t.title,
+            dueDate: t.dueAt || t.dueDate
+          }))
+        },
+        retrievedAt: now
+      }, 'Incomplete tasks summary retrieved');
+    } catch (error) {
+      console.error('❌ [Controller] Error getting incomplete summary:', error);
       sendError(res, error.message, 400);
     }
   }

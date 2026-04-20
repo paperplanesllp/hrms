@@ -65,8 +65,7 @@ export default function TaskTimerCard({
   onStart,
   onPause,
   onResume,
-  onComplete,
-  onView,
+  onViewDetails,
   onRequestMoreTime,
   loadingAction,
 }) {
@@ -167,7 +166,7 @@ export default function TaskTimerCard({
 
         {/* ── Description ── */}
         {task.description && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">
+          <p className="mb-3 text-sm leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
             {task.description}
           </p>
         )}
@@ -216,7 +215,7 @@ export default function TaskTimerCard({
         )}
 
         {/* ── Meta row ── */}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 dark:text-slate-500 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-slate-400 dark:text-slate-500">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             Due: {formatToIST(effectiveDueAt)}
@@ -259,7 +258,7 @@ export default function TaskTimerCard({
           )}
 
           {task.status === 'extension_requested' && (
-            <span className="px-3 py-2 rounded-xl text-sm font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+            <span className="px-3 py-2 text-sm font-semibold text-indigo-700 bg-indigo-100 rounded-xl dark:bg-indigo-900/30 dark:text-indigo-300">
               Extension request pending manager approval
             </span>
           )}
@@ -300,22 +299,10 @@ export default function TaskTimerCard({
             </button>
           )}
 
-          {/* COMPLETE — running or paused */}
-          {(timerState === 'running' || timerState === 'paused') && (
-            <button
-              onClick={() => onComplete(task)}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm hover:shadow"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {isLoading ? 'Completing…' : 'Complete'}
-            </button>
-          )}
-
           {/* VIEW — always available */}
-          {onView && (
+          {onViewDetails && (
             <button
-              onClick={() => onView(task)}
+              onClick={() => onViewDetails(task)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors"
               title="View details"
             >

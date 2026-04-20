@@ -3,10 +3,10 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Loader } from 'lucide-react';
 import { taskService } from '../taskService.js';
-import api from '../../../lib/api.js';
 import { toast } from '../../../store/toastStore.js';
 import { getSocket } from '../../../lib/socket.js';
 import TimerChip from '../components/TimerChip.jsx';
+import TaskCompletionChart from '../components/TaskCompletionChart.jsx';
 import { useCountdownTimer } from '../hooks/useTaskTimer.js';
 import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 import { 
@@ -104,27 +104,15 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
   }, []);
 
   const fetchTeamStatus = useCallback(async () => {
-    try {
-      const response = await api.get('/tasks/team-status');
-      const data = response.data?.data || response.data;
-      setTeamStatus({
-        totalMembers: data.totalMembers || 0,
-        activeMembers: data.activeMembers || 0,
-        capacityUsed: data.capacityUsed || 0,
-        projectsOnTrack: data.projectsOnTrack || 0,
-        totalProjects: data.totalProjects || 0
-      });
-    } catch (error) {
-      console.error('Error fetching team status:', error);
-      // Set reasonable defaults if API not available
-      setTeamStatus({
-        totalMembers: 0,
-        activeMembers: 0,
-        capacityUsed: 0,
-        projectsOnTrack: 0,
-        totalProjects: 0
-      });
-    }
+    // Set reasonable defaults for team status
+    // Note: /tasks/team-status endpoint not implemented yet
+    setTeamStatus({
+      totalMembers: 0,
+      activeMembers: 0,
+      capacityUsed: 0,
+      projectsOnTrack: 0,
+      totalProjects: 0
+    });
   }, []);
 
   // Fetch stats, recent tasks, and team status on mount
@@ -508,27 +496,18 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
             <BarChart3 className="w-5 h-5 text-brand-accent" />
             Task Completion Trend
           </h3>
-          <select className="px-4 py-2 text-sm font-medium transition-colors bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white hover:border-brand-accent dark:hover:border-brand-accent">
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
+          <select 
+            className="px-4 py-2 text-sm font-medium transition-colors bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white hover:border-brand-accent dark:hover:border-brand-accent"
+            defaultValue="7"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
           </select>
         </div>
 
-        {/* Chart Placeholder */}
-        <div className="flex items-center justify-center transition-colors border border-dashed h-72 bg-gradient-to-b from-brand-accent/5 via-brand-accent/2 to-brand-accent/1 dark:from-brand-accent/10 dark:via-brand-accent/5 dark:to-slate-900 rounded-xl border-slate-300 dark:border-slate-700 hover:border-brand-accent/50 dark:hover:border-brand-accent/30">
-          <div className="space-y-3 text-center">
-            <BarChart3 className="w-16 h-16 mx-auto text-slate-400 dark:text-slate-600 opacity-40" />
-            <div>
-              <p className="mb-1 text-sm font-medium text-slate-600 dark:text-slate-400">
-                Analytics Chart Coming Soon
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-500">
-                Real-time data visualization will appear here in Phase 3
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Task Completion Chart */}
+        <TaskCompletionChart />
       </Card>
     </div>
   );

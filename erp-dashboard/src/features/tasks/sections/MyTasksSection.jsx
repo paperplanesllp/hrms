@@ -29,6 +29,16 @@ export default function MyTasksSection() {
   const [timeUnit, setTimeUnit] = useState('minutes');
   const [extensionRemarks, setExtensionRemarks] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
+  const [completionRemark, setCompletionRemark] = useState('');
+
+  // Helper function to sort tasks: running first, then newest
+  const sortTasks = useCallback((tasks) => {
+    return [...(tasks || [])].sort((a, b) => {
+      if (a.isRunning && !b.isRunning) return -1;
+      if (!a.isRunning && b.isRunning) return 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }, []);
 
   const fetchMyTasks = useCallback(async () => {
     try {
@@ -40,11 +50,7 @@ export default function MyTasksSection() {
       const tasks = await taskService.getMyTasks({ status: apiStatus });
       
       // Sort: newest first (running tasks still bubble to top)
-      const sorted = [...(tasks || [])].sort((a, b) => {
-        if (a.isRunning && !b.isRunning) return -1;
-        if (!a.isRunning && b.isRunning) return 1;
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      });
+      const sorted = sortTasks(tasks);
       
       setMyTasks(sorted);
     } catch (error) {
@@ -99,10 +105,14 @@ export default function MyTasksSection() {
       console.log('📡 [MyTasks] task:updated event received:', data);
       setMyTasks(prev => {
         const exists = prev.some(t => t._id === data.task._id);
+        let updated;
         if (exists) {
-          return prev.map(t => t._id === data.task._id ? data.task : t);
+          updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        } else {
+          updated = [...prev, data.task];
         }
-        return [...prev, data.task];
+        // Re-sort after update to ensure new tasks appear first
+        return sortTasks(updated);
       });
       toast({ 
         title: 'Task Updated', 
@@ -114,7 +124,11 @@ export default function MyTasksSection() {
     // Handle task status changed
     const handleTaskStatusChanged = (data) => {
       console.log('📡 [MyTasks] task:status-changed event received:', data);
-      setMyTasks(prev => prev.map(t => t._id === data.task._id ? data.task : t));
+      setMyTasks(prev => {
+        const updated = prev.map(t => t._id === data.task._id ? data.task : t);
+        // Re-sort after status change
+        return sortTasks(updated);
+      });
       toast({ 
         title: 'Status Updated', 
         message: `Task status: ${data.task?.status}`,
@@ -280,6 +294,7 @@ export default function MyTasksSection() {
   };
 
   const handleCompleteRequest = (task) => {
+    setCompletionRemark('');
     setCompleteModal({ _id: task._id, title: task.title });
   };
 
@@ -350,12 +365,20 @@ export default function MyTasksSection() {
 
   const handleCompleteConfirm = async () => {
     if (!completeModal) return;
+    
+    // Validate that a remark is provided and meets minimum length
+    if (!completionRemark.trim() || completionRemark.trim().length < 25) {
+      toast({ title: 'Remark incomplete', message: 'Completion remark must be at least 25 characters', type: 'error' });
+      return;
+    }
+    
     const { _id } = completeModal;
     setCompleteModal(null);
     setActionLoading(_id);
     try {
-      const updated = await taskService.completeTask(_id);
+      const updated = await taskService.completeTask(_id, completionRemark);
       setMyTasks(prev => prev.map(t => t._id === _id ? updated : t));
+      setCompletionRemark('');
       toast({ title: 'Task Completed ✓', message: 'Great work! Task marked as done.', type: 'success' });
     } catch (error) {
       toast({
@@ -509,8 +532,8 @@ export default function MyTasksSection() {
               onPause={handlePauseRequest}
               onResume={handleResumeTask}
               onComplete={handleCompleteRequest}
-              onRequestMoreTime={handleRequestMoreTime}
               onView={setSelectedTask}
+              onRequestMoreTime={handleRequestMoreTime}
               loadingAction={actionLoading}
             />
           ))}
@@ -542,19 +565,50 @@ export default function MyTasksSection() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setCompleteModal(null)}
           />
-          <div className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6">
+          <div className="relative z-10 w-full max-w-md mx-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6">
             <div className="flex items-center justify-center w-14 h-14 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl mx-auto mb-4">
               <CheckCircle2 className="w-7 h-7 text-emerald-600" />
             </div>
             <h3 className="text-lg font-bold text-center text-slate-900 dark:text-white mb-2">
               Complete Task?
             </h3>
-            <p className="text-sm text-center text-slate-500 dark:text-slate-400 mb-6">
+            <p className="text-sm text-center text-slate-500 dark:text-slate-400 mb-4">
               <span className="font-semibold text-slate-700 dark:text-slate-300">
                 &ldquo;{completeModal.title}&rdquo;
               </span>{' '}
               will be marked as completed and the timer will stop.
             </p>
+            
+            {/* Completion Remark Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                Completion Remark <span className="text-red-500">*</span>
+                <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                  (Minimum 25 characters)
+                </span>
+              </label>
+              <textarea
+                value={completionRemark}
+                onChange={(e) => setCompletionRemark(e.target.value)}
+                placeholder="Describe what was accomplished, any challenges, and key outcomes... (minimum 25 characters)"
+                className="w-full px-3 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 resize-none"
+                rows="3"
+              />
+              <div className="flex justify-between mt-2">
+                <div>
+                  {!completionRemark.trim() && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Remark is required to complete the task</p>
+                  )}
+                  {completionRemark.trim() && completionRemark.trim().length < 25 && (
+                    <p className="text-xs text-red-600 dark:text-red-400">Must be at least 25 characters ({completionRemark.trim().length}/25)</p>
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {completionRemark.length}/5000
+                </span>
+              </div>
+            </div>
+            
             <div className="flex gap-3">
               <button
                 onClick={() => setCompleteModal(null)}
@@ -564,7 +618,8 @@ export default function MyTasksSection() {
               </button>
               <button
                 onClick={handleCompleteConfirm}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                disabled={!completionRemark.trim() || completionRemark.trim().length < 25}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Complete ✓
               </button>
