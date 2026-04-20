@@ -24,7 +24,7 @@ export default function MyTasksPage() {
     priority: null,
     status: null,
     dateRange: 'all',
-    sort: 'dueDate'
+    sort: 'newest'
   });
   const [selectedTask, setSelectedTask] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);

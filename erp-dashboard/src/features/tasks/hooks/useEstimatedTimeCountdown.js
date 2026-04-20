@@ -4,12 +4,17 @@ import { toast } from '../../../store/toastStore.js';
 /**
  * Hook for countdown timer based on estimated time
  * Counts DOWN from estimated time (e.g., 2:00:00 → 1:59:59 → ...)
- * Shows alert when reaches 0
+ * Shows alerts when reaches 10min, 5min, 1min, and 0
  */
 export function useEstimatedTimeCountdown(task) {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isAlertShown, setIsAlertShown] = useState(false);
-  const alertShownRef = useRef(false);
+  const alertShownRef = useRef({
+    tenMin: false,
+    fiveMin: false,
+    oneMin: false,
+    timeUp: false
+  });
 
   // Calculate initial estimated seconds
   const getEstimatedSeconds = () => {
@@ -54,26 +59,68 @@ export function useEstimatedTimeCountdown(task) {
       
       setRemainingSeconds(remaining);
 
-      // Show alert only once when timer reaches 0
-      if (remaining === 0 && !alertShownRef.current && estimated > 0) {
-        alertShownRef.current = true;
-        setIsAlertShown(true);
-        
-        // Show toast notification
-        toast({
-          title: '⏱️ Time Estimate Reached!',
-          message: `"${task.title}" - Estimated time has been used up. Please update time or mark complete.`,
-          type: 'warning',
-          duration: 5000
-        });
+      // Show alert only once at each threshold
+      if (estimated > 0) {
+        // At 10 minutes remaining
+        if (remaining === 600 && !alertShownRef.current.tenMin) {
+          alertShownRef.current.tenMin = true;
+          setIsAlertShown(true);
+          toast({
+            title: '⏱️ 10 Minutes Remaining!',
+            message: `"${task.title}" - Only 10 minutes left on your estimate.`,
+            type: 'warning',
+            duration: 4000
+          });
+          playAlertSound();
+        }
 
-        // Beep notification sound
-        playAlertSound();
+        // At 5 minutes remaining
+        if (remaining === 300 && !alertShownRef.current.fiveMin) {
+          alertShownRef.current.fiveMin = true;
+          setIsAlertShown(true);
+          toast({
+            title: '⏱️ 5 Minutes Remaining!',
+            message: `"${task.title}" - Only 5 minutes left. Better hurry! 🏃`,
+            type: 'warning',
+            duration: 4000
+          });
+          playAlertSound('rapid');
+        }
+
+        // At 1 minute remaining
+        if (remaining === 60 && !alertShownRef.current.oneMin) {
+          alertShownRef.current.oneMin = true;
+          setIsAlertShown(true);
+          toast({
+            title: '⚡ 1 Minute Remaining!',
+            message: `"${task.title}" - URGENT! Only 60 seconds left!`,
+            type: 'error',
+            duration: 3000
+          });
+          playAlertSound('rapid');
+        }
+
+        // When time reaches 0
+        if (remaining === 0 && !alertShownRef.current.timeUp) {
+          alertShownRef.current.timeUp = true;
+          setIsAlertShown(true);
+          
+          // Show urgent toast notification
+          toast({
+            title: '🔴 TIME UP!',
+            message: `"${task.title}" - Estimated time has been exhausted. Please update time or mark complete.`,
+            type: 'error',
+            duration: 5000
+          });
+
+          // Play urgent alert sound
+          playAlertSound('urgent');
+        }
       }
 
       // Reset alert shown if task restarted
-      if (remaining > 0 && alertShownRef.current) {
-        alertShownRef.current = false;
+      if (remaining > 600 && alertShownRef.current.tenMin) {
+        alertShownRef.current = { tenMin: false, fiveMin: false, oneMin: false, timeUp: false };
         setIsAlertShown(false);
       }
     }, 1000);
@@ -92,28 +139,51 @@ export function useEstimatedTimeCountdown(task) {
 }
 
 /**
- * Play alert sound when timer expires
+ * Play alert sound when timer reaches thresholds
+ * @param {string} type - 'normal' (default), 'rapid', or 'urgent'
  */
-function playAlertSound() {
+function playAlertSound(type = 'normal') {
   try {
     // Create audio context
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    if (type === 'urgent') {
+      // Urgent: Multiple rapid beeps with escalating pitch
+      playBeep(audioContext, 900, 0.3, 0.05); // High beep 1
+      setTimeout(() => playBeep(audioContext, 1100, 0.3, 0.05), 150); // Higher beep 2
+      setTimeout(() => playBeep(audioContext, 1300, 0.3, 0.1), 300); // Highest beep 3 (longer)
+    } else if (type === 'rapid') {
+      // Rapid: Two quick beeps
+      playBeep(audioContext, 1000, 0.3, 0.08);
+      setTimeout(() => playBeep(audioContext, 1000, 0.3, 0.08), 200);
+    } else {
+      // Normal: Single beep
+      playBeep(audioContext, 800, 0.3, 0.5);
+    }
+  } catch (err) {
+    console.log('Audio context not available, skipping sound');
+  }
+}
+
+/**
+ * Helper to play a single beep
+ */
+function playBeep(audioContext, frequency, volume, duration) {
+  try {
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
 
-    // Set frequency and volume
-    oscillator.frequency.value = 800; // Hz
+    oscillator.frequency.value = frequency;
     oscillator.type = 'sine';
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
 
-    // Play beep
     oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
+    oscillator.stop(audioContext.currentTime + duration);
   } catch (err) {
-    console.log('Audio context not available, skipping sound');
+    console.log('Error playing beep:', err);
   }
 }

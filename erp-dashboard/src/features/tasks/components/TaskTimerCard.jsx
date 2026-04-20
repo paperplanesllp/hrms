@@ -221,9 +221,9 @@ export default function TaskTimerCard({
             <Calendar className="w-3 h-3" />
             Due: {formatToIST(effectiveDueAt)}
           </span>
-          {task.estimatedMinutes > 0 && (
-            <span>Estimated: {formatSecondsHuman(task.estimatedMinutes * 60)}</span>
-          )}
+          <span>
+            Estimated: {(task.estimatedHours > 0 || task.estimatedMinutes > 0) ? formatSecondsHuman((task.estimatedHours * 3600) + (task.estimatedMinutes * 60)) : 'No estimate set'}
+          </span>
           <span>Remaining: {formatRemaining()}</span>
           {task.pauseEntries?.length > 0 && (
             <span className="flex items-center gap-1 text-orange-400 dark:text-orange-500">

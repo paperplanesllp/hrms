@@ -29,7 +29,7 @@ export default function TaskFilters({
       status: null,
       assignedTo: null,
       dateRange: 'all',
-      sort: 'dueDate'
+      sort: 'newest'
     });
   };
 
@@ -146,7 +146,7 @@ export default function TaskFilters({
                 Sort By
               </label>
               <select
-                value={filters.sort || 'dueDate'}
+                value={filters.sort || 'newest'}
                 onChange={(e) => handleChange('sort', e.target.value)}
                 className="w-full px-3 py-2 text-sm bg-white border rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >

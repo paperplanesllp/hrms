@@ -68,6 +68,12 @@ export default function TaskAnalysisPanel({ task }) {
           value={getLifecycleDuration(task)}
           valueClass="text-purple-600 dark:text-purple-400"
         />
+        <Row
+          icon={<Clock className="w-3.5 h-3.5 text-amber-500" />}
+          label="Estimated Time"
+          value={(task.estimatedHours > 0 || task.estimatedMinutes > 0) ? formatSecondsHuman((task.estimatedHours * 3600) + (task.estimatedMinutes * 60)) : 'No estimate'}
+          valueClass="text-amber-600 dark:text-amber-400"
+        />
       </div>
 
       {/* Active vs Paused tiles */}

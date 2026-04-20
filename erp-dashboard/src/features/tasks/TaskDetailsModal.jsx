@@ -7,7 +7,9 @@ import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
 import { getAuth } from '../../lib/auth.js';
 import TimerChip from './components/TimerChip.jsx';
+import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
+import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
 import { calculateRemainingTime, formatToIST } from './utils/taskDeadlineUtils.js';
 import {
   getPriorityStyles,
@@ -38,6 +40,7 @@ export default function TaskDetailsModal({
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const countdown = useTaskCountdown(task || {});
+  const estimatedCountdown = useEstimatedTimeCountdown(task || {});
   const remaining = calculateRemainingTime(task || {});
 
   // Fetch users when reassign modal opens
@@ -79,6 +82,19 @@ export default function TaskDetailsModal({
   };
 
   if (!task) return null;
+
+  const auth = getAuth();
+  const currentUserId = auth?.user?._id || auth?.user?.id;
+  
+  // Check if task is assigned only to current user
+  const isAssignedOnlyToCurrentUser = () => {
+    if (!task.assignedTo || task.assignedTo.length === 0) return false;
+    if (task.assignedTo.length === 1) {
+      const assignedUserId = task.assignedTo[0]?._id || task.assignedTo[0];
+      return assignedUserId === currentUserId;
+    }
+    return false;
+  };
 
   const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
   const priorityStyles = getPriorityStyles(task.priority);
@@ -316,6 +332,9 @@ export default function TaskDetailsModal({
                 dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`}
               />
             </div>
+            <div className="mt-2">
+              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -398,6 +417,31 @@ export default function TaskDetailsModal({
                 <p className="text-sm font-medium text-slate-900 dark:text-white">
                   {task.department.name}
                 </p>
+              </div>
+            )}
+
+            {/* Assigned To - Only show if assigned to someone else */}
+            {task.assignedTo && task.assignedTo.length > 0 && !isAssignedOnlyToCurrentUser() && (
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">Assigned To</p>
+                <div className="space-y-2">
+                  {task.assignedTo.map((user) => (
+                    <div key={user._id || user} className="flex items-center gap-2">
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-5 h-5 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-slate-300 dark:bg-slate-600" />
+                      )}
+                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                        {user.name || 'Unknown'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
