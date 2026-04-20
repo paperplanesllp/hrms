@@ -65,6 +65,7 @@ export default function TaskTimerCard({
   onStart,
   onPause,
   onResume,
+  onComplete,
   onViewDetails,
   onRequestMoreTime,
   loadingAction,
@@ -296,6 +297,18 @@ export default function TaskTimerCard({
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {isLoading ? 'Resuming…' : 'Resume'}
+            </button>
+          )}
+
+          {/* COMPLETE — available for actionable (non-final) task states */}
+          {onComplete && !['completed', 'rejected', 'cancelled', 'extension_requested'].includes(task.status) && (
+            <button
+              onClick={() => onComplete(task)}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm hover:shadow"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {isLoading ? 'Completing…' : 'Complete'}
             </button>
           )}
 

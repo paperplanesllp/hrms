@@ -532,7 +532,7 @@ export default function MyTasksSection() {
               onPause={handlePauseRequest}
               onResume={handleResumeTask}
               onComplete={handleCompleteRequest}
-              onView={setSelectedTask}
+              onViewDetails={setSelectedTask}
               onRequestMoreTime={handleRequestMoreTime}
               loadingAction={actionLoading}
             />

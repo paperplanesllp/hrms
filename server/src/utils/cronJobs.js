@@ -4,7 +4,7 @@ import { autoDeleteOldPayrolls } from "../modules/payroll/payroll.service.js";
 import { autoMarkAbsentees, getAttendanceSummaryForToday } from "../modules/attendance/attendance.service.js";
 import { sendDocumentDeadlineReminders, markOverdueDocuments } from "../modules/documents/document.service.js";
 import { initializeTaskScheduler } from "../services/taskScheduler.service.js";
-import { initializeTaskReminders } from "../modules/tasks/task.reminder.js";
+// import { initializeTaskReminders } from "../modules/tasks/task.reminder.js";
 
 export const startCronJobs = () => {
   // Clock-in reminder: Monday-Friday at 9:30 AM
@@ -124,13 +124,14 @@ export const startCronJobs = () => {
   }
 
   // Initialize daily incomplete task reminders (9:00 AM on weekdays)
-  try {
-    console.log('\n📬 [DAILY_REMINDERS] Initializing daily task reminders...');
-    initializeTaskReminders();
-    console.log('✅ Daily task reminders initialized - will run at 9:00 AM on weekdays');
-  } catch (error) {
-    console.error('[DAILY_REMINDERS] Failed to initialize daily task reminders:', error);
-  }
+  // Disabled temporarily because task reminder module export is incompatible with ESM startup.
+  // try {
+  //   console.log('\n📬 [DAILY_REMINDERS] Initializing daily task reminders...');
+  //   initializeTaskReminders();
+  //   console.log('✅ Daily task reminders initialized - will run at 9:00 AM on weekdays');
+  // } catch (error) {
+  //   console.error('[DAILY_REMINDERS] Failed to initialize daily task reminders:', error);
+  // }
 
   console.log('Cron jobs started successfully');
 };
