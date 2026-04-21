@@ -286,7 +286,7 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
         </div>
 
         {/* Remarks/Notes */}
-        {task.remarks && (
+        {(task.remarks || task.completionRemark || task.notes || task.completionNotes) && (
           <div>
             <div className="flex items-center gap-2 mb-2">
               <MessageSquare className="w-5 h-5 text-teal-600 dark:text-teal-400" />
@@ -294,7 +294,7 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
             </div>
             <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700">
               <p className="text-teal-900 dark:text-teal-200 text-sm leading-relaxed">
-                {task.remarks}
+                {task.completionRemark || task.completionNotes || task.remarks || task.notes}
               </p>
             </div>
           </div>
