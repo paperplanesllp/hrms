@@ -76,11 +76,13 @@ export default function TaskCard({
             
             {/* Priority & Status Badges */}
             <div className="flex flex-wrap gap-2">
-              {/* Priority Badge */}
-              <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${priorityStyles.badge}`}>
-                <span className={`w-2 h-2 rounded-full ${priorityStyles.dot}`}></span>
-                {getPriorityLabel(task.priority)}
-              </span>
+              {/* Priority Badge - hide for completed tasks */}
+              {task.status !== 'completed' && (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${priorityStyles.badge}`}>
+                  <span className={`w-2 h-2 rounded-full ${priorityStyles.dot}`}></span>
+                  {getPriorityLabel(task.priority)}
+                </span>
+              )}
               
               {/* Status Badge */}
               <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${statusStyles.badge}`}>

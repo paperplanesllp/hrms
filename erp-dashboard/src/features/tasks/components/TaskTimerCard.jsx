@@ -230,7 +230,7 @@ export default function TaskTimerCard({
           <span>
             Estimated: {(task.estimatedHours > 0 || task.estimatedMinutes > 0) ? formatSecondsHuman((task.estimatedHours * 3600) + (task.estimatedMinutes * 60)) : 'No estimate set'}
           </span>
-          <span>Remaining: {formatRemaining()}</span>
+          {!isCompleted && <span>Remaining: {formatRemaining()}</span>}
           {task.pauseEntries?.length > 0 && (
             <span className="flex items-center gap-1 text-orange-400 dark:text-orange-500">
               <Pause className="w-3 h-3" />

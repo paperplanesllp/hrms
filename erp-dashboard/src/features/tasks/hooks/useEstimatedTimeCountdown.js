@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from '../../../store/toastStore.js';
 
+// Global tracking to prevent duplicate "TIME UP!" notifications
+let globalTimeUpShownAt = 0;
+const TIME_UP_DEDUP_INTERVAL = 3000; // Wait 3 seconds before allowing another TIME UP notification
+
 /**
  * Hook for countdown timer based on estimated time
  * Counts DOWN from estimated time (e.g., 2:00:00 → 1:59:59 → ...)
@@ -65,7 +69,7 @@ export function useEstimatedTimeCountdown(task) {
       setRemainingSeconds(remaining);
 
       // Show alert only once at each threshold
-      if (estimated > 0) {
+      if (estimated > 0 && task.status !== 'completed') {
         // At 10 minutes remaining
         if (remaining === 600 && !alertShownRef.current.tenMin) {
           alertShownRef.current.tenMin = true;
@@ -105,21 +109,27 @@ export function useEstimatedTimeCountdown(task) {
           playAlertSound('rapid');
         }
 
-        // When time reaches 0
-        if (remaining === 0 && !alertShownRef.current.timeUp) {
-          alertShownRef.current.timeUp = true;
-          setIsAlertShown(true);
-          
-          // Show urgent toast notification
-          toast({
-            title: '🔴 TIME UP!',
-            message: `"${task.title}" - Estimated time has been exhausted. Please update time or mark complete.`,
-            type: 'error',
-            duration: 5000
-          });
+        // When time reaches 0 - only show notification once across all tasks
+        // BUT never show for completed tasks
+        if (remaining === 0 && !alertShownRef.current.timeUp && task.status !== 'completed') {
+          const now = Date.now();
+          // Check if enough time has passed since the last TIME UP notification
+          if (now - globalTimeUpShownAt >= TIME_UP_DEDUP_INTERVAL) {
+            alertShownRef.current.timeUp = true;
+            setIsAlertShown(true);
+            globalTimeUpShownAt = now; // Update global timestamp
+            
+            // Show urgent toast notification
+            toast({
+              title: '🔴 TIME UP!',
+              message: `"${task.title}" - Estimated time has been exhausted. Please update time or mark complete.`,
+              type: 'error',
+              duration: 5000
+            });
 
-          // Play urgent alert sound
-          playAlertSound('urgent');
+            // Play urgent alert sound
+            playAlertSound('urgent');
+          }
         }
       }
 

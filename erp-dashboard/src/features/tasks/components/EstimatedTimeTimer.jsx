@@ -11,14 +11,9 @@ import { Clock, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 export default function EstimatedTimeTimer({ countdown, task }) {
   if (!countdown || !task) return null;
 
-  // Completed tasks: show a neutral "Task Complete" chip — no timer, no TIME UP
+  // Completed tasks: don't show any timer chip — let status badge handle it
   if (task.status === 'completed' || countdown.isCompleted) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 ring-1 ring-green-200 dark:ring-green-700">
-        <CheckCircle2 className="w-4 h-4" />
-        <span>Task Complete</span>
-      </div>
-    );
+    return null;
   }
   if (countdown.estimatedSeconds === 0 || (task.estimatedMinutes === 0 && task.estimatedHours === 0)) {
     return (
