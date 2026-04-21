@@ -307,7 +307,7 @@ export const tasksController = {
 
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:deleted event');
-      notifyTaskDeleted(id, task?.title || 'Unknown Task', requesterId);
+      notifyTaskDeleted(id, task?.title || 'Unknown Task', requesterId, task.assignedTo || []);
 
       // Log activity
       createActivityLog({
@@ -1271,6 +1271,97 @@ export const tasksController = {
       }, 'Incomplete tasks summary retrieved');
     } catch (error) {
       console.error('❌ [Controller] Error getting incomplete summary:', error);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // ─── COMMENTS ───────────────────────────────────────────────────────────────
+
+  async getComments(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false })
+        .populate('comments.userId', 'name avatar email');
+      if (!task) return sendError(res, 'Task not found', 404);
+      // Ensure the requesting user is assigned to, assigned by, or is admin/HR
+      const userId = req.user.id;
+      const role = (req.user.role || '').toUpperCase();
+      const isAdminOrHR = role === 'ADMIN' || role === 'HR';
+      const isAssignee = task.assignedTo?.some(u => u.toString() === userId);
+      const isAssigner = task.assignedBy?.toString() === userId;
+      if (!isAdminOrHR && !isAssignee && !isAssigner) {
+        return sendError(res, 'Access denied', 403);
+      }
+      sendSuccess(res, task.comments || [], 'Comments fetched');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async addComment(req, res) {
+    try {
+      const { id } = req.params;
+      const { text } = req.body;
+      if (!text?.trim()) return sendError(res, 'Comment text is required', 400);
+      const task = await tasksService.addComment(id, req.user.id, text, req.user.name || 'Unknown');
+      notifyTaskUpdated(task, req.user.id);
+      sendSuccess(res, { comments: task.comments }, 'Comment added');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async deleteComment(req, res) {
+    try {
+      const { id, commentId } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false });
+      if (!task) return sendError(res, 'Task not found', 404);
+      const comment = task.comments.id(commentId);
+      if (!comment) return sendError(res, 'Comment not found', 404);
+      // Only the comment author or admin/HR can delete
+      const role = (req.user.role || '').toUpperCase();
+      const isAdminOrHR = role === 'ADMIN' || role === 'HR';
+      if (!isAdminOrHR && comment.userId?.toString() !== req.user.id) {
+        return sendError(res, 'Not authorized to delete this comment', 403);
+      }
+      task.comments.pull(commentId);
+      await task.save();
+      notifyTaskUpdated(task, req.user.id);
+      sendSuccess(res, {}, 'Comment deleted');
+    } catch (error) {
+      sendError(res, error.message, 400);
+    }
+  },
+
+  // ─── REOPEN ─────────────────────────────────────────────────────────────────
+
+  async reopenTask(req, res) {
+    try {
+      const { id } = req.params;
+      const task = await Task.findOne({ _id: id, isDeleted: false })
+        .populate('assignedTo', 'name email')
+        .populate('assignedBy', 'name email');
+      if (!task) return sendError(res, 'Task not found', 404);
+      if (task.status !== 'completed') {
+        return sendError(res, 'Only completed tasks can be reopened', 400);
+      }
+      const role = (req.user.role || '').toUpperCase();
+      const isAdminOrHR = role === 'ADMIN' || role === 'HR';
+      const isAssigner = task.assignedBy?._id?.toString() === req.user.id;
+      if (!isAdminOrHR && !isAssigner) {
+        return sendError(res, 'Only the task assigner or an admin can reopen this task', 403);
+      }
+      task.status = 'pending';
+      task.completedAt = null;
+      task.progress = 0;
+      task.completionRemarks = null;
+      // Reset timing so the assignee can start fresh
+      task.isRunning = false;
+      task.isPaused = false;
+      await task.save();
+      notifyTaskStatusChanged(task, req.user.id);
+      sendSuccess(res, formatTaskResponse(task), 'Task reopened successfully');
+    } catch (error) {
       sendError(res, error.message, 400);
     }
   }

@@ -9,6 +9,7 @@ import TimerChip from '../components/TimerChip.jsx';
 import TaskCompletionChart from '../components/TaskCompletionChart.jsx';
 import { useCountdownTimer } from '../hooks/useTaskTimer.js';
 import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
+import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -68,6 +69,7 @@ function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel })
 }
 
 export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) {
+  const { refreshKey } = useTaskRefresh();
   const [stats, setStats] = useState({
     byStatus: { pending: 0, 'in-progress': 0, completed: 0, 'on-hold': 0, cancelled: 0, total: 0 },
     byPriority: { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 },
@@ -126,6 +128,16 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
     return () => clearTimeout(timerId);
   }, [fetchStats, fetchRecentTasks, fetchTeamStatus]);
 
+  // Background re-fetch when global refresh key changes
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    const t = setTimeout(() => {
+      fetchStats();
+      fetchRecentTasks();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [refreshKey, fetchStats, fetchRecentTasks]);
+
   // Setup real-time socket listeners for task updates
   useEffect(() => {
     console.log('🔌 [Overview] Setting up socket listeners');
@@ -136,10 +148,9 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       return;
     }
 
-    // Handle task events - refresh stats and recent tasks
-    const handleTaskEventWithRefresh = () => {
+    // Handle task events – patch stats immediately
+    const handleTaskEvent = () => {
       console.log('📡 [Overview] Task event received, refreshing stats');
-      // Refresh stats and recent tasks after a short delay to ensure backend has updated
       setTimeout(() => {
         fetchStats();
         fetchRecentTasks();
@@ -147,18 +158,18 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
     };
 
     // Register socket listeners
-    socket.on('task:created', handleTaskEventWithRefresh);
-    socket.on('task:updated', handleTaskEventWithRefresh);
-    socket.on('task:status-changed', handleTaskEventWithRefresh);
-    socket.on('task:deleted', handleTaskEventWithRefresh);
+    socket.on('task:created', handleTaskEvent);
+    socket.on('task:updated', handleTaskEvent);
+    socket.on('task:status-changed', handleTaskEvent);
+    socket.on('task:deleted', handleTaskEvent);
 
     // Cleanup: Remove listeners when component unmounts
     return () => {
       console.log('🔌 [Overview] Cleaning up socket listeners');
-      socket.off('task:created', handleTaskEventWithRefresh);
-      socket.off('task:updated', handleTaskEventWithRefresh);
-      socket.off('task:status-changed', handleTaskEventWithRefresh);
-      socket.off('task:deleted', handleTaskEventWithRefresh);
+      socket.off('task:created', handleTaskEvent);
+      socket.off('task:updated', handleTaskEvent);
+      socket.off('task:status-changed', handleTaskEvent);
+      socket.off('task:deleted', handleTaskEvent);
     };
   }, [fetchStats, fetchRecentTasks]);
 

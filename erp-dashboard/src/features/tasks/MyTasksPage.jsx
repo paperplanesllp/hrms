@@ -362,6 +362,8 @@ export default function MyTasksPage() {
               task={task}
               onStatusChange={handleStatusChange}
               onViewDetails={setSelectedTask}
+              onDelete={handleDeleteTask}
+              onEdit={handleEditTask}
               isEmployee={true}
             />
           ))}

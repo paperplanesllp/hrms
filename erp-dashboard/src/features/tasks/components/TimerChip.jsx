@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Timer } from 'lucide-react';
+import { AlertTriangle, Timer, CheckCircle2 } from 'lucide-react';
 
 const COUNTDOWN_STYLE = {
   normal:
@@ -16,10 +16,13 @@ const COUNTDOWN_STYLE = {
     'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 ring-1 ring-red-300 dark:ring-red-600 font-bold',
   paused:
     'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 ring-1 ring-orange-200 dark:ring-orange-700',
+  completed:
+    'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 ring-1 ring-green-200 dark:ring-green-700',
   none: 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500',
 };
 
 function getVisualState(countdown, isPaused = false) {
+  if (countdown?.isCompleted) return 'completed';
   if (isPaused) return 'paused';
   if (!countdown?.shouldTrack) return 'none';
   if (countdown.isDueNow) return 'due-now';
@@ -28,7 +31,11 @@ function getVisualState(countdown, isPaused = false) {
 
 export default function TimerChip({ countdown, isPaused = false, dueTooltip }) {
   const visualState = getVisualState(countdown, isPaused);
-  const display = countdown?.shouldTrack ? countdown.display : '-';
+  const display = countdown?.isCompleted
+    ? 'Completed'
+    : countdown?.shouldTrack
+    ? countdown.display
+    : '-';
 
   return (
     <div
@@ -38,7 +45,13 @@ export default function TimerChip({ countdown, isPaused = false, dueTooltip }) {
       title={dueTooltip || ''}
       aria-live="polite"
     >
-      {countdown?.isOverdue ? <AlertTriangle className="w-3 h-3" /> : <Timer className="w-3 h-3" />}
+      {countdown?.isCompleted ? (
+        <CheckCircle2 className="w-3 h-3" />
+      ) : countdown?.isOverdue ? (
+        <AlertTriangle className="w-3 h-3" />
+      ) : (
+        <Timer className="w-3 h-3" />
+      )}
       {display}
     </div>
   );

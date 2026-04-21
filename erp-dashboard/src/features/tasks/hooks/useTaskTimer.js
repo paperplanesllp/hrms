@@ -45,6 +45,21 @@ const getActivePauseStartedAt = (task) => {
 };
 
 const computeCountdown = (task, now = new Date()) => {
+  // Completed tasks should not show any countdown or overdue indicator
+  if (task?.status === 'completed') {
+    return {
+      shouldTrack: false,
+      remainingMs: null,
+      remainingSeconds: 0,
+      display: 'Completed',
+      urgency: 'none',
+      isOverdue: false,
+      isDueNow: false,
+      isCompleted: true,
+      state: 'Completed',
+    };
+  }
+
   const pauseStartedAt = getActivePauseStartedAt(task);
   const referenceNow = pauseStartedAt || now;
   const remaining = calculateRemainingTime(task, referenceNow);
@@ -68,6 +83,15 @@ const computeCountdown = (task, now = new Date()) => {
   const absDisplay = formatTime(remainingSeconds, true);
   const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
 
+  // Format overdue duration as "Xh Ym" instead of raw minutes
+  const formatOverdueDuration = (totalMinutes) => {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  };
+
   let urgency = 'normal';
   if (isOverdue) urgency = 'overdue';
   else if (isDueNow) urgency = 'due-now';
@@ -79,12 +103,12 @@ const computeCountdown = (task, now = new Date()) => {
     shouldTrack: true,
     remainingMs: remaining.remainingMs,
     remainingSeconds,
-    display: isOverdue ? `Overdue by ${overdueByMinutes} min` : absDisplay,
+    display: isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : absDisplay,
     urgency,
     isOverdue,
     isDueNow,
     overdueByMinutes,
-    state: isOverdue ? `Overdue by ${overdueByMinutes} min` : 'In progress',
+    state: isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : 'In progress',
   };
 };
 

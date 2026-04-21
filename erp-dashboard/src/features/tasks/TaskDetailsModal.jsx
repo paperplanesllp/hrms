@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History } from 'lucide-react';
+import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History, MessageSquare, Send, Trash2 } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import { taskService } from './taskService.js';
@@ -12,6 +12,7 @@ import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
 import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
 import { calculateRemainingTime, formatToIST } from './utils/taskDeadlineUtils.js';
+import { formatMilliseconds } from './utils/taskTimerUtils.js';
 import {
   getPriorityStyles,
   getStatusStyles,
@@ -42,6 +43,13 @@ export default function TaskDetailsModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // Comments state
+  const [comments, setComments] = useState(null);   // null = not loaded yet
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   // Get current user for permission checks
   const currentUser = useAuthStore((s) => s.user);
@@ -297,6 +305,48 @@ export default function TaskDetailsModal({
     }
   };
 
+  const loadComments = async () => {
+    if (commentsLoading) return;
+    setCommentsLoading(true);
+    try {
+      const data = await taskService.getComments(task._id);
+      setComments(Array.isArray(data) ? data : []);
+    } catch (error) {
+      toast({ title: error.message || 'Failed to load comments', type: 'error' });
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleToggleComments = () => {
+    if (!showComments && comments === null) loadComments();
+    setShowComments(p => !p);
+  };
+
+  const handleSubmitComment = async () => {
+    if (!newComment.trim()) return;
+    setSubmittingComment(true);
+    try {
+      await taskService.addComment(task._id, newComment.trim());
+      setNewComment('');
+      await loadComments();
+    } catch (error) {
+      toast({ title: error.message || 'Failed to add comment', type: 'error' });
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await taskService.deleteComment(task._id, commentId);
+      setComments(prev => (Array.isArray(prev) ? prev.filter(c => (c._id || c.id) !== commentId) : prev));
+    } catch (error) {
+      toast({ title: error.message || 'Failed to delete comment', type: 'error' });
+    }
+  };
+
   // Render workflow buttons based on status
   const renderWorkflowButtons = () => {
     const buttons = [];
@@ -480,18 +530,35 @@ export default function TaskDetailsModal({
                     <p className="text-green-900 dark:text-green-100">{formatToIST(new Date(task.completedAt))}</p>
                   </div>
                 )}
+                {/* On Time / Late indicator */}
+                {task.completedAt && (task.dueDate || task.dueAt) && (
+                  <div>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Completion Status</p>
+                    {new Date(task.completedAt) <= new Date(task.dueAt || task.dueDate) ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100">
+                        ✓ On Time
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-100">
+                        ⚠ Completed Late
+                      </span>
+                    )}
+                  </div>
+                )}
                 {task.totalWorkedMilliseconds > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Total Worked Time</p>
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Total Active Time</p>
                     <p className="text-green-900 dark:text-green-100 font-medium">
-                      {Math.floor(task.totalWorkedMilliseconds / (1000 * 3600))}h {Math.floor((task.totalWorkedMilliseconds % (1000 * 3600)) / (1000 * 60))}m
+                      {formatMilliseconds(task.totalWorkedMilliseconds)}
                     </p>
                   </div>
                 )}
                 {task.totalPausedMilliseconds > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">Total Paused Time</p>
-                    <p className="text-green-900 dark:text-green-100">{Math.floor(task.totalPausedMilliseconds / (1000 * 60))}m</p>
+                    <p className="text-green-900 dark:text-green-100">
+                      {formatMilliseconds(task.totalPausedMilliseconds)}
+                    </p>
                   </div>
                 )}
               </div>
@@ -636,6 +703,89 @@ export default function TaskDetailsModal({
             <div className="flex gap-2 flex-wrap">
               {renderWorkflowButtons()}
             </div>
+          </div>
+
+          {/* Comments Section */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <button
+              onClick={handleToggleComments}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                  Comments {task.comments?.length > 0 ? `(${task.comments.length})` : ''}
+                </span>
+              </div>
+              <span className="text-xs text-slate-400">{showComments ? '▲ Hide' : '▼ Show'}</span>
+            </button>
+
+            {showComments && (
+              <div className="mt-4 space-y-3">
+                {/* Comment Input */}
+                <div className="flex gap-2">
+                  <textarea
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmitComment(); }}
+                    placeholder="Add a comment... (Ctrl+Enter to send)"
+                    rows={2}
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 resize-none"
+                  />
+                  <button
+                    onClick={handleSubmitComment}
+                    disabled={!newComment.trim() || submittingComment}
+                    className="px-3 py-2 rounded-xl bg-brand-accent hover:bg-brand-accent/90 text-slate-900 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Comment List */}
+                {commentsLoading && (
+                  <p className="text-xs text-slate-400 text-center py-3">Loading comments…</p>
+                )}
+                {!commentsLoading && comments !== null && comments.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-3">No comments yet. Be the first to comment.</p>
+                )}
+                {!commentsLoading && comments?.length > 0 && (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {[...comments].reverse().map((c) => {
+                      const cId = c._id || c.id;
+                      const authorName = c.userId?.name || c.username || 'Unknown';
+                      const isOwn = c.userId?._id === currentUser?._id || c.userId?.id === currentUser?._id || c.userId === currentUser?._id;
+                      return (
+                        <div key={cId} className="flex gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-brand-accent/20 flex items-center justify-center shrink-0 text-xs font-bold text-brand-accent">
+                            {authorName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 bg-slate-50 dark:bg-slate-700/50 rounded-xl px-3 py-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{authorName}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-slate-400">
+                                  {c.createdAt ? new Date(c.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
+                                </span>
+                                {isOwn && (
+                                  <button
+                                    onClick={() => handleDeleteComment(cId)}
+                                    className="p-0.5 text-slate-400 hover:text-red-500 transition-colors"
+                                    title="Delete comment"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">{c.text}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Attachments Section */}
@@ -1002,24 +1152,38 @@ export default function TaskDetailsModal({
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    {timeline.timeline?.map((event, idx) => (
-                      <div key={idx} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-200 dark:ring-blue-900"></div>
-                          {idx < timeline.timeline.length - 1 && (
-                            <div className="w-0.5 h-12 bg-slate-300 dark:bg-slate-600"></div>
-                          )}
+                  <div className="space-y-3">
+                    {timeline.timeline?.map((event, idx) => {
+                      const dotColor =
+                        event.type === 'CREATED'  ? 'bg-slate-400' :
+                        event.type === 'STARTED'  ? 'bg-blue-500'  :
+                        event.type === 'PAUSED'   ? 'bg-orange-400':
+                        event.type === 'RESUMED'  ? 'bg-cyan-500'  :
+                        event.type === 'COMPLETED'? 'bg-emerald-500':
+                        event.type === 'COMMENT'  ? 'bg-purple-500':
+                        event.type === 'REASSIGNED'?'bg-indigo-500':
+                        'bg-slate-400';
+                      return (
+                        <div key={idx} className="flex gap-3">
+                          <div className="flex flex-col items-center pt-1">
+                            <div className={`w-2.5 h-2.5 rounded-full ${dotColor} ring-2 ring-white dark:ring-slate-800 shrink-0`}></div>
+                            {idx < timeline.timeline.length - 1 && (
+                              <div className="w-px flex-1 bg-slate-200 dark:bg-slate-700 mt-1"></div>
+                            )}
+                          </div>
+                          <div className="pb-4 min-w-0">
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{event.type}</p>
+                            <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug">{event.description}</p>
+                            {event.details?.text && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 italic mt-0.5">&ldquo;{event.details.text}&rdquo;</p>
+                            )}
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {new Date(event.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </p>
+                          </div>
                         </div>
-                        <div className="pb-8">
-                          <p className="font-medium text-slate-900 dark:text-white">{event.type}</p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">{event.description}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                            {new Date(event.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="flex justify-end gap-2">

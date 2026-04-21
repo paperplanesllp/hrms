@@ -115,6 +115,16 @@ export const taskService = {
     return normalizeResponse(res);
   },
 
+  async getComments(taskId) {
+    const res = await api.get(`/tasks/${taskId}/comments`);
+    return normalizeResponse(res) || [];
+  },
+
+  async deleteComment(taskId, commentId) {
+    const res = await api.delete(`/tasks/${taskId}/comments/${commentId}`);
+    return normalizeResponse(res);
+  },
+
   // ─── Timer Actions ────────────────────────────────────────────────────────
 
   async startTask(taskId) {

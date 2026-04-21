@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
-import { Download, Calendar, RefreshCw, Search } from 'lucide-react';
+import { Download, Calendar, RefreshCw, Search, Trash2, Edit2 } from 'lucide-react';
 import api from '../../../lib/api.js';
 import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.js';
 import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatusUtils.js';
 import PauseTaskModal from '../components/PauseTaskModal.jsx';
 import PauseHistoryPanel from '../components/PauseHistoryPanel.jsx';
 import { pauseTaskWithRemarks } from '../utils/taskPauseUtils.js';
+import ModalBase from '../../../components/ui/Modal.jsx';
 
 const toDayRange = (d) => {
   const date = new Date(d);
@@ -106,6 +107,9 @@ export default function DailyEmployeeTasks() {
   const [pauseModalOpen, setPauseModalOpen] = useState(false); // Pause modal state
   const [pauseTaskId, setPauseTaskId] = useState(null); // Current task being paused
   const [expandedPauseHistories, setExpandedPauseHistories] = useState({}); // Track expanded pause panels
+  const [editingTask, setEditingTask] = useState(null); // Task being edited
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
+  const [deleting, setDeleting] = useState({}); // Track deletion state
 
   const load = useCallback(async () => {
     try {
@@ -204,6 +208,42 @@ export default function DailyEmployeeTasks() {
       setPauseTaskId(null);
     } catch (err) {
       console.error('Error pausing task:', err);
+    }
+  };
+
+  // Handle delete task
+  const handleDeleteTask = async (taskId) => {
+    setDeleting(prev => ({ ...prev, [taskId]: true }));
+    try {
+      await api.delete(`/tasks/${taskId}`);
+      console.log(`✅ Task ${taskId} deleted`);
+      await load(); // Reload tasks
+      setDeleteConfirmTask(null);
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      alert('Failed to delete task: ' + (err?.response?.data?.message || err.message));
+    } finally {
+      setDeleting(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  // Handle update task (only title, description, priority - NOT time)
+  const handleUpdateTask = async (taskId, updates) => {
+    try {
+      // Ensure we don't update time fields
+      const safeUpdates = { ...updates };
+      delete safeUpdates.dueDate;
+      delete safeUpdates.dueTime;
+      delete safeUpdates.estimatedHours;
+      delete safeUpdates.estimatedMinutes;
+      
+      await api.put(`/tasks/${taskId}`, safeUpdates);
+      console.log(`✅ Task ${taskId} updated`);
+      await load(); // Reload tasks
+      setEditingTask(null);
+    } catch (err) {
+      console.error('Error updating task:', err);
+      alert('Failed to update task: ' + (err?.response?.data?.message || err.message));
     }
   };
 
@@ -773,6 +813,24 @@ export default function DailyEmployeeTasks() {
                             </div>
                           )}
 
+                          {/* Update and Delete Buttons */}
+                          {t.status !== 'completed' && (
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                onClick={() => setEditingTask(t)}
+                                className="flex-1 px-3 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-semibold text-sm border border-blue-300 dark:border-blue-700 transition flex items-center justify-center gap-1"
+                              >
+                                <Edit2 className="w-4 h-4" /> Update
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmTask(t)}
+                                className="flex-1 px-3 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 font-semibold text-sm border border-red-300 dark:border-red-700 transition flex items-center justify-center gap-1"
+                              >
+                                <Trash2 className="w-4 h-4" /> Delete
+                              </button>
+                            </div>
+                          )}
+
                           {/* Currently Paused Badge */}
                           {t.isPaused && (
                             <div className="mt-4 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700">
@@ -817,6 +875,105 @@ export default function DailyEmployeeTasks() {
           }}
           onPause={handleSubmitPause}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmTask && (
+        <ModalBase
+          isOpen={!!deleteConfirmTask}
+          onClose={() => setDeleteConfirmTask(null)}
+          title="Delete Task"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-300 font-semibold">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-2 font-bold">
+                Task: {deleteConfirmTask.title}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmTask(null)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteTask(deleteConfirmTask._id)}
+                disabled={deleting[deleteConfirmTask._id]}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting[deleteConfirmTask._id] ? '✓ Deleting...' : '✕ Delete'}
+              </button>
+            </div>
+          </div>
+        </ModalBase>
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <ModalBase
+          isOpen={!!editingTask}
+          onClose={() => setEditingTask(null)}
+          title="Update Task"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-2">Title</label>
+              <input
+                type="text"
+                defaultValue={editingTask.title}
+                onChange={(e) => setEditingTask(prev => ({ ...prev, title: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Description</label>
+              <textarea
+                defaultValue={editingTask.description || ''}
+                onChange={(e) => setEditingTask(prev => ({ ...prev, description: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Priority</label>
+              <select
+                value={editingTask.priority || 'MEDIUM'}
+                onChange={(e) => setEditingTask(prev => ({ ...prev, priority: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold">
+                ℹ️ Time fields (Due Date, Estimated Hours) cannot be updated. Contact HR for time extensions.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditingTask(null)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleUpdateTask(editingTask._id, editingTask)}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
+              >
+                ✓ Update Task
+              </button>
+            </div>
+          </div>
+        </ModalBase>
       )}
     </Card>
   );

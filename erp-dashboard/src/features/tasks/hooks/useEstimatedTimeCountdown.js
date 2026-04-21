@@ -53,6 +53,9 @@ export function useEstimatedTimeCountdown(task) {
   };
 
   useEffect(() => {
+    // Do not run the countdown timer for completed tasks
+    if (!task || task.status === 'completed') return;
+
     // Calculate remaining seconds every second
     const interval = setInterval(() => {
       const estimated = getEstimatedSeconds();
@@ -130,13 +133,27 @@ export function useEstimatedTimeCountdown(task) {
     return () => clearInterval(interval);
   }, [task?.estimatedHours, task?.estimatedMinutes, task?.totalActiveTimeInSeconds, task?.currentSessionStartTime, task?.isRunning, task?.status, task?.title]);
 
+  // For completed tasks, suppress the timer entirely — show isCompleted flag instead
+  if (task?.status === 'completed') {
+    return {
+      remainingSeconds: 0,
+      remainingDisplay: '00:00:00',
+      isExpired: false,
+      isAlertShown: false,
+      estimatedSeconds: getEstimatedSeconds(),
+      elapsedSeconds: calculateElapsedSeconds(),
+      isCompleted: true,
+    };
+  }
+
   return {
     remainingSeconds,
     remainingDisplay: formatCountdown(remainingSeconds),
     isExpired: remainingSeconds === 0,
     isAlertShown,
     estimatedSeconds: getEstimatedSeconds(),
-    elapsedSeconds: calculateElapsedSeconds()
+    elapsedSeconds: calculateElapsedSeconds(),
+    isCompleted: false,
   };
 }
 

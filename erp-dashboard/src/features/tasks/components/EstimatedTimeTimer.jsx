@@ -1,16 +1,25 @@
 import React from 'react';
-import { Clock, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Clock, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 /**
  * Displays countdown timer based on estimated time
  * Shows HH:MM:SS format counting DOWN from estimated time
  * Animates and changes color when expired
  * Shows "No estimate set" if no estimate is defined
+ * Shows "Task Complete" chip for completed tasks
  */
 export default function EstimatedTimeTimer({ countdown, task }) {
   if (!countdown || !task) return null;
-  
-  // Show "No estimate set" if no estimated time is set
+
+  // Completed tasks: show a neutral "Task Complete" chip — no timer, no TIME UP
+  if (task.status === 'completed' || countdown.isCompleted) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 ring-1 ring-green-200 dark:ring-green-700">
+        <CheckCircle2 className="w-4 h-4" />
+        <span>Task Complete</span>
+      </div>
+    );
+  }
   if (countdown.estimatedSeconds === 0 || (task.estimatedMinutes === 0 && task.estimatedHours === 0)) {
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">

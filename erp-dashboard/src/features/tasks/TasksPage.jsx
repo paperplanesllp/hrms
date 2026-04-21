@@ -12,14 +12,23 @@ import TasksOverviewSection from './sections/TasksOverviewSection.jsx';
 import MyTasksSection from './sections/MyTasksSection.jsx';
 import AssignedTasksSection from './sections/AssignedTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
+import { TaskRefreshProvider, useTaskRefresh } from './context/TaskRefreshContext.jsx';
 
 export default function TasksPage() {
+  return (
+    <TaskRefreshProvider>
+      <TasksPageInner />
+    </TaskRefreshProvider>
+  );
+}
+
+function TasksPageInner() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
   const accessToken = useAuthStore(s => s.accessToken);
+  const { triggerRefresh } = useTaskRefresh();
   
   const [activeTab, setActiveTab] = useState('overview');
-  const [refreshStatsKey, setRefreshStatsKey] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -66,9 +75,8 @@ export default function TasksPage() {
 
   // Callback when a task is created
   const handleTaskCreated = (newTask) => {
-    console.log('📝 [TasksPage] Task created, refreshing stats');
-    // Increment the key to trigger a refresh in TasksOverviewSection
-    setRefreshStatsKey(prev => prev + 1);
+    console.log('📝 [TasksPage] Task created, triggering global refresh');
+    triggerRefresh();
   };
 
   // Open create task modal
@@ -99,7 +107,7 @@ export default function TasksPage() {
   const renderActiveSection = () => {
     switch (activeTab) {
       case 'overview':
-        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
+        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
       case 'my-tasks':
         return <MyTasksSection />;
       case 'assigned-tasks':
@@ -107,7 +115,7 @@ export default function TasksPage() {
       case 'reports':
         return <TaskReportsSection />;
       default:
-        return <TasksOverviewSection key={refreshStatsKey} onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
+        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
     }
   };
 

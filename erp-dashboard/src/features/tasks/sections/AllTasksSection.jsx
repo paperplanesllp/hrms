@@ -3,7 +3,7 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { 
   Users, Grid3x3, LayoutList, Search, Filter, Loader, RefreshCw,
-  X, CheckCircle, CheckCircle2, AlertCircle, Eye
+  X, CheckCircle, CheckCircle2, AlertCircle, Eye, Trash2
 } from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
@@ -21,6 +21,7 @@ export default function AllTasksSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [submittingEdit, setSubmittingEdit] = useState(false);
@@ -188,13 +189,12 @@ export default function AllTasksSection() {
   }, [allTasks, searchQuery, filters]);
 
   const handleDeleteTask = async (taskId) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
-
     try {
       setDeleting(prev => ({ ...prev, [taskId]: true }));
       await taskService.deleteTask(taskId);
       setAllTasks(prev => prev.filter(t => t._id !== taskId));
       toast({ title: 'Task deleted successfully', type: 'success' });
+      setDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting task:', error);
       toast({
@@ -209,11 +209,14 @@ export default function AllTasksSection() {
 
   const canEditTask = (task) => {
     if (!user) return false;
+    // Only Admin/HR and assignees can mark tasks as completed
     if (isAdminOrHR) return true;
     const uid = user._id || user.id;
-    const isCreator = task.assignedBy?._id?.toString() === uid?.toString();
-    const isAssignee = task.assignedTo?._id?.toString() === uid?.toString();
-    return isCreator || isAssignee;
+    // Check if user is assigned to this task (handle both single and array cases)
+    if (Array.isArray(task.assignedTo)) {
+      return task.assignedTo.some(assignee => assignee?._id?.toString() === uid?.toString());
+    }
+    return task.assignedTo?._id?.toString() === uid?.toString();
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
@@ -461,7 +464,16 @@ export default function AllTasksSection() {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {/* Edit/Delete removed per request */}
+                  {canEditTask(task) && (
+                    <button
+                      onClick={() => setDeleteConfirm(task._id)}
+                      className="p-2 text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400"
+                      title="Delete task"
+                      disabled={deleting[task._id]}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -511,7 +523,16 @@ export default function AllTasksSection() {
                   View
                 </button>
 
-                {/* Edit/Delete removed per request */}
+                {canEditTask(task) && (
+                  <button
+                    onClick={() => setDeleteConfirm(task._id)}
+                    className="px-3 py-2 text-sm font-semibold text-red-600 transition-colors rounded-lg bg-red-50 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={deleting[task._id]}
+                    title="Delete task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </Card>
           ))}
@@ -528,6 +549,50 @@ export default function AllTasksSection() {
 
       {/* Edit modal removed (UI hidden) */}
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <ModalBase
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          title="Delete Task"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteTask(deleteConfirm)}
+                disabled={deleting[deleteConfirm]}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deleting[deleteConfirm] ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Task
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </ModalBase>
       )}
     </div>
   );

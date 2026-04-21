@@ -117,10 +117,10 @@ export function syncTaskTimingFields(task, now = new Date()) {
 
   const computedDueAt = calculateDueTime(task?.startedAt, estimatedMinutes, task.pausedDurationMs);
   task.dueAt = computedDueAt;
-
-  if (!task.dueDate || task.startedAt) {
-    task.dueDate = computedDueAt || task.dueDate || null;
-  }
+  // NOTE: task.dueDate is intentionally NOT overwritten here.
+  // dueDate = the user-set absolute deadline (shown in reports, calendar, due-date display).
+  // dueAt   = the timer-computed deadline (startedAt + estimatedMinutes + pausedDurationMs).
+  // These serve different purposes and must remain independent.
 
   task.timingState = resolveTaskTimingState(task, current);
   if (task.timingState === TASK_TIMING_STATE.OVERDUE && task.status === "in-progress") {

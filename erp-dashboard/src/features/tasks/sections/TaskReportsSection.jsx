@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { BarChart3, LineChart, PieChart, Download, Calendar, TrendingUp, Loader, AlertCircle, RefreshCw, Clipboard } from 'lucide-react';
@@ -9,6 +9,8 @@ import { useAuthStore } from '../../../store/authStore.js';
 import { toast } from '../../../store/toastStore.js';
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '../utils/exportReports.js';
 import { ROLES } from '../../../app/constants.js';
+import { getSocket } from '../../../lib/socket.js';
+import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 
 const unwrapApiData = (payload) => {
   if (!payload || typeof payload !== 'object') return payload;
@@ -20,11 +22,15 @@ const unwrapApiData = (payload) => {
 
 export default function TaskReportsSection() {
   const user = useAuthStore(s => s.user);
+  const { refreshKey } = useTaskRefresh();
   const [dateRange, setDateRange] = useState('month');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [teamPerformance, setTeamPerformance] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Debounce timer for socket-triggered refreshes
+  const socketRefreshTimer = useRef(null);
 
   // Check if user has admin/hr role (case-insensitive for safety across environments)
   const normalizedRole = String(user?.role || '').toUpperCase();
@@ -77,6 +83,43 @@ export default function TaskReportsSection() {
   useEffect(() => {
     loadAnalytics();
   }, [dateRange, loadAnalytics]);
+
+  // Background re-fetch when global refreshKey changes (task data changed elsewhere)
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    // Only auto-refresh for date views that use the analytics API
+    if (dateRange !== 'daily' && dateRange !== 'progress') {
+      loadAnalytics();
+    }
+  }, [refreshKey, loadAnalytics, dateRange]);
+
+  // Subscribe to socket events so analytics stay in sync in real-time
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const scheduleRefresh = () => {
+      if (socketRefreshTimer.current) clearTimeout(socketRefreshTimer.current);
+      socketRefreshTimer.current = setTimeout(() => {
+        if (dateRange !== 'daily' && dateRange !== 'progress') {
+          loadAnalytics();
+        }
+      }, 1000); // slight delay so DB aggregations settle
+    };
+
+    socket.on('task:created', scheduleRefresh);
+    socket.on('task:updated', scheduleRefresh);
+    socket.on('task:status-changed', scheduleRefresh);
+    socket.on('task:deleted', scheduleRefresh);
+
+    return () => {
+      socket.off('task:created', scheduleRefresh);
+      socket.off('task:updated', scheduleRefresh);
+      socket.off('task:status-changed', scheduleRefresh);
+      socket.off('task:deleted', scheduleRefresh);
+      if (socketRefreshTimer.current) clearTimeout(socketRefreshTimer.current);
+    };
+  }, [loadAnalytics, dateRange]);
 
   // Build reports array dynamically from API data
   const reports = analyticsData ? [

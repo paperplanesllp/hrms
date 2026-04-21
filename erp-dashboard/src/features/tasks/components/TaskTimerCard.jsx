@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, RotateCcw, CheckCircle2, Eye, BarChart3,
-  ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck,
+  ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck, Edit2, Trash2,
+  PauseCircle,
 } from 'lucide-react';
 import { useTaskCountdown } from '../hooks/useTaskTimer.js';
 import { useEstimatedTimeCountdown } from '../hooks/useEstimatedTimeCountdown.js';
@@ -45,7 +46,7 @@ const STATUS_LABEL = {
   overdue:     'Overdue',
   extended:    'Extended',
   rejected:    'Rejected',
-  'on-hold':   'Paused',
+  'on-hold':   'On Hold',
   completed:   'Completed',
   new:         'New',
   cancelled:   'Cancelled',
@@ -54,6 +55,7 @@ const STATUS_LABEL = {
 const LEFT_BORDER = {
   running:   'border-l-[3px] border-l-blue-500',
   paused:    'border-l-[3px] border-l-orange-400',
+  'on-hold': 'border-l-[3px] border-l-slate-500',
   completed: 'border-l-[3px] border-l-emerald-500',
   pending:   'border-l-[3px] border-l-slate-300 dark:border-l-slate-600',
 };
@@ -65,9 +67,13 @@ export default function TaskTimerCard({
   onStart,
   onPause,
   onResume,
+  onHold,
+  onResumeHold,
   onComplete,
   onViewDetails,
   onRequestMoreTime,
+  onEdit,
+  onDelete,
   loadingAction,
 }) {
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -288,8 +294,20 @@ export default function TaskTimerCard({
             </button>
           )}
 
-          {/* RESUME — currently paused */}
-          {timerState === 'paused' && (
+          {/* ON HOLD — show when running or paused (not on-hold already) */}
+          {(timerState === 'running' || (timerState === 'paused' && task.status === 'paused')) && onHold && (
+            <button
+              onClick={() => onHold(task)}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm hover:shadow"
+            >
+              <PauseCircle className="w-3.5 h-3.5" />
+              {isLoading ? 'Holding…' : 'On Hold'}
+            </button>
+          )}
+
+          {/* RESUME — currently paused (status='paused') */}
+          {timerState === 'paused' && task.status === 'paused' && (
             <button
               onClick={() => onResume(task._id)}
               disabled={isLoading}
@@ -297,6 +315,18 @@ export default function TaskTimerCard({
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {isLoading ? 'Resuming…' : 'Resume'}
+            </button>
+          )}
+
+          {/* RESUME FROM HOLD — currently on-hold */}
+          {task.status === 'on-hold' && (
+            <button
+              onClick={() => onResumeHold ? onResumeHold(task._id) : onResume(task._id)}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm hover:shadow"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {isLoading ? 'Resuming…' : 'Resume from Hold'}
             </button>
           )}
 
@@ -320,6 +350,28 @@ export default function TaskTimerCard({
               title="View details"
             >
               <Eye className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* EDIT — only for non-completed tasks */}
+          {onEdit && !isCompleted && (
+            <button
+              onClick={() => onEdit(task)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-sm transition-colors"
+              title="Update task"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* DELETE — only for non-completed tasks */}
+          {onDelete && !isCompleted && (
+            <button
+              onClick={() => onDelete(task)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 text-sm transition-colors"
+              title="Delete task"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
 

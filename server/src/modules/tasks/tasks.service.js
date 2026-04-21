@@ -514,7 +514,7 @@ export const tasksService = {
   },
 
   // Add comment to task
-  async addComment(taskId, userId, comment) {
+  async addComment(taskId, userId, comment, userName = 'Unknown') {
     const task = await Task.findById(new mongoose.Types.ObjectId(taskId));
     if (!task || task.isDeleted) {
       throw new Error('Task not found');
@@ -523,6 +523,7 @@ export const tasksService = {
     task.comments.push({
       _id: new mongoose.Types.ObjectId(),
       userId: new mongoose.Types.ObjectId(userId),
+      username: userName,
       text: comment.trim(),
       createdAt: new Date()
     });
@@ -1179,19 +1180,39 @@ export const tasksService = {
       });
     }
 
+    // Pause / resume entries
+    for (const entry of task.pauseEntries || []) {
+      if (entry.pausedAt) {
+        timeline.push({
+          type: 'PAUSED',
+          timestamp: entry.pausedAt,
+          description: entry.reason ? `Task paused — "${entry.reason}"` : 'Task paused',
+          details: { reason: entry.reason || null }
+        });
+      }
+      if (entry.resumedAt) {
+        timeline.push({
+          type: 'RESUMED',
+          timestamp: entry.resumedAt,
+          description: 'Task resumed',
+          details: {}
+        });
+      }
+    }
+
     // Comments
     for (const comment of task.comments || []) {
       timeline.push({
         type: 'COMMENT',
         timestamp: comment.createdAt,
-        description: `${comment.userId?.name || 'Unknown'} commented`,
+        description: `${comment.userId?.name || comment.username || 'Unknown'} commented`,
         actor: comment.userId,
-        details: { text: comment.text }
+        details: { text: comment.text, commentId: comment._id }
       });
     }
 
-    // Sort by timestamp descending (newest first)
-    timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Sort by timestamp ascending (oldest first — chronological log)
+    timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     return {
       taskId: task._id,

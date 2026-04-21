@@ -28,8 +28,9 @@ router.get('/assigned', tasksController.getMyAssignedTasks);
 // Task detail route
 router.get('/:id', tasksController.getTaskById);
 
-// Extension approval workflow routes
+// Extension workflow routes
 router.post('/request-extension', tasksController.requestTaskExtension);
+// Only the task assigner (or admin/HR) can approve/reject – the controller also validates this internally
 router.post('/approve-extension', tasksController.approveTaskExtension);
 router.post('/reject-extension', tasksController.rejectTaskExtension);
 
@@ -61,6 +62,14 @@ router.put('/:id/reassign', tasksController.reassignTask);
 
 // Get task timeline (activity history)
 router.get('/:id/timeline', tasksController.getTaskTimeline);
+
+// ─── COMMENTS ─────────────────────────────────────────────────────────────────
+router.get('/:id/comments', tasksController.getComments);
+router.post('/:id/comments', tasksController.addComment);
+router.delete('/:id/comments/:commentId', tasksController.deleteComment);
+
+// ─── REOPEN ───────────────────────────────────────────────────────────────────
+router.post('/:id/reopen', tasksController.reopenTask);
 
 // Check user workload
 router.get('/check-workload/:userId', tasksController.checkWorkload);

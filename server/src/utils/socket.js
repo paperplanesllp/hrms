@@ -549,73 +549,108 @@ export const notifyNewsPolicyUpdate = (newsItem, policyTitle) => {
 };
 
 // ============ TASK EVENT BROADCASTERS ============
-export const notifyTaskCreated = (task, createdBy) => {
-  if (io) {
-    if (task.assignedTo && task.assignedTo._id) {
-      io.to(`user_${task.assignedTo._id}`).emit("task:created", {
-        task,
-        message: `New task assigned: ${task.title}`,
-        createdBy,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    io.to("hr_management").emit("task:created", {
-      task,
-      message: `New task created: ${task.title}`,
-      createdBy,
-      timestamp: new Date().toISOString()
+
+/**
+ * Collect all unique user IDs (assignees + creator/assignedBy) for a task.
+ * Handles both populated objects and raw ObjectId strings.
+ */
+const getTaskUserIds = (task) => {
+  const ids = new Set();
+
+  // All assignees (array)
+  if (Array.isArray(task.assignedTo)) {
+    task.assignedTo.forEach(a => {
+      const id = a?._id?.toString() || a?.toString();
+      if (id) ids.add(id);
     });
+  } else if (task.assignedTo) {
+    const id = task.assignedTo?._id?.toString() || task.assignedTo?.toString();
+    if (id) ids.add(id);
   }
+
+  // Creator / assigner
+  const creatorId = task.assignedBy?._id?.toString() || task.assignedBy?.toString()
+    || task.createdBy?._id?.toString() || task.createdBy?.toString();
+  if (creatorId) ids.add(creatorId);
+
+  return ids;
+};
+
+export const notifyTaskCreated = (task, createdBy) => {
+  if (!io) return;
+
+  const payload = {
+    task,
+    message: `New task assigned: ${task.title}`,
+    createdBy,
+    timestamp: new Date().toISOString()
+  };
+
+  // Notify all assignees AND the creator
+  getTaskUserIds(task).forEach(uid => {
+    io.to(`user_${uid}`).emit("task:created", payload);
+  });
+
+  // Broadcast to HR/Admin management room
+  io.to("hr_management").emit("task:created", {
+    ...payload,
+    message: `New task created: ${task.title}`
+  });
 };
 
 export const notifyTaskUpdated = (task, changedBy) => {
-  if (io) {
-    if (task.assignedTo && task.assignedTo._id) {
-      io.to(`user_${task.assignedTo._id}`).emit("task:updated", {
-        task,
-        message: `Task updated: ${task.title}`,
-        changedBy,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    io.to("hr_management").emit("task:updated", {
-      task,
-      message: `Task updated: ${task.title}`,
-      changedBy,
-      timestamp: new Date().toISOString()
-    });
-  }
+  if (!io) return;
+
+  const payload = {
+    task,
+    message: `Task updated: ${task.title}`,
+    changedBy,
+    timestamp: new Date().toISOString()
+  };
+
+  // Notify all assignees AND the creator
+  getTaskUserIds(task).forEach(uid => {
+    io.to(`user_${uid}`).emit("task:updated", payload);
+  });
+
+  io.to("hr_management").emit("task:updated", payload);
 };
 
 export const notifyTaskStatusChanged = (task, changedBy) => {
-  if (io) {
-    if (task.createdBy && task.createdBy._id) {
-      io.to(`user_${task.createdBy._id}`).emit("task:status-changed", {
-        task,
-        message: `Task "${task.title}" status changed to ${task.status}`,
-        changedBy,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    io.to("hr_management").emit("task:status-changed", {
-      task,
-      message: `Task "${task.title}" status changed to ${task.status}`,
-      changedBy,
-      timestamp: new Date().toISOString()
-    });
-  }
+  if (!io) return;
+
+  const payload = {
+    task,
+    message: `Task "${task.title}" status changed to ${task.status}`,
+    changedBy,
+    timestamp: new Date().toISOString()
+  };
+
+  // Notify all assignees AND the creator so everyone's UI stays in sync
+  getTaskUserIds(task).forEach(uid => {
+    io.to(`user_${uid}`).emit("task:status-changed", payload);
+  });
+
+  io.to("hr_management").emit("task:status-changed", payload);
 };
 
-export const notifyTaskDeleted = (taskId, taskTitle, deletedBy) => {
-  if (io) {
-    io.to("hr_management").emit("task:deleted", {
-      taskId,
-      message: `Task "${taskTitle}" has been deleted`,
-      deletedBy,
-      timestamp: new Date().toISOString()
+export const notifyTaskDeleted = (taskId, taskTitle, deletedBy, assignedToIds = []) => {
+  if (!io) return;
+
+  const payload = {
+    taskId,
+    message: `Task "${taskTitle}" has been deleted`,
+    deletedBy,
+    timestamp: new Date().toISOString()
+  };
+
+  // Notify assignees so they see it removed from their list
+  if (Array.isArray(assignedToIds)) {
+    assignedToIds.forEach(uid => {
+      const id = uid?._id?.toString() || uid?.toString();
+      if (id) io.to(`user_${id}`).emit("task:deleted", payload);
     });
   }
+
+  io.to("hr_management").emit("task:deleted", payload);
 };

@@ -23,6 +23,21 @@ export function calculateDueTime(startedAt, estimatedMinutes, pausedDurationMinu
 }
 
 export function calculateRemainingTime(task, now = new Date()) {
+  // Completed tasks must never show overdue or remaining time
+  if (task?.status === 'completed') {
+    return {
+      shouldTrackDeadline: false,
+      effectiveDueAt: toDate(task?.dueDate),
+      state: 'Completed',
+      remainingMs: null,
+      remainingMinutes: null,
+      remainingSeconds: null,
+      isOverdue: false,
+      isDueNow: false,
+      isCompleted: true,
+    };
+  }
+
   const current = toDate(now) || new Date();
   const effectiveDueAt =
     calculateDueTime(task?.startedAt, task?.estimatedMinutes, task?.pausedDurationMs ?? task?.pausedDurationMinutes) ||
@@ -49,10 +64,15 @@ export function calculateRemainingTime(task, now = new Date()) {
   const remainingSeconds = Math.floor(remainingMs / 1000);
   const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
 
+  // Format overdue duration as "Xh Ym" instead of raw minutes
+  const h = Math.floor(overdueByMinutes / 60);
+  const m = overdueByMinutes % 60;
+  const overdueDurationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+
   return {
     shouldTrackDeadline,
     effectiveDueAt,
-    state: remainingSeconds < 0 ? `Overdue by ${overdueByMinutes} min` : 'In progress',
+    state: remainingSeconds < 0 ? `Overdue by ${overdueDurationStr}` : 'In progress',
     remainingMs,
     remainingMinutes: remainingMs / 60000,
     remainingSeconds,
