@@ -5,10 +5,7 @@ import { Download, Calendar, RefreshCw, Search, Trash2, Edit2, ChevronLeft, Chev
 import api from '../../../lib/api.js';
 import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.js';
 import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatusUtils.js';
-import PauseTaskModal from '../components/PauseTaskModal.jsx';
-import PauseHistoryPanel from '../components/PauseHistoryPanel.jsx';
 import TaskDetailsModal from '../components/TaskDetailsModal.jsx';
-import { pauseTaskWithRemarks } from '../utils/taskPauseUtils.js';
 import ModalBase from '../../../components/ui/Modal.jsx';
 
 // Helper function to get dates with offset
@@ -112,9 +109,6 @@ export default function DailyEmployeeTasks() {
   const [error, setError] = useState(null);
   const [remarks, setRemarks] = useState({}); // Store remarks by taskId
   const [approvedTasks, setApprovedTasks] = useState({}); // Store approval status by taskId
-  const [pauseModalOpen, setPauseModalOpen] = useState(false); // Pause modal state
-  const [pauseTaskId, setPauseTaskId] = useState(null); // Current task being paused
-  const [expandedPauseHistories, setExpandedPauseHistories] = useState({}); // Track expanded pause panels
   const [editingTask, setEditingTask] = useState(null); // Task being edited
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
   const [deleting, setDeleting] = useState({}); // Track deletion state
@@ -199,25 +193,6 @@ export default function DailyEmployeeTasks() {
     console.log(`✅ Task ${taskId} approved with remark: ${remark}`);
     // Optional: Send to backend API
     // api.patch(`/tasks/${taskId}`, { hoExceededApproved: true, exceedRemarks: remark });
-  };
-
-  // Handle pause task
-  const handlePauseTask = (taskId) => {
-    setPauseTaskId(taskId);
-    setPauseModalOpen(true);
-  };
-
-  // Submit pause with remarks
-  const handleSubmitPause = async (taskId, pauseRemarks, pauseReason) => {
-    try {
-      await pauseTaskWithRemarks(taskId, pauseRemarks, pauseReason);
-      console.log(`✅ Task ${taskId} paused with remarks: ${pauseRemarks}`);
-      await load(); // Reload tasks to show pause status
-      setPauseModalOpen(false);
-      setPauseTaskId(null);
-    } catch (err) {
-      console.error('Error pausing task:', err);
-    }
   };
 
   // Handle delete task
@@ -835,18 +810,6 @@ export default function DailyEmployeeTasks() {
                             </div>
                           )}
 
-                          {/* Pause Button - For In-Progress tasks */}
-                          {t.status === 'in-progress' && !t.isPaused && (
-                            <div className="mt-4">
-                              <button
-                                onClick={() => handlePauseTask(t._id)}
-                                className="w-full px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-semibold text-sm border border-orange-300 dark:border-orange-700 transition"
-                              >
-                                ⏸️ Pause Task (New Priority Task Assigned?)
-                              </button>
-                            </div>
-                          )}
-
                           {/* Update and Delete Buttons */}
                           {t.status !== 'completed' && (
                             <div className="mt-4 flex gap-2">
@@ -865,28 +828,7 @@ export default function DailyEmployeeTasks() {
                             </div>
                           )}
 
-                          {/* Currently Paused Badge */}
-                          {t.isPaused && (
-                            <div className="mt-4 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-orange-700 dark:text-orange-300">⏸️ Task Paused</span>
-                                <span className="text-xs text-orange-600 dark:text-orange-400">HR can extend deadline</span>
-                              </div>
-                            </div>
-                          )}
 
-                          {/* Pause History Panel - For HR to see */}
-                          <PauseHistoryPanel
-                            task={t}
-                            isExpanded={expandedPauseHistories[t._id] || false}
-                            onToggle={() => setExpandedPauseHistories(prev => ({
-                              ...prev,
-                              [t._id]: !prev[t._id]
-                            }))}
-                            onTaskUpdated={() => {
-                              load();
-                            }}
-                          />
                         </div>
                       );
                     })}
@@ -898,18 +840,7 @@ export default function DailyEmployeeTasks() {
         </div>
       </div>
 
-      {/* Pause Task Modal */}
-      {pauseTaskId && filteredGroups.reduce((found, g) => found || g.tasks.find(t => t._id === pauseTaskId), null) && (
-        <PauseTaskModal
-          task={filteredGroups.reduce((found, g) => found || g.tasks.find(t => t._id === pauseTaskId), null)}
-          isOpen={pauseModalOpen}
-          onClose={() => {
-            setPauseModalOpen(false);
-            setPauseTaskId(null);
-          }}
-          onPause={handleSubmitPause}
-        />
-      )}
+
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmTask && (
