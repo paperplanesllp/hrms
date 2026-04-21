@@ -22,10 +22,12 @@ import {
 } from 'lucide-react';
 import { toast } from '../../../store/toastStore.js';
 import { useAuthStore } from '../../../store/authStore.js';
+import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 import api from '../../../lib/api.js';
 
 export default function AssignTaskSection({ onTaskCreated }) {
   const user = useAuthStore(s => s.user);
+  const { triggerRefreshImmediate } = useTaskRefresh();
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -245,14 +247,29 @@ export default function AssignTaskSection({ onTaskCreated }) {
           },
         });
 
-        // Show success message
+        // Get assigned users' names for the toast message
+        const assignedUserNames = formData.assignedTo
+          .map(id => {
+            const assignedUser = users.find(u => u._id === id);
+            return assignedUser?.name || 'Unknown User';
+          })
+          .filter(Boolean);
+
+        const taskVisibilityMessage = assignedUserNames.length > 0
+          ? `Task visible to: ${assignedUserNames.join(', ')}`
+          : 'Task assigned';
+
+        // Show success message with assigned users
         toast({
           title: 'Task created successfully',
-          message: `"${formData.title}" has been assigned${attachments.length > 0 ? ` with ${attachments.length} attachment(s)` : ''}`,
+          message: `"${formData.title}" has been assigned. ${taskVisibilityMessage}${attachments.length > 0 ? ` + ${attachments.length} attachment(s)` : ''}`,
           type: 'success'
         });
 
         setShowSuccessState(true);
+
+        // Trigger immediate refresh for all task lists (real-time update)
+        triggerRefreshImmediate();
 
         // Call the callback to refresh stats
         if (onTaskCreated) {
@@ -329,6 +346,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
 
   // Get assigned users (array) and department for preview
   const assignedUsers = users.filter(u => (formData.assignedTo || []).includes(u._id));
+  const assignedUser = assignedUsers[0] || null; // primary assignee for display
   const assignedByUser = users.find(u => u._id === formData.assignedBy);
   const selectedDept = departments.find(d => d._id === formData.department);
 
@@ -516,7 +534,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleAssignee(u._id)}
-                            className="accent-brand-accent w-4 h-4 shrink-0"
+                            className="w-4 h-4 accent-brand-accent shrink-0"
                           />
                           <span className={`text-sm ${checked ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                             {u.name}{isYou ? <span className="ml-1 text-xs font-bold text-brand-accent opacity-80">(you)</span> : null}

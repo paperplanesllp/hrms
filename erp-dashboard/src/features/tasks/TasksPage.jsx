@@ -13,6 +13,7 @@ import MyTasksSection from './sections/MyTasksSection.jsx';
 import AssignedTasksSection from './sections/AssignedTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
 import { TaskRefreshProvider, useTaskRefresh } from './context/TaskRefreshContext.jsx';
+import { useTaskSocketListener } from './hooks/useTaskSocketListener.js';
 
 export default function TasksPage() {
   return (
@@ -27,6 +28,9 @@ function TasksPageInner() {
   const user = useAuthStore(s => s.user);
   const accessToken = useAuthStore(s => s.accessToken);
   const { triggerRefresh } = useTaskRefresh();
+  
+  // Initialize socket listener for real-time task updates
+  useTaskSocketListener();
   
   const [activeTab, setActiveTab] = useState('overview');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

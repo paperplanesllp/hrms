@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Eye, CheckCircle2, AlertCircle, Loader, RefreshCw,
-  Search, X, Play, Pause, RotateCcw, BarChart3, Edit2, Trash2,
+  Search, X, Play, Pause, RotateCcw, BarChart3, Edit2, Trash2, Calendar,
 } from 'lucide-react';
 import Modal from '../../../components/ui/Modal.jsx';
 import { taskService } from '../taskService.js';
@@ -15,9 +15,17 @@ import PauseReasonModal from '../components/PauseReasonModal.jsx';
 import { formatSecondsHuman } from '../utils/taskTimerUtils.js';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 
+// Helper function to get dates with offset
+const getDateWithOffset = (offsetDays = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+};
+
 export default function MyTasksSection() {
   const { refreshKey, triggerRefresh } = useTaskRefresh();
   const [filter, setFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState(getDateWithOffset(0));
   const [search, setSearch] = useState('');
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,9 +82,9 @@ export default function MyTasksSection() {
       console.log('🔄 [MyTasks] Starting fetch with filter:', filter);
       if (showLoadingSpinner) setLoading(true);
       
-      // Send filter directly to the API; 'all' = no status filter
+      // Send filter directly to the API; 'all' = no status filter, 'daily' is client-side only
       // Paused tasks use status='paused', on-hold uses status='on-hold'
-      const apiStatus = filter !== 'all' ? filter : undefined;
+      const apiStatus = (filter !== 'all' && filter !== 'daily') ? filter : undefined;
       const tasks = await taskService.getMyTasks({ status: apiStatus });
       
       // Sort: newest first (running tasks still bubble to top)
@@ -471,7 +479,30 @@ export default function MyTasksSection() {
 
   const filteredTasks = useMemo(() => {
     let tasks = myTasks;
-    if (filter !== 'all') {
+    
+    // Get date range for any given date
+    const getDateRange = (dateString) => {
+      const date = new Date(dateString);
+      const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+      return { start, end };
+    };
+    
+    if (filter === 'daily') {
+      // Show tasks for the selected date (dateFilter)
+      const { start, end } = getDateRange(dateFilter);
+      tasks = tasks.filter(t => {
+        if (t.dueDate) {
+          const taskDate = new Date(t.dueDate);
+          return taskDate >= start && taskDate <= end;
+        }
+        if (t.createdAt) {
+          const taskDate = new Date(t.createdAt);
+          return taskDate >= start && taskDate <= end;
+        }
+        return false;
+      });
+    } else if (filter !== 'all') {
       tasks = tasks.filter(t => {
         if (filter === 'paused') return t.isPaused || t.status === 'paused';
         if (filter === 'on-hold') return t.status === 'on-hold';
@@ -487,12 +518,11 @@ export default function MyTasksSection() {
       );
     }
     return tasks;
-  }, [myTasks, filter, search]);
+  }, [myTasks, filter, search, dateFilter]);
 
   const FILTER_OPTIONS = [
     { value: 'all',         label: 'All' },
-    { value: 'pending',     label: 'Not Started' },
-    { value: 'in-progress', label: 'Working' },
+    { value: 'daily',       label: 'Daily Task' },
     { value: 'paused',      label: 'Paused' },
     { value: 'on-hold',     label: 'On Hold' },
     { value: 'completed',   label: 'Completed' },
@@ -514,29 +544,47 @@ export default function MyTasksSection() {
       )}
 
       {/* Search + Filter + Refresh row */}
-      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search tasks..."
-            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/40 focus:border-brand-accent transition-all"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      <div className="flex flex-col gap-3 flex-wrap">
+        {/* Search + Calendar shortcuts in one row */}
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search tasks..."
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/40 focus:border-brand-accent transition-all"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Date Shortcuts */}
+          <div className="flex gap-2 flex-wrap">
+            {/* Calendar Date Picker */}
+            <div className="relative">
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="px-3 py-2.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold cursor-pointer hover:border-brand-accent dark:hover:border-brand-accent transition-colors"
+                title="Pick any date"
+              />
+              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
         </div>
 
-        {/* Filter buttons */}
-        <div className="flex flex-wrap gap-2">
+        {/* Filter buttons + Refresh in second row */}
+        <div className="flex flex-wrap gap-2 items-center">
           {FILTER_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -550,18 +598,18 @@ export default function MyTasksSection() {
               {opt.label}
             </button>
           ))}
-        </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="shrink-0"
-        >
-          Refresh
-        </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="shrink-0"
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Loading */}

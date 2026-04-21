@@ -13,6 +13,8 @@ import TaskDetailsModal from './TaskDetailsModal.jsx';
 import TaskDashboard from './TaskDashboard.jsx';
 import ModalBase from '../../components/ui/Modal.jsx';
 import TaskForm from './TaskForm.jsx';
+import { useTaskSocketListener } from './hooks/useTaskSocketListener.js';
+import { useTaskRefresh } from './context/TaskRefreshContext.jsx';
 
 export default function TasksManagePage() {
   const [view, setView] = useState('table'); // grid, table, dashboard
@@ -23,6 +25,10 @@ export default function TasksManagePage() {
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState('dueDate');
   const [sortDirection, setSortDirection] = useState('asc');
+  const { refreshKey } = useTaskRefresh();
+  
+  // Initialize socket listener for real-time task updates
+  useTaskSocketListener();
   
   const [filters, setFilters] = useState({
     search: '',
@@ -40,7 +46,7 @@ export default function TasksManagePage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     if (view !== 'dashboard') {

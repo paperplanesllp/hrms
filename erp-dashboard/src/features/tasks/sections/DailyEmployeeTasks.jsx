@@ -1,14 +1,22 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
-import { Download, Calendar, RefreshCw, Search, Trash2, Edit2 } from 'lucide-react';
+import { Download, Calendar, RefreshCw, Search, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../../lib/api.js';
 import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.js';
 import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatusUtils.js';
 import PauseTaskModal from '../components/PauseTaskModal.jsx';
 import PauseHistoryPanel from '../components/PauseHistoryPanel.jsx';
+import TaskDetailsModal from '../components/TaskDetailsModal.jsx';
 import { pauseTaskWithRemarks } from '../utils/taskPauseUtils.js';
 import ModalBase from '../../../components/ui/Modal.jsx';
+
+// Helper function to get dates with offset
+const getDateWithOffset = (offsetDays = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+};
 
 const toDayRange = (d) => {
   const date = new Date(d);
@@ -110,6 +118,7 @@ export default function DailyEmployeeTasks() {
   const [editingTask, setEditingTask] = useState(null); // Task being edited
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
   const [deleting, setDeleting] = useState({}); // Track deletion state
+  const [selectedTaskDetails, setSelectedTaskDetails] = useState(null); // Task details modal state
 
   const load = useCallback(async () => {
     try {
@@ -250,6 +259,15 @@ export default function DailyEmployeeTasks() {
   const members = useMemo(() => {
     const map = {};
 
+    // Test user keywords to exclude
+    const testKeywords = ['test', 'debug', 'voice call', 'demo', 'dummy', 'sample', 'employee user'];
+    
+    // Helper function to check if user is a test account
+    const isTestUser = (name) => {
+      const nameLower = String(name || '').toLowerCase();
+      return testKeywords.some(keyword => nameLower.includes(keyword));
+    };
+
     // Add all employees from user list (even those without tasks)
     users.forEach((u) => {
       const role = String(u?.role || '').toUpperCase();
@@ -258,9 +276,14 @@ export default function DailyEmployeeTasks() {
       const id = String(u?._id || u?.id || '');
       if (!id) return;
 
+      const name = u?.name || u?.userName || 'Unknown User';
+      
+      // Skip test users
+      if (isTestUser(name)) return;
+
       map[id] = {
         _id: id,
-        name: u?.name || u?.userName || 'Unknown User',
+        name: name,
         avatar: u?.avatar,
         count: 0,
       };
@@ -277,6 +300,9 @@ export default function DailyEmployeeTasks() {
       if (g.name === 'Unassigned') return; // Already handled above
       const key = String(g.id || '');
       if (!key) return;
+
+      // Skip test users in groups too
+      if (isTestUser(g.name)) return;
 
       if (map[key]) {
         map[key].count = g.tasks.length;
@@ -468,16 +494,24 @@ export default function DailyEmployeeTasks() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">Daily Employee Tasks</h3>
-          <p className="text-sm text-slate-500">Select a member to view their tasks, search and sort as needed.</p>
+          <p className="text-sm text-slate-500">
+            📅 {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 bg-white dark:bg-slate-800 text-sm"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Calendar Date Picker */}
+          <div className="relative">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="px-3 py-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold cursor-pointer hover:border-brand-accent dark:hover:border-brand-accent transition-colors"
+              title="Pick any date"
+            />
+            <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+
           <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="w-3 h-3" />} onClick={load}>
             Refresh
           </Button>
@@ -679,7 +713,7 @@ export default function DailyEmployeeTasks() {
                         : 'System';
                       
                       return (
-                        <div key={t._id} className={`p-4 rounded-lg border-2 ${statusColors[t.status] || 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
+                        <div key={t._id} className={`p-4 rounded-lg border-2 cursor-pointer transition hover:shadow-lg ${statusColors[t.status] || 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`} onClick={() => setSelectedTaskDetails(t)}>
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex-1">
                               <div className="font-bold text-slate-900 dark:text-white text-sm">{t.title}</div>
@@ -974,6 +1008,15 @@ export default function DailyEmployeeTasks() {
             </div>
           </div>
         </ModalBase>
+      )}
+
+      {/* Task Details Modal */}
+      {selectedTaskDetails && (
+        <TaskDetailsModal
+          task={selectedTaskDetails}
+          isOpen={!!selectedTaskDetails}
+          onClose={() => setSelectedTaskDetails(null)}
+        />
       )}
     </Card>
   );

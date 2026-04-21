@@ -23,7 +23,7 @@ const unwrapApiData = (payload) => {
 export default function TaskReportsSection() {
   const user = useAuthStore(s => s.user);
   const { refreshKey } = useTaskRefresh();
-  const [dateRange, setDateRange] = useState('month');
+  const [dateRange, setDateRange] = useState('daily');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [teamPerformance, setTeamPerformance] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -12,6 +12,8 @@ import TaskDashboard from './TaskDashboard.jsx';
 import TaskTable from './TaskTable.jsx';
 import ModalBase from '../../components/ui/Modal.jsx';
 import TaskForm from './TaskForm.jsx';
+import { useTaskSocketListener } from './hooks/useTaskSocketListener.js';
+import { useTaskRefresh } from './context/TaskRefreshContext.jsx';
 
 export default function MyTasksPage() {
   const [view, setView] = useState('grid'); // grid, list, dashboard
@@ -19,6 +21,10 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const { refreshKey } = useTaskRefresh();
+  
+  // Initialize socket listener for real-time task updates
+  useTaskSocketListener();
   const [filters, setFilters] = useState({
     search: '',
     priority: null,
@@ -160,7 +166,7 @@ export default function MyTasksPage() {
     if (view !== 'dashboard') {
       loadTasks();
     }
-  }, [filters, view, loadTasks]);
+  }, [filters, view, loadTasks, refreshKey]);
 
   const handleStatusChange = async (taskId, newStatus) => {
     try {
