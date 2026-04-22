@@ -13,7 +13,8 @@ import {
   Users,
   TrendingUp,
   Calendar,
-  Timer
+  Timer,
+  TrendingDown
 } from 'lucide-react';
 import {
   formatDuration,
@@ -25,6 +26,8 @@ import {
   isOverdue,
   getDaysUntilDue
 } from '../utils/taskExecutionUtils.js';
+import { useEstimatedTimeCountdown } from '../hooks/useEstimatedTimeCountdown.js';
+import UnifiedTimerDisplay from './UnifiedTimerDisplay.jsx';
 
 export default function PremiumTaskCard({
   task,
@@ -44,6 +47,7 @@ export default function PremiumTaskCard({
   const progressColor = getProgressColor(progress);
   const isOverdueTask = isOverdue(task.dueDate, task.executionStatus);
   const daysUntilDue = getDaysUntilDue(task.dueDate);
+  const countdown = useEstimatedTimeCountdown(task);
 
   const getActionButton = (action, icon, label, onClick, color) => (
     <button
@@ -143,39 +147,15 @@ export default function PremiumTaskCard({
         </div>
       </div>
 
-      {/* Time Metrics */}
-      <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
-        {/* Active Time */}
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-1 mb-1">
-            <Zap size={14} className="text-blue-600 dark:text-blue-400" />
+      {/* Unified Timer Display - Single Timer Only */}
+      <div className="mb-4 flex items-center justify-between">
+        <UnifiedTimerDisplay countdown={countdown} task={task} />
+        {/* Time breakdown indicator */}
+        <div className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+          <div className="text-right">
+            <div className="font-semibold">{formatDuration(task.totalActiveMinutes)} active</div>
+            <div className="text-slate-400 dark:text-slate-500">{formatDuration(task.estimatedMinutes)} est.</div>
           </div>
-          <p className="text-xs font-semibold text-slate-900 dark:text-white">
-            {formatDuration(task.totalActiveMinutes)}
-          </p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Active</p>
-        </div>
-
-        {/* Paused Time */}
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-1 mb-1">
-            <Pause size={14} className="text-yellow-600 dark:text-yellow-400" />
-          </div>
-          <p className="text-xs font-semibold text-slate-900 dark:text-white">
-            {formatDuration(task.totalPausedMinutes)}
-          </p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Paused</p>
-        </div>
-
-        {/* Estimated */}
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-1 mb-1">
-            <Timer size={14} className="text-slate-600 dark:text-slate-400" />
-          </div>
-          <p className="text-xs font-semibold text-slate-900 dark:text-white">
-            {formatDuration(task.estimatedMinutes)}
-          </p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Est.</p>
         </div>
       </div>
 
