@@ -214,6 +214,9 @@ export const tasksService = {
       throw new Error('Task title is required and must be a string');
     }
     
+    console.log('📝 [createTask] Starting task creation for assignedBy:', assignedById);
+    console.log('📝 [createTask] Raw assignedTo from request:', data.assignedTo, 'Type:', typeof data.assignedTo);
+    
     // Normalize assignedTo to array
     const assignedToRaw = Array.isArray(data.assignedTo)
       ? data.assignedTo
@@ -221,7 +224,10 @@ export const tasksService = {
         ? [data.assignedTo]
         : [];
 
+    console.log('📝 [createTask] Normalized assignedTo array:', assignedToRaw);
+
     if (assignedToRaw.length === 0) {
+      console.error('❌ [createTask] No assignees provided');
       throw new Error('Task must be assigned to at least one user');
     }
 
@@ -231,8 +237,13 @@ export const tasksService = {
 
     // Validate each assignee exists
     for (const uid of assignedToRaw) {
+      console.log('🔍 [createTask] Validating user:', uid);
       const found = await User.findById(uid);
-      if (!found) throw new Error(`Assigned user not found: ${uid}`);
+      if (!found) {
+        console.error('❌ [createTask] User not found:', uid);
+        throw new Error(`Assigned user not found: ${uid}`);
+      }
+      console.log('✅ [createTask] User validated:', found.email);
     }
 
     // Validate assignedBy exists
@@ -264,10 +275,17 @@ export const tasksService = {
 
     const dueDate = data.dueDate ? new Date(data.dueDate) : null;
 
+    console.log('📝 [createTask] Converting assignedTo to ObjectIds...');
+    const assignedToObjectIds = assignedToRaw.map(id => {
+      const objId = new mongoose.Types.ObjectId(id);
+      console.log('✅ [createTask] Converted:', id, '→', objId.toString());
+      return objId;
+    });
+
     const taskData = {
       title: data.title.trim(),
       description: data.description?.trim() || '',
-      assignedTo: assignedToRaw.map(id => new mongoose.Types.ObjectId(id)),
+      assignedTo: assignedToObjectIds,
       assignedBy: new mongoose.Types.ObjectId(assignedById),
       department: data.department ? new mongoose.Types.ObjectId(data.department) : null,
       dueDate,
@@ -293,7 +311,9 @@ export const tasksService = {
       }
     }
     
+    console.log('📝 [createTask] Creating task with data:', { title: taskData.title, assignedTo: taskData.assignedTo, assignedBy: taskData.assignedBy });
     const task = await Task.create(taskData);
+    console.log('✅ [createTask] Task created successfully:', task._id);
     await task.populate('assignedTo assignedBy department');
     return task;
   },

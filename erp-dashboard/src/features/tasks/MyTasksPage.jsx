@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import api from '../../lib/api.js';
 import { toast } from '../../store/toastStore.js';
+import { getAuth } from '../../lib/auth.js';
 import TaskCard from './TaskCard.jsx';
 import TaskFilters from './TaskFilters.jsx';
 import TaskDetailsModal from './TaskDetailsModal.jsx';
@@ -21,6 +22,7 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const { refreshKey } = useTaskRefresh();
   
   // Initialize socket listener for real-time task updates
@@ -140,6 +142,13 @@ export default function MyTasksPage() {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+        // Get current user from auth
+        const auth = getAuth();
+        if (auth?.user) {
+          setCurrentUser(auth.user);
+          console.log('✅ Current user loaded:', auth.user.id);
+        }
+        
         const [usersRes, deptsRes] = await Promise.all([
           api.get('/users?limit=1000'),
           api.get('/department?limit=1000')
@@ -197,6 +206,16 @@ export default function MyTasksPage() {
   const handleCreateTask = async (formData) => {
     try {
       setIsSubmitting(true);
+      
+      // ✅ Auto-assign task to current user if not explicitly assigned
+      const auth = getAuth();
+      if (!formData.assignedTo && auth?.user?.id) {
+        console.log('✅ Auto-assigning task to current user:', auth.user.id);
+        formData.assignedTo = auth.user.id;
+      } else if (!formData.assignedTo) {
+        throw new Error('Could not determine current user. Please refresh and try again.');
+      }
+      
       console.log('📤 Submitting task:', formData);
       await api.post('/tasks', formData);
       toast({
@@ -308,7 +327,7 @@ export default function MyTasksPage() {
             <Plus size={18} />
             Create Request
           </Button>,
-          <div key="view-toggle" className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+          <div key="view-toggle" className="flex gap-2 p-1 rounded-lg bg-slate-100 dark:bg-slate-900">
             <Button
               size="sm"
               variant={view === 'grid' ? 'primary' : 'outline'}
@@ -343,8 +362,8 @@ export default function MyTasksPage() {
       {loading ? (
         <Spinner className="mt-20" />
       ) : tasks.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-slate-500 dark:text-slate-400 text-lg">
+        <div className="py-20 text-center">
+          <p className="text-lg text-slate-500 dark:text-slate-400">
             No tasks found. Create your first task or contact your manager.
           </p>
         </div>
@@ -392,9 +411,11 @@ export default function MyTasksPage() {
           className="max-w-2xl"
         >
           <TaskForm
+            task={currentUser ? { assignedTo: currentUser.id } : null}
             onSubmit={handleCreateTask}
             onCancel={() => setShowCreateModal(false)}
             isSubmitting={isSubmitting}
+            isPersonalTask={false}
             users={users}
             departments={departments}
           />
