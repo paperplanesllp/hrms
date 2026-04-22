@@ -10,6 +10,7 @@ import TaskCompletionChart from '../components/TaskCompletionChart.jsx';
 import { useCountdownTimer } from '../hooks/useTaskTimer.js';
 import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
+import { useAuthStore } from '../../../store/authStore.js';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -70,6 +71,8 @@ function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel })
 
 export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) {
   const { refreshKey } = useTaskRefresh();
+  const user = useAuthStore(s => s.user);
+  const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
   const [stats, setStats] = useState({
     byStatus: { pending: 0, 'in-progress': 0, completed: 0, 'on-hold': 0, cancelled: 0, total: 0 },
     byPriority: { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 },
@@ -303,6 +306,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
               >
                 Create Task
               </Button>
+              {isAdminOrHR && (
               <Button 
                 variant="secondary" 
                 size="md"
@@ -311,6 +315,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
               >
                 View Analytics
               </Button>
+              )}
             </div>
           </div>
 

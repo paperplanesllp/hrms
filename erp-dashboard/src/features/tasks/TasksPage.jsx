@@ -95,6 +95,8 @@ function TasksPageInner() {
     setIsCreateModalOpen(false);
   };
 
+  const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
+
   const tabs = [
     { id: 'overview', label: 'Overview' },   
     { 
@@ -105,7 +107,7 @@ function TasksPageInner() {
         { id: 'assigned-tasks', label: 'Tasks Assigned' }
       ]
     },
-    { id: 'reports', label: 'Reports' },
+    ...(isAdminOrHR ? [{ id: 'reports', label: 'Reports' }] : []),
   ];
 
   const renderActiveSection = () => {
@@ -117,7 +119,7 @@ function TasksPageInner() {
       case 'assigned-tasks':
         return <AssignedTasksSection />;
       case 'reports':
-        return <TaskReportsSection />;
+        return isAdminOrHR ? <TaskReportsSection /> : <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
       default:
         return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
     }
