@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History, MessageSquare, Send, Trash2 } from 'lucide-react';
+import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History, MessageSquare, Send, Trash2, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
 import { taskService } from './taskService.js';
@@ -21,6 +21,7 @@ import {
   isTaskOverdue,
   getDaysUntilDue
 } from './taskUtils.js';
+import RequestExtensionModal from './modals/RequestExtensionModal.jsx';
 
 export default function TaskDetailsModal({
   task,
@@ -35,6 +36,7 @@ export default function TaskDetailsModal({
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [holdReason, setHoldReason] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [completionRemark, setCompletionRemark] = useState('');
@@ -410,6 +412,24 @@ export default function TaskDetailsModal({
           disabled={isLoading || isProcessing}
         >
           Reassign
+        </Button>
+      );
+    }
+
+    // Show Request Extension button if task is overdue and user is assigned
+    const isUserAssigned = task.assignedTo && task.assignedTo.some(u => u._id === currentUserId || u.id === currentUserId);
+    const taskIsOverdue = isOverdue && task.status !== 'completed' && isUserAssigned;
+    
+    if (taskIsOverdue) {
+      buttons.push(
+        <Button
+          key="extension"
+          onClick={() => setShowExtensionModal(true)}
+          disabled={isLoading || isProcessing}
+          className="bg-orange-500 hover:bg-orange-600"
+        >
+          <AlertCircle size={16} />
+          Request Extension
         </Button>
       );
     }
@@ -1197,6 +1217,19 @@ export default function TaskDetailsModal({
                 </div>
               </Card>
             </div>
+          )}
+
+          {/* Request Extension Modal */}
+          {showExtensionModal && (
+            <RequestExtensionModal
+              isOpen={showExtensionModal}
+              onClose={() => setShowExtensionModal(false)}
+              task={task}
+              onExtensionRequested={() => {
+                setShowExtensionModal(false);
+                // Optionally refresh task data here
+              }}
+            />
           )}
         </div>
       </Card>

@@ -23,11 +23,9 @@ import {
   formatDuration,
   getExecutionStatusStyle,
   getDueHealthStyle,
-  calculateProgress,
   formatRelativeTime,
   isOverdue,
-  getDaysUntilDue,
-  getVariancePercent
+  getDaysUntilDue
 } from '../utils/taskExecutionUtils.js';
 import { taskService } from '../taskService.js';
 
@@ -72,10 +70,8 @@ export default function PremiumTaskDetailsModal({
 
   const executionStyle = getExecutionStatusStyle(task.executionStatus);
   const dueHealthStyle = getDueHealthStyle(task.dueHealth);
-  const progress = calculateProgress(task.totalActiveMinutes, task.estimatedMinutes);
   const isOverdueTask = isOverdue(task.dueDate, task.executionStatus);
   const daysUntilDue = getDaysUntilDue(task.dueDate);
-  const variancePercent = getVariancePercent(task.totalActiveMinutes, task.estimatedMinutes);
 
   const handleExecutionAction = async (action, payload = {}) => {
     try {
@@ -149,7 +145,7 @@ export default function PremiumTaskDetailsModal({
               Execution Progress
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
               {/* Total Active */}
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-400 mb-1">Active Time</p>
@@ -164,58 +160,6 @@ export default function PremiumTaskDetailsModal({
                 <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-200">
                   {formatDuration(task.totalPausedMinutes)}
                 </p>
-              </div>
-
-              {/* Estimated */}
-              <div className="p-4 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-300 dark:border-slate-600">
-                <p className="text-xs text-slate-700 dark:text-slate-400 mb-1">Estimated</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {formatDuration(task.estimatedMinutes)}
-                </p>
-              </div>
-
-              {/* Variance */}
-              <div className={`p-4 rounded-lg border ${
-                variancePercent < 0
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                  : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
-              }`}>
-                <p className={`text-xs mb-1 ${
-                  variancePercent < 0
-                    ? 'text-green-700 dark:text-green-400'
-                    : 'text-orange-700 dark:text-orange-400'
-                }`}>
-                  Variance
-                </p>
-                <p className={`text-2xl font-bold ${
-                  variancePercent < 0
-                    ? 'text-green-900 dark:text-green-200'
-                    : 'text-orange-900 dark:text-orange-200'
-                }`}>
-                  {variancePercent < 0 ? '-' : '+'}{Math.abs(variancePercent)}%
-                </p>
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Overall Progress</span>
-                <span className="text-sm font-bold text-slate-900 dark:text-white">{progress}%</span>
-              </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all ${
-                    progress >= 75
-                      ? 'bg-green-500'
-                      : progress >= 50
-                      ? 'bg-blue-500'
-                      : progress >= 25
-                      ? 'bg-yellow-500'
-                      : 'bg-red-500'
-                  }`}
-                  style={{ width: `${progress}%` }}
-                ></div>
               </div>
             </div>
           </div>

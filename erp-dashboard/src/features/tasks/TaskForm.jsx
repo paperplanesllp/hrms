@@ -62,6 +62,16 @@ export default function TaskForm({
       newErrors.title = 'Title must be at least 3 characters';
     }
 
+    // Description is now mandatory
+    if (!form.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+
+    // Time is now mandatory - at least hours or minutes must be provided
+    if (form.estimatedHours === 0 && form.estimatedMinutes === 0) {
+      newErrors.time = 'Please enter required time (hours or minutes)';
+    }
+
     // Only require assignedTo for admin task management (not personal tasks)
     if (!isPersonalTask && !form.assignedTo) {
       newErrors.assignedTo = 'Please assign the task to a user';
@@ -145,15 +155,18 @@ export default function TaskForm({
       {/* Description */}
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Description
+          Description *
         </label>
         <textarea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Enter task description (optional)"
+          placeholder="Enter task description"
           rows="4"
           className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+        {errors.description && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.description}</p>
+        )}
       </div>
 
       {/* Two Column Layout */}
@@ -298,13 +311,13 @@ export default function TaskForm({
         </div>
       </div>
 
-      {/* Estimated Time */}
+      {/* Required Time */}
       <div className="space-y-3">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Estimated Time
+          Required Time *
         </label>
         <div className="grid grid-cols-2 gap-4">
-          {/* Estimated Hours */}
+          {/* Required Hours */}
           <div>
             <label className="text-xs text-slate-600 dark:text-slate-400 block mb-2">
               Hours
@@ -320,7 +333,7 @@ export default function TaskForm({
             />
           </div>
 
-          {/* Estimated Minutes */}
+          {/* Required Minutes */}
           <div>
             <label className="text-xs text-slate-600 dark:text-slate-400 block mb-2">
               Minutes (0-59)
@@ -340,8 +353,11 @@ export default function TaskForm({
             />
           </div>
         </div>
+        {errors.time && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.time}</p>
+        )}
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          e.g., 2 hours 30 minutes = 2 in Hours, 30 in Minutes
+          e.g., 2 hours 10 minutes = 2 in Hours, 10 in Minutes
         </p>
       </div>
 

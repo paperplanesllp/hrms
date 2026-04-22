@@ -32,10 +32,11 @@ export async function createUser(data) {
 }
 
 export async function listUsers(requestingUserRole = null, currentUserId = null, departmentId = null) {
-  // Exclude terminated users and ADMIN accounts from shared lists.
-  // HR can see all active staff (USER + HR) so they can assign tasks to themselves and peers.
+  // Exclude terminated users from shared lists.
+  // Everyone can assign tasks to ADMIN users as well.
+  // HR can see all active staff (USER + HR + ADMIN) so they can assign tasks to themselves, peers, and admins.
   const query = {
-    role: { $nin: ["TERMINATED", "ADMIN"] },
+    role: { $nin: ["TERMINATED"] },
     $or: [
       { accountType: { $ne: "TEMPORARY" } },
       { accountType: "TEMPORARY", approvalStatus: "APPROVED" },

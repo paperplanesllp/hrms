@@ -24,11 +24,10 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   const [subtaskInput, setSubtaskInput] = useState('');
   const [showPreview, setShowPreview] = useState(false);
 
-  // Set default due date and time to 6:30 PM today
+  // Set default due date to today
   const getDefaultDueDate = () => {
     const now = new Date();
-    now.setHours(18, 30, 0, 0); // 6:30 PM in 24-hour format
-    return now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+    return now.toISOString().slice(0, 10); // Format: YYYY-MM-DD
   };
 
   const [formData, setFormData] = useState({
@@ -242,8 +241,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       // Reset form
       const defaultDate = (() => {
         const now = new Date();
-        now.setHours(18, 30, 0, 0);
-        return now.toISOString().slice(0, 16);
+        return now.toISOString().slice(0, 10);
       })();
       
       setFormData({
@@ -386,43 +384,36 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
               />
             </div>
 
-            {/* Row 3: Due Date, Estimated Hours */}
+            {/* Row 3: Due Date & Estimated Time */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Due Date & Time <span className="text-red-500">*</span>
+                  Due Date <span className="text-red-500">*</span>
                 </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="date"
-                    value={formData.dueDate.slice(0, 10)}
-                    onChange={(e) => {
-                      const dateOnly = e.target.value;
-                      const dateWithTime = dateOnly + 'T18:30'; // Always 6:30 PM (18:30)
-                      setFormData({ ...formData, dueDate: dateWithTime });
-                    }}
-                    className={`flex-1 px-4 py-2.5 border-2 rounded-lg transition ${
-                      errors.dueDate 
-                        ? 'border-red-500 dark:border-red-400' 
-                        : 'border-slate-200 dark:border-slate-600'
-                    } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
-                  />
-                  <div className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-lg text-sm font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">
-                    6:30 PM
-                  </div>
-                </div>
+                <Input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => {
+                    setFormData({ ...formData, dueDate: e.target.value });
+                  }}
+                  className={`w-full px-4 py-2.5 border-2 rounded-lg transition ${
+                    errors.dueDate 
+                      ? 'border-red-500 dark:border-red-400' 
+                      : 'border-slate-200 dark:border-slate-600'
+                  } dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200`}
+                />
                 {errors.dueDate && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.dueDate}</p>}
               </div>
 
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Estimated Time
+                  Required Time
                 </label>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <Input
                       type="number"
-                      placeholder="Hours (e.g., 4)"
+                      placeholder="Hours (e.g., 2)"
                       value={formData.estimatedHours}
                       onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
                       min="0"
@@ -450,7 +441,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                 </div>
                 {formData.estimatedHours || formData.estimatedMinutes ? (
                   <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    Total: {formData.estimatedHours || 0}h {formData.estimatedMinutes || 0}m
+                    ⏱️ Required: {formData.estimatedHours || 0}h {formData.estimatedMinutes || 0}m
                   </p>
                 ) : null}
               </div>
@@ -658,7 +649,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                   <p><span className="font-semibold">Assigned To:</span> {selectedAssignee?.name || 'Not selected'}</p>
                   <p><span className="font-semibold">Priority:</span> <span className={`px-2 py-1 rounded text-xs font-bold ${PRIORITY_COLORS[formData.priority]}`}>{getPriorityIcon(formData.priority)} {formData.priority}</span></p>
                   <p><span className="font-semibold">Due Date:</span> {formData.dueDate || 'Not set'}</p>
-                  <p><span className="font-semibold">Estimated Time:</span> {formData.estimatedHours || '0'}h {formData.estimatedMinutes || '0'}m</p>
+                  <p><span className="font-semibold">Required Time:</span> {formData.estimatedHours || '0'}h {formData.estimatedMinutes || '0'}m</p>
                 </div>
               </div>
             )}
