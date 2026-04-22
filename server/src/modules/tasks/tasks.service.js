@@ -314,6 +314,28 @@ export const tasksService = {
     console.log('📝 [createTask] Creating task with data:', { title: taskData.title, assignedTo: taskData.assignedTo, assignedBy: taskData.assignedBy });
     const task = await Task.create(taskData);
     console.log('✅ [createTask] Task created successfully:', task._id);
+    
+    // Initialize activity log with CREATED event including estimated time
+    if (!task.activityLog) {
+      task.activityLog = [];
+    }
+    
+    task.activityLog.push({
+      _id: new mongoose.Types.ObjectId(),
+      action: 'created',
+      user: new mongoose.Types.ObjectId(assignedById),
+      userName: assignedByUser.name || assignedByUser.email,
+      timestamp: new Date(),
+      details: {
+        message: `Task created by ${assignedByUser.name || assignedByUser.email}`,
+        priority: taskData.priority,
+        dueDate: taskData.dueDate,
+        estimatedHours: taskData.estimatedHours,
+        estimatedMinutes: taskData.estimatedMinutes
+      }
+    });
+    
+    await task.save();
     await task.populate('assignedTo assignedBy department');
     return task;
   },

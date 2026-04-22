@@ -41,8 +41,15 @@ function EventDetails({ type, details }) {
         <>
           {details.priority && <Detail label="Priority" value={details.priority} />}
           {details.dueDate && <Detail label="Due" value={fmtTime(details.dueDate)} />}
-          {(details.estimatedHours > 0 || details.estimatedMinutes > 0) && (
-            <Detail label="Estimate" value={`${details.estimatedHours || 0}h ${details.estimatedMinutes || 0}m`} />
+          {(details.estimatedHours !== undefined || details.estimatedMinutes !== undefined) && (
+            <Detail 
+              label="Estimate" 
+              value={
+                (details.estimatedHours > 0 || details.estimatedMinutes > 0)
+                  ? `${details.estimatedHours || 0}h ${details.estimatedMinutes || 0}m`
+                  : 'No estimate'
+              } 
+            />
           )}
         </>
       )}
