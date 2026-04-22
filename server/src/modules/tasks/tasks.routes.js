@@ -12,9 +12,9 @@ router.use(requireAuth);
 // Diagnostic route (debug only - should be removed in production)
 router.get('/debug/diagnostics', tasksController.getTasksDiagnostics);
 
-// Analytics routes (admin/HR only)
-router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
-router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
+// Analytics routes (all employees can view)
+router.get('/analytics/all', tasksController.getAllTasksAnalytics);
+router.get('/analytics/team-performance', tasksController.getTeamPerformanceAnalytics);
 router.get('/analytics/completion-trends', tasksController.getTaskCompletionTrends);
 
 // My tasks routes
@@ -34,9 +34,8 @@ router.post('/request-extension', tasksController.requestTaskExtension);
 router.post('/approve-extension', tasksController.approveTaskExtension);
 router.post('/reject-extension', tasksController.rejectTaskExtension);
 
-// Admin/HR only routes (before general routes to maintain priority)
-// Get all tasks - admin/hr only
-router.get('/', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasks);
+// Get all tasks - all authenticated users
+router.get('/', tasksController.getAllTasks);
 
 // Create task - all authenticated users can create tasks
 router.post('/', uploadDocuments.array('attachments', 10), tasksController.createTask);
