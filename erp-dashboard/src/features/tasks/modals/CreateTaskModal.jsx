@@ -208,12 +208,17 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       const minutes = formData.estimatedMinutes ? parseInt(formData.estimatedMinutes) : 0;
       const totalMinutes = hours * 60 + minutes;
 
+      // Set due date to end of office day (18:00 local time) instead of midnight UTC
+      const dueDateWithTime = formData.dueDate
+        ? new Date(`${formData.dueDate}T18:00:00`).toISOString()
+        : undefined;
+
       const taskPayload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         priority: formData.priority,
         status: formData.status,
-        dueDate: formData.dueDate,
+        dueDate: dueDateWithTime,
         estimatedHours: hours,
         estimatedMinutes: minutes,
         estimatedTotalMinutes: totalMinutes,

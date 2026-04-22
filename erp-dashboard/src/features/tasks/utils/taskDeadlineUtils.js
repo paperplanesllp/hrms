@@ -46,11 +46,32 @@ export function calculateRemainingTime(task, now = new Date()) {
 
   const shouldTrackDeadline = Boolean(task?.startedAt) && toMinutes(task?.estimatedMinutes) > 0;
 
+  // Fallback: if no estimate, use dueDate directly to show time until deadline
+  const fallbackDueAt = toDate(task?.dueAt) || toDate(task?.dueDate);
   if (!effectiveDueAt || !shouldTrackDeadline) {
+    if (fallbackDueAt && task?.startedAt) {
+      const remainingMs = fallbackDueAt.getTime() - current.getTime();
+      const remainingSeconds = Math.floor(remainingMs / 1000);
+      const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
+      const h = Math.floor(overdueByMinutes / 60);
+      const m = overdueByMinutes % 60;
+      const overdueDurationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+      return {
+        shouldTrackDeadline: true,
+        effectiveDueAt: fallbackDueAt,
+        state: remainingSeconds < 0 ? `Overdue by ${overdueDurationStr}` : 'In progress',
+        remainingMs,
+        remainingMinutes: remainingMs / 60000,
+        remainingSeconds,
+        overdueByMinutes,
+        isDueNow: remainingSeconds === 0,
+        isOverdue: remainingSeconds < 0,
+      };
+    }
     const state = !task?.startedAt ? 'Not started' : 'No estimate set';
     return {
       shouldTrackDeadline,
-      effectiveDueAt,
+      effectiveDueAt: fallbackDueAt,
       state,
       remainingMs: null,
       remainingMinutes: null,

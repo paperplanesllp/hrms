@@ -31,20 +31,20 @@ export function useEstimatedTimeCountdown(task) {
   };
 
   // Calculate elapsed time in seconds
+  // On Hold = timer frozen, hold time excluded from elapsed
   const calculateElapsedSeconds = () => {
     if (!task || task.status === 'pending') return 0;
-    
-    // Total active time from previous sessions
+    if (task.status === 'on-hold' || task.isOnHold) {
+      // Timer frozen — return only what was accumulated before hold
+      return task.totalActiveTimeInSeconds || 0;
+    }
     const totalActive = task.totalActiveTimeInSeconds || 0;
-    
-    // Add current session time if task is running
     let currentSessionTime = 0;
     if (task.isRunning && task.currentSessionStartTime) {
       const now = new Date();
       const sessionStart = new Date(task.currentSessionStartTime);
       currentSessionTime = Math.floor((now - sessionStart) / 1000);
     }
-    
     return totalActive + currentSessionTime;
   };
 

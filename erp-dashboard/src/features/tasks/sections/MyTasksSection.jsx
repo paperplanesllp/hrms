@@ -11,7 +11,8 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import TaskDetailsModal from '../TaskDetailsModal.jsx';
 import TaskTimerCard from '../components/TaskTimerCard.jsx';
-import PauseReasonModal from '../components/PauseReasonModal.jsx';
+import PauseTaskModal from '../components/PauseTaskModal.jsx';
+import OnHoldModal from '../components/OnHoldModal.jsx';
 import { formatSecondsHuman } from '../utils/taskTimerUtils.js';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 
@@ -771,23 +772,23 @@ export default function MyTasksSection() {
         </Modal>
       )}
 
-      {/* Pause Reason Modal */}
+      {/* Pause Modal */}
       {pauseModal && (
-        <PauseReasonModal
-          taskTitle={pauseModal.title}
-          onConfirm={handlePauseConfirm}
-          onCancel={() => setPauseModal(null)}
+        <PauseTaskModal
+          task={pauseModal}
+          isOpen={!!pauseModal}
+          onClose={() => setPauseModal(null)}
+          onPause={(taskId, reason) => handlePauseConfirm(reason)}
         />
       )}
 
-      {/* Hold Reason Modal */}
+      {/* On Hold Modal */}
       {holdModal && (
-        <PauseReasonModal
-          taskTitle={holdModal.title}
-          prompt="Why is this task being put on hold?"
-          confirmLabel="Put On Hold"
-          onConfirm={handleHoldConfirm}
-          onCancel={() => setHoldModal(null)}
+        <OnHoldModal
+          task={holdModal}
+          isOpen={!!holdModal}
+          onClose={() => setHoldModal(null)}
+          onHold={(taskId, reason) => handleHoldConfirm(reason)}
         />
       )}
 

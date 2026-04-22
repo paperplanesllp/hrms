@@ -361,6 +361,16 @@ const taskSchema = new mongoose.Schema(
       pausedDurationInSeconds: { type: Number, min: 0, default: 0 }
     }],
 
+    // === ON HOLD TRACKING (timer frozen, not employee's fault) ===
+    isOnHold: { type: Boolean, default: false },
+    totalHoldTimeInSeconds: { type: Number, min: 0, default: 0 },
+    holdEntries: [{
+      reason: { type: String, trim: true, required: true },
+      heldAt: { type: Date, required: true },
+      resumedAt: { type: Date, default: null },
+      holdDurationInSeconds: { type: Number, min: 0, default: 0 }
+    }],
+
     // === TIME TRACKING ===
     estimatedMinutes: {
       type: Number,
@@ -442,7 +452,6 @@ const taskSchema = new mongoose.Schema(
     }],
 
     // === WORKFLOW MANAGEMENT ===
-    // Hold reason (when status = ON_HOLD)
     holdReason: {
       type: String,
       trim: true,

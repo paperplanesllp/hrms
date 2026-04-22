@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck, Edit2, Trash2,
   PauseCircle,
 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useTaskCountdown } from '../hooks/useTaskTimer.js';
 import { useEstimatedTimeCountdown } from '../hooks/useEstimatedTimeCountdown.js';
 import TimerChip from './TimerChip.jsx';
@@ -28,6 +29,7 @@ const STATUS_BADGE = {
   extension_requested: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
   paused:      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   'due-soon':  'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  'on-hold':   'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
   overdue:     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   extended:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
   rejected:    'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
@@ -46,7 +48,7 @@ const STATUS_LABEL = {
   overdue:     'Overdue',
   extended:    'Extended',
   rejected:    'Rejected',
-  'on-hold':   'On Hold',
+  'on-hold':   'On Hold 🔒',
   completed:   'Completed',
   new:         'New',
   cancelled:   'Cancelled',
@@ -230,7 +232,18 @@ export default function TaskTimerCard({
           <span>
             Estimated: {(task.estimatedHours > 0 || task.estimatedMinutes > 0) ? formatSecondsHuman((task.estimatedHours * 3600) + (task.estimatedMinutes * 60)) : 'No estimate set'}
           </span>
-          {!isCompleted && <span>Remaining: {formatRemaining()}</span>}
+          {!isCompleted && (
+            <span className={task.status === 'on-hold' || task.isOnHold ? 'text-slate-500 dark:text-slate-400 flex items-center gap-1' : ''}>
+              {(task.status === 'on-hold' || task.isOnHold) && <Lock className="w-3 h-3" />}
+              Remaining: {(task.status === 'on-hold' || task.isOnHold) ? 'Timer frozen' : countdown.shouldTrack ? countdown.display : (countdown.state === 'Not started' ? 'Not started' : countdown.display || countdown.state)}
+            </span>
+          )}
+          {(task.status === 'on-hold' || task.isOnHold) && task.holdReason && (
+            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1 w-full">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              Blocked: {task.holdReason}
+            </span>
+          )}
           {task.pauseEntries?.length > 0 && (
             <span className="flex items-center gap-1 text-orange-400 dark:text-orange-500">
               <Pause className="w-3 h-3" />

@@ -986,98 +986,76 @@ export const tasksService = {
 
   // ─── WORKFLOW MANAGEMENT ───────────────────────────────────────────────────────────
 
-  // Hold task (move to ON_HOLD status with reason)
+  // Hold task - timer FREEZES, not employee fault, dueDate auto-extends on resume
   async holdTask(taskId, userId, holdReason) {
-    const task = await Task.findOne({
-      _id: new mongoose.Types.ObjectId(taskId),
-      isDeleted: false
-    }).populate('assignedTo', 'name email');
-
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    // Check if user is assigned to or manager of the task
+    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false }).populate('assignedTo', 'name email');
+    if (!task) throw new Error('Task not found');
     const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
-    
-    if (!isAssignee) {
-      throw new Error('Only assigned users can hold this task');
+    if (!isAssignee) throw new Error('Only assigned users can hold this task');
+    if (!['pending', 'in-progress', 'paused'].includes(task.status)) throw new Error('Cannot hold task with status: ' + task.status);
+    if (!holdReason || typeof holdReason !== 'string' || !holdReason.trim()) throw new Error('Hold reason is required');
+    const now = new Date();
+    if (task.isRunning && task.currentSessionStartTime) {
+      const sessionSeconds = Math.max(0, Math.floor((now - new Date(task.currentSessionStartTime)) / 1000));
+      task.totalActiveTimeInSeconds = (task.totalActiveTimeInSeconds || 0) + sessionSeconds;
     }
-
-    // Validate status transition
-    if (!['pending', 'in-progress'].includes(task.status)) {
-      throw new Error(`Cannot hold task with status: ${task.status}`);
-    }
-
-    if (!holdReason || typeof holdReason !== 'string' || !holdReason.trim()) {
-      throw new Error('Hold reason is required');
-    }
-
-    task.status = 'on-hold';
-    task.holdReason = holdReason.trim();
-    task.isRunning = false;
-    
-    // Close any open pause entry
-    if (task.isPaused && task.pauseEntries.length > 0) {
+    if (task.isPaused && task.pauseEntries?.length > 0) {
       const lastPause = task.pauseEntries[task.pauseEntries.length - 1];
       if (!lastPause.resumedAt) {
-        const now = new Date();
         const pausedSeconds = Math.max(0, Math.floor((now - new Date(lastPause.pausedAt)) / 1000));
         lastPause.resumedAt = now;
         lastPause.pausedDurationInSeconds = pausedSeconds;
-        task.totalPausedTimeInSeconds += pausedSeconds;
-        task.pausedDurationMs += pausedSeconds * 1000;
+        task.totalPausedTimeInSeconds = (task.totalPausedTimeInSeconds || 0) + pausedSeconds;
+        task.pausedDurationMs = (task.pausedDurationMs || 0) + pausedSeconds * 1000;
       }
     }
-    
+    if (!task.holdEntries) task.holdEntries = [];
+    task.holdEntries.push({ reason: holdReason.trim(), heldAt: now });
+    task.status = 'on-hold';
+    task.holdReason = holdReason.trim();
+    task.isOnHold = true;
+    task.isRunning = false;
     task.isPaused = false;
     task.currentSessionStartTime = null;
     task.timingState = TASK_TIMING_STATE.PAUSED;
-    syncTaskTimingFields(task, new Date());
-
+    syncTaskTimingFields(task, now);
     await task.save();
-    await task.populate([
-      { path: 'assignedTo', select: 'name email' },
-      { path: 'assignedBy', select: 'name email' }
-    ]);
+    await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
     return task;
   },
 
-  // Resume task from ON_HOLD status
+  // Resume task from ON_HOLD - extends dueDate by hold duration
   async resumeTaskFromHold(taskId, userId) {
-    const task = await Task.findOne({
-      _id: new mongoose.Types.ObjectId(taskId),
-      isDeleted: false
-    }).populate('assignedTo', 'name email');
-
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    // Check if user is assigned to the task
+    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false }).populate('assignedTo', 'name email');
+    if (!task) throw new Error('Task not found');
     const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
-    
-    if (!isAssignee) {
-      throw new Error('Only assigned users can resume this task');
+    if (!isAssignee) throw new Error('Only assigned users can resume this task');
+    if (task.status !== 'on-hold') throw new Error('Cannot resume task with status: ' + task.status);
+    const now = new Date();
+    let holdDurationSeconds = 0;
+    if (task.holdEntries?.length > 0) {
+      const lastHold = task.holdEntries[task.holdEntries.length - 1];
+      if (!lastHold.resumedAt) {
+        holdDurationSeconds = Math.max(0, Math.floor((now - new Date(lastHold.heldAt)) / 1000));
+        lastHold.resumedAt = now;
+        lastHold.holdDurationInSeconds = holdDurationSeconds;
+        task.totalHoldTimeInSeconds = (task.totalHoldTimeInSeconds || 0) + holdDurationSeconds;
+      }
     }
-
-    if (task.status !== 'on-hold') {
-      throw new Error(`Cannot resume task with status: ${task.status}`);
+    if (holdDurationSeconds > 0) {
+      task.dueDate = new Date(new Date(task.dueDate).getTime() + holdDurationSeconds * 1000);
+      if (task.dueAt) task.dueAt = new Date(new Date(task.dueAt).getTime() + holdDurationSeconds * 1000);
     }
-
     task.status = 'in-progress';
     task.holdReason = null;
+    task.isOnHold = false;
     task.isRunning = true;
     task.isPaused = false;
     task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
-    task.currentSessionStartTime = new Date();
-    syncTaskTimingFields(task, new Date());
-
+    task.currentSessionStartTime = now;
+    syncTaskTimingFields(task, now);
     await task.save();
-    await task.populate([
-      { path: 'assignedTo', select: 'name email' },
-      { path: 'assignedBy', select: 'name email' }
-    ]);
+    await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
     return task;
   },
 
