@@ -70,7 +70,7 @@ export const tasksService = {
           ...(filters.sort === 'dueDate' ? { dueDate: 1 } : { createdAt: -1 }),
           priority: -1 
         })
-        .limit(filters.limit || 50);
+        .limit(filters.limit || 500);
       
       console.log('✅ [getMyTasks] Found', tasks.length, 'tasks');
       
@@ -182,7 +182,7 @@ export const tasksService = {
           createdAt: -1,
           priority: -1 
         })
-        .limit(filters.limit || 50);
+        .limit(filters.limit || 500);
       
       console.log('✅ [getAssignedByUser] Found', tasks.length, 'tasks assigned to OTHERS (excluding self)');
       

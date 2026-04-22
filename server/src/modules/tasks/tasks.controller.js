@@ -43,7 +43,7 @@ export const tasksController = {
         from: req.query.from,
         to: req.query.to,
         search: req.query.search,
-        limit: parseInt(req.query.limit) || 50,
+        limit: parseInt(req.query.limit) || 500,
         sort: req.query.sort
       };
       
@@ -95,7 +95,7 @@ export const tasksController = {
         status: req.query.status,
         priority: req.query.priority,
         search: req.query.search,
-        limit: parseInt(req.query.limit) || 50
+        limit: parseInt(req.query.limit) || 500
       };
       
       const tasks = await tasksService.getAssignedByUser(userId, filters);
