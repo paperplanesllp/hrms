@@ -31,9 +31,7 @@ export default function AllTasksSection() {
     priority: 'all',
   });
 
-  // Check if user has admin/hr role
-  const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
-
+  // All users can see all tasks
   // Helper function to sort tasks: running first, then newest
   const sortTasks = useCallback((tasks) => {
     return [...(tasks || [])].sort((a, b) => {
@@ -49,15 +47,8 @@ export default function AllTasksSection() {
       setLoading(true);
       setError(null);
       
-      // Use appropriate endpoint based on user role
-      let tasks;
-      if (isAdminOrHR) {
-        // Admin/HR can see all tasks
-        tasks = await taskService.getAllTasks({ limit: 500 });
-      } else {
-        // Regular users can only see their own tasks
-        tasks = await taskService.getMyTasks({ limit: 500 });
-      }
+      // All users can see all tasks
+      const tasks = await taskService.getAllTasks({ limit: 500 });
       
       // Sort: newest first (running tasks still bubble to top)
       const sorted = sortTasks(tasks);
@@ -65,9 +56,7 @@ export default function AllTasksSection() {
       setAllTasks(sorted);
     } catch (error) {
       console.error('Error fetching all tasks:', error);
-      const errorMsg = error?.response?.status === 403 
-        ? 'You do not have permission to view all tasks'
-        : error?.response?.data?.message || 'Failed to fetch tasks';
+      const errorMsg = error?.response?.data?.message || 'Failed to fetch tasks';
       setError(errorMsg);
       toast({
         title: 'Error loading tasks',
@@ -77,7 +66,7 @@ export default function AllTasksSection() {
     } finally {
       setLoading(false);
     }
-  }, [isAdminOrHR]);
+  }, []);
 
   // Fetch all tasks on mount
   useEffect(() => {

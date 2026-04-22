@@ -32,20 +32,11 @@ export default function TaskReportsSection() {
   // Debounce timer for socket-triggered refreshes
   const socketRefreshTimer = useRef(null);
 
-  // Check if user has admin/hr role (case-insensitive for safety across environments)
-  const normalizedRole = String(user?.role || '').toUpperCase();
-  const isAdminOrHR = normalizedRole === ROLES.ADMIN || normalizedRole === ROLES.HR;
-
+  // All users can view task reports
   const loadAnalytics = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Check if user has permission to view analytics
-      if (!isAdminOrHR) {
-        setError('You do not have permission to view task reports');
-        return;
-      }
       
       // Skip API calls for daily and progress views (they handle their own data)
       if (dateRange === 'daily' || dateRange === 'progress') {
@@ -78,7 +69,7 @@ export default function TaskReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAdminOrHR, dateRange]);
+  }, [dateRange]);
 
   useEffect(() => {
     loadAnalytics();

@@ -152,9 +152,30 @@ export function useEstimatedTimeCountdown(task) {
       isAlertShown: false,
       estimatedSeconds: getEstimatedSeconds(),
       elapsedSeconds: calculateElapsedSeconds(),
+      totalTimeSpent: (task?.totalActiveTimeInSeconds || 0) + (task?.totalPausedTimeInSeconds || 0),
+      overdueSeconds: 0,
+      formatCountdown,
       isCompleted: true,
     };
   }
+
+  // Calculate overdue time (time spent AFTER due date)
+  const getOverdueSeconds = () => {
+    if (!task || !task.dueDate) return 0;
+    const dueTime = new Date(task.dueDate).getTime();
+    const now = new Date().getTime();
+    if (now > dueTime) {
+      return Math.floor((now - dueTime) / 1000);
+    }
+    return 0;
+  };
+
+  // Get total time spent (active + paused)
+  const getTotalTimeSpent = () => {
+    const active = task?.totalActiveTimeInSeconds || 0;
+    const paused = task?.totalPausedTimeInSeconds || 0;
+    return active + paused;
+  };
 
   return {
     remainingSeconds,
@@ -163,6 +184,9 @@ export function useEstimatedTimeCountdown(task) {
     isAlertShown,
     estimatedSeconds: getEstimatedSeconds(),
     elapsedSeconds: calculateElapsedSeconds(),
+    totalTimeSpent: getTotalTimeSpent(),
+    overdueSeconds: getOverdueSeconds(),
+    formatCountdown, // Export formatter for use in components
     isCompleted: false,
   };
 }

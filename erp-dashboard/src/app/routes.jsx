@@ -85,6 +85,7 @@ export default function AppRoutes() {
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="tasks/my-tasks" element={<MyTasksPage />} />
+        <Route path="tasks/manage" element={<TasksManagePage />} />
 <Route path="complaints" element={<StaffComplaintsDashboard />} />
         <Route
           path="news-studio"

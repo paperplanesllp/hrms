@@ -370,7 +370,6 @@ export default function MyTasksPage() {
               onViewDetails={setSelectedTask}
               onDelete={handleDeleteTask}
               onEdit={handleEditTask}
-              isEmployee={true}
             />
           ))}
         </div>
