@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from '../../../store/toastStore.js';
 import { useAuthStore } from '../../../store/authStore.js';
-import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
+  import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 import api from '../../../lib/api.js';
 
 export default function AssignTaskSection({ onTaskCreated }) {
@@ -40,6 +40,8 @@ export default function AssignTaskSection({ onTaskCreated }) {
     department: '',
     priority: 'medium',
     status: 'pending',
+    estimatedHours: 0,
+    estimatedMinutes: 0,
     dueDate: '',
     dueTime: '',
     remarks: '',
@@ -63,15 +65,13 @@ export default function AssignTaskSection({ onTaskCreated }) {
         setUsers(usersRes.data || []);
         setDepartments(deptRes.data || []);
 
-        // Set default date and time to today
-        const today = new Date();
-        const dateString = today.toISOString().split('T')[0];
-        const timeString = today.toTimeString().slice(0, 5); // HH:MM format
-        
+        // Initialize form with no defaults for optional fields
         setFormData(prev => ({
           ...prev,
-          dueDate: dateString,
-          dueTime: timeString
+          estimatedHours: 0,
+          estimatedMinutes: 0,
+          dueDate: '',
+          dueTime: ''
         }));
       } catch (error) {
         console.error('Error fetching users/departments:', error);
@@ -127,15 +127,14 @@ export default function AssignTaskSection({ onTaskCreated }) {
       newErrors.department = 'Please select a department';
     }
 
-    if (!formData.dueDate) {
-      newErrors.dueDate = 'Due date is required';
-    } else {
-      const selectedDate = new Date(formData.dueDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (selectedDate < today) {
-        newErrors.dueDate = 'Due date must be in the future';
-      }
+    const totalMinutes = parseInt(formData.estimatedHours || 0) * 60 + parseInt(formData.estimatedMinutes || 0);
+    if (totalMinutes <= 0) {
+      newErrors.timeRequired = 'Please set time required (hours or minutes)';
+    }
+
+    // If dueDate is set, dueTime is required
+    if (formData.dueDate && !formData.dueTime) {
+      newErrors.dueTime = 'Please set a due time for the specified date';
     }
 
     return newErrors;
@@ -232,7 +231,19 @@ export default function AssignTaskSection({ onTaskCreated }) {
         submitFormData.append('department', formData.department);
         submitFormData.append('priority', formData.priority.toUpperCase());
         submitFormData.append('status', formData.status);
-        submitFormData.append('dueDate', formData.dueDate);
+        
+        // Calculate total estimated minutes and send
+        const totalMinutes = parseInt(formData.estimatedHours || 0) * 60 + parseInt(formData.estimatedMinutes || 0);
+        submitFormData.append('estimatedMinutes', totalMinutes);
+        
+        // Add optional due date and time if provided
+        if (formData.dueDate) {
+          submitFormData.append('dueDate', formData.dueDate);
+        }
+        if (formData.dueTime) {
+          submitFormData.append('dueTime', formData.dueTime);
+        }
+        
         submitFormData.append('remarks', formData.remarks);
         
         // Add attachments to FormData
@@ -278,10 +289,6 @@ export default function AssignTaskSection({ onTaskCreated }) {
 
         // Reset form after 2 seconds
         setTimeout(() => {
-          const today = new Date();
-          const dateString = today.toISOString().split('T')[0];
-          const timeString = today.toTimeString().slice(0, 5);
-
           setFormData({
             title: '',
             description: '',
@@ -290,8 +297,10 @@ export default function AssignTaskSection({ onTaskCreated }) {
             department: '',
             priority: 'medium',
             status: 'pending',
-            dueDate: dateString,
-            dueTime: timeString,
+            estimatedHours: 0,
+            estimatedMinutes: 0,
+            dueDate: '',
+            dueTime: '',
             remarks: '',
           });
           setErrors({});
@@ -316,18 +325,15 @@ export default function AssignTaskSection({ onTaskCreated }) {
         description: true,
         assignedTo: true,
         department: true,
+        timeRequired: true,
         dueDate: true,
+        dueTime: true,
         remarks: true,
       });
     }
   };
 
   const handleReset = () => {
-    // Set reset date and time to today
-    const today = new Date();
-    const dateString = today.toISOString().split('T')[0];
-    const timeString = today.toTimeString().slice(0, 5);
-
     setFormData({
       title: '',
       description: '',
@@ -336,8 +342,10 @@ export default function AssignTaskSection({ onTaskCreated }) {
       department: '',
       priority: 'medium',
       status: 'pending',
-      dueDate: dateString,
-      dueTime: timeString,
+      estimatedHours: 0,
+      estimatedMinutes: 0,
+      dueDate: '',
+      dueTime: '',
       remarks: '',
     });
     setErrors({});
@@ -650,53 +658,133 @@ export default function AssignTaskSection({ onTaskCreated }) {
                     Status is set to Pending by default
                   </p>
                 </div>
+              </div>
 
-                {/* Due Date Field */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
-                    Due Date
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Calendar className="absolute w-5 h-5 transform -translate-y-1/2 pointer-events-none text-slate-400 left-3 top-1/2" />
+              {/* Time Required Field (Always Required) */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
+                  Time Required
+                  <span className="text-red-500">*</span>
+                </label>
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                  Due time will be calculated as: Start Time + Time Required
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <input
-                      type="date"
-                      name="dueDate"
-                      value={formData.dueDate}
+                      type="number"
+                      name="estimatedHours"
+                      value={formData.estimatedHours}
                       onChange={handleChange}
                       onBlur={handleBlur}
-                      className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-all ${
-                        errors.dueDate && touched.dueDate
+                      placeholder="Hours"
+                      min="0"
+                      max="24"
+                      className={`w-full px-4 py-3 rounded-lg border transition-all ${
+                        errors.timeRequired && touched.timeRequired
                           ? 'border-red-500 dark:border-red-500 focus:ring-red-500/30'
                           : 'border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30'
                       } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2`}
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">Hours (0-24)</p>
                   </div>
-                  {errors.dueDate && touched.dueDate && (
-                    <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {errors.dueDate}
-                    </p>
-                  )}
-                </div>
-
-                {/* Due Time Field */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
-                    Due Time
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Clock className="absolute w-5 h-5 transform -translate-y-1/2 pointer-events-none text-slate-400 left-3 top-1/2" />
+                  <div>
                     <input
-                      type="time"
-                      name="dueTime"
-                      value={formData.dueTime}
+                      type="number"
+                      name="estimatedMinutes"
+                      value={formData.estimatedMinutes}
                       onChange={handleChange}
                       onBlur={handleBlur}
-                      className="w-full py-3 pl-10 pr-4 transition-all bg-white border rounded-lg border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2"
+                      placeholder="Minutes"
+                      min="0"
+                      max="59"
+                      className={`w-full px-4 py-3 rounded-lg border transition-all ${
+                        errors.timeRequired && touched.timeRequired
+                          ? 'border-red-500 dark:border-red-500 focus:ring-red-500/30'
+                          : 'border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30'
+                      } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2`}
                     />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">Minutes (0-59)</p>
                   </div>
+                </div>
+                {errors.timeRequired && touched.timeRequired && (
+                  <p className="flex items-center gap-1 mt-2 text-xs text-red-500 dark:text-red-400">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.timeRequired}
+                  </p>
+                )}
+              </div>
+
+              {/* Optional Due Date & Time Section */}
+              <div className="pt-2 border-t-2 border-slate-200 dark:border-slate-700">
+                <h4 className="flex items-center gap-2 mt-6 mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+                  <Calendar className="w-4 h-4" />
+                  Optional: Set Specific Due Date & Time
+                </h4>
+                <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                  Only fill this if you need a specific deadline (e.g., for low priority tasks with future dates)
+                </p>
+                
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  {/* Due Date Field (Optional) */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5">
+                      Due Date (Optional)
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute w-5 h-5 transform -translate-y-1/2 pointer-events-none text-slate-400 left-3 top-1/2" />
+                      <input
+                        type="date"
+                        name="dueDate"
+                        value={formData.dueDate}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-all ${
+                          errors.dueDate && touched.dueDate
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500/30'
+                            : 'border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30'
+                        } bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2`}
+                      />
+                    </div>
+                    {errors.dueDate && touched.dueDate && (
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.dueDate}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Due Time Field (Shows only if date is selected) */}
+                  {formData.dueDate && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5 flex items-center gap-1">
+                        Due Time
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Clock className="absolute w-5 h-5 transform -translate-y-1/2 pointer-events-none text-slate-400 left-3 top-1/2" />
+                        <input
+                          type="time"
+                          name="dueTime"
+                          value={formData.dueTime}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          placeholder="e.g., 3:00 PM"
+                          className={`w-full py-3 pl-10 pr-4 transition-all bg-white border rounded-lg ${
+                            errors.dueTime && touched.dueTime
+                              ? 'border-red-500 dark:border-red-500 focus:ring-red-500/30'
+                              : 'border-slate-300 dark:border-slate-600 focus:ring-brand-accent/30'
+                          } dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2`}
+                        />
+                      </div>
+                      {errors.dueTime && touched.dueTime && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.dueTime}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -835,6 +923,14 @@ export default function AssignTaskSection({ onTaskCreated }) {
                       </div>
                     </div>
 
+                    <div>
+                      <p className="mb-1 text-slate-600 dark:text-slate-400">Time Required</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {parseInt(formData.estimatedHours) > 0 ? `${formData.estimatedHours}h ` : ''}
+                        {parseInt(formData.estimatedMinutes) > 0 ? `${formData.estimatedMinutes}m` : ''}
+                      </p>
+                    </div>
+
                     {formData.dueDate && (
                       <div>
                         <p className="mb-1 text-slate-600 dark:text-slate-400">Due Date</p>
@@ -844,6 +940,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
                             month: 'short', 
                             day: 'numeric' 
                           })}
+                          {formData.dueTime ? ` at ${formData.dueTime}` : ''}
                         </p>
                       </div>
                     )}

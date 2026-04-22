@@ -140,13 +140,18 @@ export const tasksService = {
       .limit(filters.limit || 100);
   },
 
-  // Get tasks assigned BY current user (tasks they created)
+  // Get tasks assigned BY current user (tasks they created and assigned to OTHERS, excluding self-assigned)
   async getAssignedByUser(userId, filters = {}) {
     try {
       console.log('🔍 [getAssignedByUser] Fetching tasks assigned by userId:', userId);
       
       const userObjectId = new mongoose.Types.ObjectId(userId);
-      const query = { assignedBy: userObjectId, isDeleted: false };
+      // IMPORTANT: Exclude tasks assigned to self - only show tasks assigned to OTHERS
+      const query = { 
+        assignedBy: userObjectId, 
+        assignedTo: { $nin: [userObjectId] },  // Exclude self-assigned tasks
+        isDeleted: false 
+      };
       
       // Status filter
       if (filters.status) {
@@ -179,18 +184,19 @@ export const tasksService = {
         })
         .limit(filters.limit || 50);
       
-      console.log('✅ [getAssignedByUser] Found', tasks.length, 'tasks assigned by this user');
+      console.log('✅ [getAssignedByUser] Found', tasks.length, 'tasks assigned to OTHERS (excluding self)');
       
       // Debug: Check if any tasks exist
       if (tasks.length === 0) {
-        const allTasks = await Task.find({ isDeleted: false }).select('assignedBy title -_id');
-        console.log('⚠️ [getAssignedByUser] No tasks found. Total tasks in DB:', allTasks.length);
+        const allTasks = await Task.find({ isDeleted: false }).select('assignedBy assignedTo title -_id');
+        console.log('⚠️ [getAssignedByUser] No tasks found assigned to others. Total tasks in DB:', allTasks.length);
         if (allTasks.length > 0) {
           console.log('📊 [getAssignedByUser] Sample assignedBy values:', allTasks.slice(0, 5).map(t => ({
             assignedBy: t.assignedBy.toString(),
+            assignedTo: t.assignedTo.map(id => id.toString()),
             title: t.title
           })));
-          console.log('🔍 [getAssignedByUser] Comparing: Looking for:', userObjectId.toString());
+          console.log('🔍 [getAssignedByUser] Comparing: Looking for assignedBy:', userObjectId.toString(), 'and assignedTo NOT including:', userObjectId.toString());
         }
       }
       
