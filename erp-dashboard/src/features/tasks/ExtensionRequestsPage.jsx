@@ -1,424 +1,270 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, XCircle, Clock, AlertCircle, Download } from 'lucide-react';
-import Button from '../../components/ui/Button.jsx';
+import { CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
+import { useAuthStore } from '../../store/authStore.js';
+
+const fmtDate = (d) => d ? new Date(d).toLocaleString('en-IN', {
+  timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short',
+  year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
+}) : '—';
 
 export default function ExtensionRequestsPage() {
+  const currentUser = useAuthStore(s => s.user);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [historyRequests, setHistoryRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [myRequests, setMyRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending');
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [approvalNotes, setApprovalNotes] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+  // Per-request reject reason state
+  const [rejectReasons, setRejectReasons] = useState({});
 
-  useEffect(() => {
-    fetchExtensionRequests();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const fetchExtensionRequests = async () => {
+  const fetchAll = async () => {
+    setLoading(true);
     try {
-      setIsLoading(true);
-      
-      // Fetch pending approvals (requests I need to approve)
-      const pendingRes = await api.get('/extensions/pending-approvals');
-      setPendingRequests(pendingRes.data.requests || []);
-
-      // Fetch my extension requests history
-      const historyRes = await api.get('/extensions/my-requests', {
-        params: { status: 'all' }
-      });
-      setHistoryRequests(historyRes.data.requests || []);
-    } catch (error) {
-      console.error('Error fetching extension requests:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load extension requests',
-        type: 'error'
-      });
+      const [pendingRes, myRes] = await Promise.all([
+        api.get('/extensions/pending-approvals'),
+        api.get('/extensions/my-requests')
+      ]);
+      setPendingRequests(pendingRes.data?.data?.requests || pendingRes.data?.requests || []);
+      setMyRequests(myRes.data?.data?.requests || myRes.data?.requests || []);
+    } catch (err) {
+      console.error('Error fetching extension requests:', err);
+      toast({ title: 'Failed to load extension requests', type: 'error' });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleApprove = async (extensionId) => {
+  const handleApprove = async (req) => {
+    setActionLoading(req._id + '_approve');
     try {
-      setActionLoading(true);
-      await api.put(`/extensions/${extensionId}/approve`, {
-        approvalNotes
-      });
-      toast({
-        title: 'Approved ✅',
-        description: 'Extension request has been approved',
-        type: 'success'
-      });
-      setApprovalNotes('');
-      setSelectedRequest(null);
-      fetchExtensionRequests();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to approve request',
-        type: 'error'
-      });
+      await api.put(`/extensions/${req._id}/approve`, { approvalNotes: '' });
+      toast({ title: '✅ Extension Approved', message: `+${req.additionalHoursRequested}h ${req.additionalMinutesRequested}m added. Employee notified.`, type: 'success' });
+      fetchAll();
+    } catch (err) {
+      toast({ title: 'Failed to approve', message: err.response?.data?.message || err.message, type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
-  const handleReject = async (extensionId) => {
+  const handleReject = async (req) => {
+    const reason = rejectReasons[req._id]?.trim();
+    if (!reason) {
+      toast({ title: 'Rejection reason is required', type: 'error' });
+      return;
+    }
+    setActionLoading(req._id + '_reject');
     try {
-      setActionLoading(true);
-      await api.put(`/extensions/${extensionId}/reject`, {
-        rejectionReason: approvalNotes
-      });
-      toast({
-        title: 'Rejected ❌',
-        description: 'Extension request has been rejected',
-        type: 'success'
-      });
-      setApprovalNotes('');
-      setSelectedRequest(null);
-      fetchExtensionRequests();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to reject request',
-        type: 'error'
-      });
+      await api.put(`/extensions/${req._id}/reject`, { rejectionReason: reason });
+      toast({ title: '❌ Extension Rejected', message: 'Employee has been notified.', type: 'warning' });
+      setRejectReasons(prev => { const n = { ...prev }; delete n[req._id]; return n; });
+      fetchAll();
+    } catch (err) {
+      toast({ title: 'Failed to reject', message: err.response?.data?.message || err.message, type: 'error' });
     } finally {
-      setActionLoading(false);
+      setActionLoading(null);
     }
   };
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-600',
-      approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-300 dark:border-green-600',
-      rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border border-red-300 dark:border-red-600'
+  const StatusBadge = ({ status }) => {
+    const cfg = {
+      pending:  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
     };
-    return styles[status] || styles.pending;
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle2 size={16} />;
-      case 'rejected':
-        return <XCircle size={16} />;
-      default:
-        return <Clock size={16} />;
-    }
+    const icon = { pending: <Clock size={12} />, approved: <CheckCircle2 size={12} />, rejected: <XCircle size={12} /> };
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${cfg[status] || cfg.pending}`}>
+        {icon[status]} {status?.toUpperCase()}
+      </span>
+    );
   };
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Extension Requests</h1>
-        <p className="mt-1 text-slate-600 dark:text-slate-400">Manage and track task extension requests</p>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-3 font-medium border-b-2 transition ${
-            activeTab === 'pending'
-              ? 'border-orange-600 text-orange-600 dark:text-orange-400'
-              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <Clock size={18} />
-            Pending Approval ({pendingRequests.length})
-          </div>
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-3 font-medium border-b-2 transition ${
-            activeTab === 'history'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <Download size={18} />
-            History & Records
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Extension Requests</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage task time extension requests</p>
+        </div>
+        <button onClick={fetchAll} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+          <RefreshCw size={18} className={`text-slate-500 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* Content */}
-      {isLoading ? (
-        <div className="text-center py-12">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">Loading requests...</p>
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+        {[
+          { key: 'pending', label: `Pending Approval`, count: pendingRequests.length },
+          { key: 'my',      label: 'My Requests',      count: myRequests.length },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+              activeTab === tab.key
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            {tab.label}
+            {tab.count > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                tab.key === 'pending' ? 'bg-orange-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>{tab.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-16">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-3 text-slate-500 dark:text-slate-400 text-sm">Loading...</p>
         </div>
       ) : activeTab === 'pending' ? (
-        // Pending Approvals
-        <div className="space-y-3">
+        // ── Pending Approvals (HR/Manager view) ──
+        <div className="space-y-4">
           {pendingRequests.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 dark:bg-slate-900 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700">
-              <CheckCircle2 size={48} className="mx-auto text-green-500 mb-2" />
-              <p className="text-slate-600 dark:text-slate-400 font-medium">All caught up!</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">No pending extension requests to approve</p>
+            <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+              <CheckCircle2 size={40} className="mx-auto text-green-400 mb-3" />
+              <p className="font-semibold text-slate-700 dark:text-slate-300">All caught up!</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">No pending extension requests</p>
             </div>
-          ) : (
-            pendingRequests.map((request) => (
-              <div
-                key={request._id}
-                className="p-5 bg-white dark:bg-slate-800 border-2 border-orange-200 dark:border-orange-700 rounded-lg hover:shadow-lg transition"
-              >
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                      {request.taskId?.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                      Requested by: <span className="font-medium text-slate-900 dark:text-white">{request.requestedBy?.name}</span>
-                    </p>
-                  </div>
-                  <span className={`px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1 ${getStatusBadge(request.status)}`}>
-                    {getStatusIcon(request.status)}
-                    PENDING
-                  </span>
+          ) : pendingRequests.map(req => (
+            <div key={req._id} className="bg-white dark:bg-slate-800 border-2 border-orange-200 dark:border-orange-700 rounded-xl p-5 space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-lg">{req.taskId?.title || 'Task'}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                    Requested by <span className="font-semibold text-slate-700 dark:text-slate-300">{req.requestedBy?.name}</span>
+                    {' · '}{fmtDate(req.createdAt)}
+                  </p>
                 </div>
+                <StatusBadge status={req.status} />
+              </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded">
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-semibold">Current Required Time</p>
-                    <p className="text-slate-900 dark:text-white font-bold mt-1">
-                      {request.taskId?.estimatedHours}h {request.taskId?.estimatedMinutes}m
-                    </p>
-                  </div>
-                  <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-700">
-                    <p className="text-orange-700 dark:text-orange-400 text-xs font-semibold">Additional Time Requested</p>
-                    <p className="text-orange-900 dark:text-orange-200 font-bold mt-1">
-                      +{request.additionalHoursRequested}h {request.additionalMinutesRequested}m
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded">
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-semibold">New Total Time</p>
-                    <p className="text-slate-900 dark:text-white font-bold mt-1">
-                      {(request.taskId?.estimatedHours || 0) + request.additionalHoursRequested}h {((request.taskId?.estimatedMinutes || 0) + request.additionalMinutesRequested) % 60}m
-                    </p>
-                  </div>
+              {/* Time info */}
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">Current Estimate</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{req.taskId?.estimatedHours || 0}h {req.taskId?.estimatedMinutes || 0}m</p>
                 </div>
-
-                <div className="p-3 bg-slate-50 dark:bg-slate-900/30 rounded border border-slate-200 dark:border-slate-700 mb-4">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Reason for Extension:</p>
-                  <p className="text-sm text-slate-900 dark:text-white">{request.reason}</p>
+                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg">
+                  <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1">Requesting</p>
+                  <p className="font-bold text-orange-800 dark:text-orange-200">+{req.additionalHoursRequested}h {req.additionalMinutesRequested}m</p>
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedRequest(request);
-                      setApprovalNotes('');
-                    }}
-                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 size={16} />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedRequest(request);
-                      setApprovalNotes('');
-                    }}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
-                  >
-                    <XCircle size={16} />
-                    Reject
-                  </button>
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                  <p className="text-xs text-green-600 dark:text-green-400 font-semibold mb-1">New Total</p>
+                  <p className="font-bold text-green-800 dark:text-green-200">
+                    {(req.taskId?.estimatedHours || 0) + req.additionalHoursRequested}h{' '}
+                    {((req.taskId?.estimatedMinutes || 0) + req.additionalMinutesRequested) % 60}m
+                  </p>
                 </div>
               </div>
-            ))
-          )}
+
+              {/* Reason */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Reason:</p>
+                <p className="text-sm text-slate-800 dark:text-slate-200">{req.reason}</p>
+              </div>
+
+              {/* Reject reason input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Rejection reason <span className="text-slate-400">(required only if rejecting)</span>
+                </label>
+                <input
+                  type="text"
+                  value={rejectReasons[req._id] || ''}
+                  onChange={e => setRejectReasons(prev => ({ ...prev, [req._id]: e.target.value }))}
+                  placeholder="Enter reason for rejection..."
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleApprove(req)}
+                  disabled={!!actionLoading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                >
+                  {actionLoading === req._id + '_approve'
+                    ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <CheckCircle2 size={16} />}
+                  Approve & Notify Employee
+                </button>
+                <button
+                  onClick={() => handleReject(req)}
+                  disabled={!!actionLoading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                >
+                  {actionLoading === req._id + '_reject'
+                    ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <XCircle size={16} />}
+                  Reject & Notify Employee
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
-        // History & Records
+        // ── My Requests (Employee view) ──
         <div className="space-y-3">
-          {historyRequests.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 dark:bg-slate-900 rounded-lg">
-              <AlertCircle size={48} className="mx-auto text-slate-400 mb-2" />
-              <p className="text-slate-600 dark:text-slate-400">No extension requests found</p>
+          {myRequests.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+              <AlertCircle size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+              <p className="text-slate-500 dark:text-slate-400">No extension requests yet</p>
             </div>
-          ) : (
-            historyRequests.map((request) => (
-              <div
-                key={request._id}
-                className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:shadow-md transition"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-slate-900 dark:text-white">
-                        {request.taskId?.title}
-                      </h3>
-                      <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${getStatusBadge(request.status)}`}>
-                        {getStatusIcon(request.status)}
-                        {request.status.toUpperCase()}
-                      </span>
-                    </div>
+          ) : myRequests.map(req => (
+            <div key={req._id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">{req.taskId?.title || 'Task'}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Requested {fmtDate(req.createdAt)}</p>
+                </div>
+                <StatusBadge status={req.status} />
+              </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 text-sm">
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400 text-xs">Requested</p>
-                        <p className="font-medium text-slate-900 dark:text-white">
-                          {new Date(request.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400 text-xs">Additional Time</p>
-                        <p className="font-medium text-slate-900 dark:text-white">
-                          +{request.additionalHoursRequested}h {request.additionalMinutesRequested}m
-                        </p>
-                      </div>
-                      {request.status !== 'pending' && (
-                        <>
-                          <div>
-                            <p className="text-slate-600 dark:text-slate-400 text-xs">Decision Date</p>
-                            <p className="font-medium text-slate-900 dark:text-white">
-                              {request.approvedAt || request.rejectedAt ? new Date(request.approvedAt || request.rejectedAt).toLocaleDateString() : '—'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-600 dark:text-slate-400 text-xs">Decided By</p>
-                            <p className="font-medium text-slate-900 dark:text-white">
-                              {request.approvedBy?.name || '—'}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {request.approvalNotes && (
-                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-700 text-sm">
-                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">
-                          {request.status === 'approved' ? '✓ Approval Notes:' : '✗ Rejection Reason:'}
-                        </p>
-                        <p className="text-blue-900 dark:text-blue-200">{request.approvalNotes}</p>
-                      </div>
-                    )}
+              <div className="flex gap-4 text-sm mb-3">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400 text-xs">Requested</span>
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">+{req.additionalHoursRequested}h {req.additionalMinutesRequested}m</p>
+                </div>
+                {req.status !== 'pending' && (
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 text-xs">Decision</span>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">{fmtDate(req.approvedAt || req.rejectedAt)}</p>
                   </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Review & Decision Modal */}
-      {selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-slate-800 shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Review Extension Request
-              </h2>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Task Title</p>
-                  <p className="text-slate-900 dark:text-white mt-1">{selectedRequest.taskId?.title}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Requested By</p>
-                  <p className="text-slate-900 dark:text-white mt-1">{selectedRequest.requestedBy?.name}</p>
-                </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded">
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Current Time</p>
-                  <p className="text-slate-900 dark:text-white font-bold mt-1">
-                    {selectedRequest.taskId?.estimatedHours}h {selectedRequest.taskId?.estimatedMinutes}m
-                  </p>
+              {req.approvalNotes && (
+                <div className={`p-2.5 rounded-lg text-sm border ${
+                  req.status === 'approved'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-800 dark:text-red-200'
+                }`}>
+                  <span className="font-semibold text-xs">{req.status === 'approved' ? '✅ Note:' : '❌ Reason:'}</span>{' '}
+                  {req.approvalNotes}
                 </div>
-                <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded border border-orange-300 dark:border-orange-700">
-                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">Additional</p>
-                  <p className="text-orange-900 dark:text-orange-200 font-bold mt-1">
-                    +{selectedRequest.additionalHoursRequested}h {selectedRequest.additionalMinutesRequested}m
-                  </p>
-                </div>
-                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded border border-green-300 dark:border-green-700">
-                  <p className="text-xs font-semibold text-green-700 dark:text-green-400">New Total</p>
-                  <p className="text-green-900 dark:text-green-200 font-bold mt-1">
-                    {(selectedRequest.taskId?.estimatedHours || 0) + selectedRequest.additionalHoursRequested}h {((selectedRequest.taskId?.estimatedMinutes || 0) + selectedRequest.additionalMinutesRequested) % 60}m
-                  </p>
-                </div>
-              </div>
+              )}
 
-              <div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Reason</p>
-                <p className="text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-900 p-3 rounded">
-                  {selectedRequest.reason}
+              {req.status === 'pending' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+                  <Clock size={12} /> Waiting for manager/HR approval...
                 </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Your Notes (Optional)
-                </label>
-                <textarea
-                  value={approvalNotes}
-                  onChange={(e) => setApprovalNotes(e.target.value)}
-                  placeholder="Add approval or rejection notes..."
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
-                  rows="3"
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{approvalNotes.length} characters</p>
-              </div>
+              )}
             </div>
-
-            {/* Footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedRequest(null);
-                  setApprovalNotes('');
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => handleReject(selectedRequest._id)}
-                disabled={actionLoading}
-                className="flex items-center gap-2 bg-red-600 hover:bg-red-700"
-              >
-                {actionLoading ? (
-                  <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent"></div>
-                ) : (
-                  <XCircle size={16} />
-                )}
-                {actionLoading ? 'Processing...' : 'Reject'}
-              </Button>
-              <Button
-                onClick={() => handleApprove(selectedRequest._id)}
-                disabled={actionLoading}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-              >
-                {actionLoading ? (
-                  <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent"></div>
-                ) : (
-                  <CheckCircle2 size={16} />
-                )}
-                {actionLoading ? 'Processing...' : 'Approve'}
-              </Button>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
-

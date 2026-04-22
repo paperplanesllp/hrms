@@ -1023,7 +1023,7 @@ export const tasksService = {
     if (!Array.isArray(task.activityLog)) task.activityLog = [];
     task.activityLog.push({
       action: 'blocked',
-      user: new (require('mongoose').Types.ObjectId)(userId),
+      user: new mongoose.Types.ObjectId(userId),
       userName: 'User',
       timestamp: now,
       details: { reason: holdReason.trim(), message: 'Task put on hold: ' + holdReason.trim() }
@@ -1066,7 +1066,7 @@ export const tasksService = {
     if (!Array.isArray(task.activityLog)) task.activityLog = [];
     task.activityLog.push({
       action: 'unblocked',
-      user: new (require('mongoose').Types.ObjectId)(userId),
+      user: new mongoose.Types.ObjectId(userId),
       userName: 'User',
       timestamp: now,
       details: { message: 'Resumed from hold. Due date extended by ' + Math.floor(holdDurationSeconds / 60) + ' min.' }

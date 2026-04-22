@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Calendar, AlertTriangle, Users, UserCheck, Edit2, Trash2,
   PauseCircle,
 } from 'lucide-react';
-import { Lock } from 'lucide-react';
+import { Lock, Clock } from 'lucide-react';
 import { useTaskCountdown } from '../hooks/useTaskTimer.js';
 import { useEstimatedTimeCountdown } from '../hooks/useEstimatedTimeCountdown.js';
 import TimerChip from './TimerChip.jsx';
@@ -266,20 +266,18 @@ export default function TaskTimerCard({
 
         {/* ── Action buttons ── */}
         <div className="flex flex-wrap items-center gap-2">
-          {isOverdue && !['rejected', 'completed', 'extension_requested'].includes(task.status) && (
-            <>
-              <button
-                onClick={() => onRequestMoreTime?.(task)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
-              >
-                Request Extension
-              </button>
-            </>
+          {(isOverdue || (estimatedCountdown.isExpired && estimatedCountdown.estimatedSeconds > 0)) && !['rejected', 'completed', 'extension_requested', 'cancelled'].includes(task.status) && (
+            <button
+              onClick={() => onRequestMoreTime?.(task)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
+            >
+              Request Extension
+            </button>
           )}
 
           {task.status === 'extension_requested' && (
-            <span className="px-3 py-2 text-sm font-semibold text-indigo-700 bg-indigo-100 rounded-xl dark:bg-indigo-900/30 dark:text-indigo-300">
-              Extension request pending manager approval
+            <span className="px-3 py-2 text-sm font-semibold text-amber-700 bg-amber-100 rounded-xl dark:bg-amber-900/30 dark:text-amber-300 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Extension pending approval...
             </span>
           )}
 

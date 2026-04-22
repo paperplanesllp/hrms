@@ -874,8 +874,19 @@ export const tasksController = {
       }
 
       const effectiveDueAt = task.dueAt || task.dueDate;
-      if (!effectiveDueAt || new Date() <= new Date(effectiveDueAt)) {
-        return sendError(res, 'Extension request is allowed only after task is overdue', 400);
+      const now = new Date();
+      const dueDatePassed = effectiveDueAt && now > new Date(effectiveDueAt);
+
+      // Also allow when estimated time is exhausted (active time >= estimated minutes)
+      const estimatedSeconds = ((task.estimatedHours || 0) * 3600) + ((task.estimatedMinutes || 0) * 60);
+      let activeSeconds = task.totalActiveTimeInSeconds || 0;
+      if (task.isRunning && task.currentSessionStartTime) {
+        activeSeconds += Math.floor((now - new Date(task.currentSessionStartTime)) / 1000);
+      }
+      const estimatedTimeUp = estimatedSeconds > 0 && activeSeconds >= estimatedSeconds;
+
+      if (!dueDatePassed && !estimatedTimeUp) {
+        return sendError(res, 'Extension request is allowed only when overdue or estimated time is exhausted', 400);
       }
 
       const parsedTime = Number(additionalTime);
@@ -928,15 +939,32 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
 
-      if (task.assignedBy && task.assignedBy._id?.toString() !== req.user.id) {
+      // Self-assigned → notify HR. Assigned by someone else → notify that person.
+      const isSelfAssigned = task.assignedBy?.toString() === req.user.id ||
+        task.assignedBy?._id?.toString() === req.user.id;
+
+      if (isSelfAssigned) {
+        const { User } = await import('../users/User.model.js');
+        const hrUsers = await User.find({ role: { $in: ['HR', 'ADMIN'] }, isDeleted: false }).select('_id').lean();
+        for (const hr of hrUsers) {
+          await createTaskNotification({
+            userId: hr._id,
+            taskId: task._id,
+            eventType: 'system',
+            title: '⏳ Extension Request (Self-Assigned)',
+            message: `${req.user.name || 'Employee'} requested +${additionalMinutes} min for self-assigned task "${task.title}". Remarks: ${safeRemarks}`,
+            triggeredBy: req.user.id,
+          }).catch(() => {});
+        }
+      } else if (task.assignedBy) {
         await createTaskNotification({
-          userId: task.assignedBy._id,
+          userId: task.assignedBy._id || task.assignedBy,
           taskId: task._id,
           eventType: 'system',
-          title: 'Extension Request',
-          message: `"${task.title}" has requested additional time. Requested: ${additionalMinutes} minutes. Remarks: ${safeRemarks}`,
+          title: '⏳ Extension Request',
+          message: `${req.user.name || 'Employee'} requested +${additionalMinutes} min for "${task.title}". Remarks: ${safeRemarks}`,
           triggeredBy: req.user.id,
-        });
+        }).catch(() => {});
       }
 
       notifyTaskUpdated(task, req.user.id);
@@ -952,8 +980,14 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      if (task.assignedBy?.toString() !== req.user.id) {
-        return sendError(res, 'Only task assigner can approve extension requests', 403);
+      // Self-assigned tasks: HR/Admin can approve. Otherwise only the assigner.
+      const isSelfAssignedTask = Array.isArray(task.assignedTo) &&
+        task.assignedTo.some(a => a.toString() === (task.assignedBy?._id || task.assignedBy)?.toString());
+      const approverRole = (req.user.role || '').toUpperCase();
+      const canApprove = task.assignedBy?.toString() === req.user.id ||
+        (isSelfAssignedTask && (approverRole === 'HR' || approverRole === 'ADMIN'));
+      if (!canApprove) {
+        return sendError(res, 'Only the task assigner (or HR/Admin for self-assigned tasks) can approve', 403);
       }
 
       const requests = task.extensionRequests || [];
@@ -1012,8 +1046,14 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      if (task.assignedBy?.toString() !== req.user.id) {
-        return sendError(res, 'Only task assigner can reject extension requests', 403);
+      // Self-assigned tasks: HR/Admin can reject. Otherwise only the assigner.
+      const isSelfAssignedTaskR = Array.isArray(task.assignedTo) &&
+        task.assignedTo.some(a => a.toString() === (task.assignedBy?._id || task.assignedBy)?.toString());
+      const rejecterRole = (req.user.role || '').toUpperCase();
+      const canReject = task.assignedBy?.toString() === req.user.id ||
+        (isSelfAssignedTaskR && (rejecterRole === 'HR' || rejecterRole === 'ADMIN'));
+      if (!canReject) {
+        return sendError(res, 'Only the task assigner (or HR/Admin for self-assigned tasks) can reject', 403);
       }
 
       const requests = task.extensionRequests || [];

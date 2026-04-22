@@ -57,23 +57,20 @@ export default function RequestExtensionModal({
 
       const payload = {
         taskId: task._id,
-        additionalHours: parseInt(formData.additionalHours) || 0,
-        additionalMinutes: parseInt(formData.additionalMinutes) || 0,
-        reason: formData.reason.trim()
+        additionalTime: (parseInt(formData.additionalHours) || 0) * 60 + (parseInt(formData.additionalMinutes) || 0),
+        unit: 'minutes',
+        remarks: formData.reason.trim()
       };
 
-      const response = await api.post('/extensions/request', payload);
+      await api.post(`/tasks/${task._id}/request-extension`, payload);
 
       toast({
         title: 'Extension requested',
-        description: 'Your extension request has been sent to the assigned person',
+        description: 'Your request has been sent to the manager/HR for approval',
         type: 'success'
       });
 
-      if (onExtensionRequested) {
-        onExtensionRequested(response.data);
-      }
-
+      if (onExtensionRequested) onExtensionRequested();
       handleClose();
     } catch (error) {
       console.error('Error requesting extension:', error);
