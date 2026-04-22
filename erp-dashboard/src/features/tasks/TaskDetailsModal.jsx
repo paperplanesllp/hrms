@@ -8,6 +8,7 @@ import api from '../../lib/api.js';
 import { getAuth } from '../../lib/auth.js';
 import { useAuthStore } from '../../store/authStore.js';
 import TimerChip from './components/TimerChip.jsx';
+import ActivityTimeline from './components/ActivityTimeline.jsx';
 import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
 import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
@@ -1160,7 +1161,7 @@ export default function TaskDetailsModal({
           {/* Timeline Modal */}
           {showTimeline && timeline && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
-              <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+              <Card className="w-full max-w-lg max-h-[85vh] overflow-y-auto">
                 <div className="p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Task Timeline</h3>
@@ -1171,48 +1172,9 @@ export default function TaskDetailsModal({
                       <X size={20} className="text-slate-600 dark:text-slate-400" />
                     </button>
                   </div>
-
-                  <div className="space-y-3">
-                    {timeline.timeline?.map((event, idx) => {
-                      const dotColor =
-                        event.type === 'CREATED'  ? 'bg-slate-400' :
-                        event.type === 'STARTED'  ? 'bg-blue-500'  :
-                        event.type === 'PAUSED'   ? 'bg-orange-400':
-                        event.type === 'RESUMED'  ? 'bg-cyan-500'  :
-                        event.type === 'COMPLETED'? 'bg-emerald-500':
-                        event.type === 'COMMENT'  ? 'bg-purple-500':
-                        event.type === 'REASSIGNED'?'bg-indigo-500':
-                        'bg-slate-400';
-                      return (
-                        <div key={idx} className="flex gap-3">
-                          <div className="flex flex-col items-center pt-1">
-                            <div className={`w-2.5 h-2.5 rounded-full ${dotColor} ring-2 ring-white dark:ring-slate-800 shrink-0`}></div>
-                            {idx < timeline.timeline.length - 1 && (
-                              <div className="w-px flex-1 bg-slate-200 dark:bg-slate-700 mt-1"></div>
-                            )}
-                          </div>
-                          <div className="pb-4 min-w-0">
-                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{event.type}</p>
-                            <p className="text-sm text-slate-800 dark:text-slate-200 leading-snug">{event.description}</p>
-                            {event.details?.text && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 italic mt-0.5">&ldquo;{event.details.text}&rdquo;</p>
-                            )}
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {new Date(event.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowTimeline(false)}
-                    >
-                      Close
-                    </Button>
+                  <ActivityTimeline timeline={timeline.timeline || []} activityLog={[]} />
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setShowTimeline(false)}>Close</Button>
                   </div>
                 </div>
               </Card>

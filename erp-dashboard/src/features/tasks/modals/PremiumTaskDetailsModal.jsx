@@ -39,6 +39,7 @@ export default function PremiumTaskDetailsModal({
   const [executionDetails, setExecutionDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState(null);
+  const [timelineData, setTimelineData] = useState([]);
   const [pauseReason, setPauseReason] = useState('');
   const [blockReason, setBlockReason] = useState('');
   const [showPauseDialog, setShowPauseDialog] = useState(false);
@@ -58,6 +59,9 @@ export default function PremiumTaskDetailsModal({
       setError(null);
       const details = await taskService.getExecutionDetails(task._id);
       setExecutionDetails(details);
+      // Also fetch full timeline
+      const tl = await taskService.getTaskTimeline(task._id);
+      setTimelineData(tl?.timeline || []);
     } catch (err) {
       console.error('Error fetching execution details:', err);
       setError(err.message);
@@ -267,7 +271,7 @@ export default function PremiumTaskDetailsModal({
                 Activity Timeline
               </h3>
               <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
-                <ActivityTimeline activityLog={task.activityLog} />
+                <ActivityTimeline activityLog={task.activityLog} timeline={timelineData} />
               </div>
             </div>
           )}

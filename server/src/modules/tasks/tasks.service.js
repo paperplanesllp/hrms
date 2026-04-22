@@ -1019,6 +1019,15 @@ export const tasksService = {
     task.currentSessionStartTime = null;
     task.timingState = TASK_TIMING_STATE.PAUSED;
     syncTaskTimingFields(task, now);
+    // Log to activityLog so timeline always captures hold events
+    if (!Array.isArray(task.activityLog)) task.activityLog = [];
+    task.activityLog.push({
+      action: 'blocked',
+      user: new (require('mongoose').Types.ObjectId)(userId),
+      userName: 'User',
+      timestamp: now,
+      details: { reason: holdReason.trim(), message: 'Task put on hold: ' + holdReason.trim() }
+    });
     await task.save();
     await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
     return task;
@@ -1054,6 +1063,14 @@ export const tasksService = {
     task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
     task.currentSessionStartTime = now;
     syncTaskTimingFields(task, now);
+    if (!Array.isArray(task.activityLog)) task.activityLog = [];
+    task.activityLog.push({
+      action: 'unblocked',
+      user: new (require('mongoose').Types.ObjectId)(userId),
+      userName: 'User',
+      timestamp: now,
+      details: { message: 'Resumed from hold. Due date extended by ' + Math.floor(holdDurationSeconds / 60) + ' min.' }
+    });
     await task.save();
     await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
     return task;
@@ -1121,109 +1138,133 @@ export const tasksService = {
 
   // Get task timeline (activity history)
   async getTaskTimeline(taskId) {
-    const task = await Task.findOne({
-      _id: new mongoose.Types.ObjectId(taskId),
-      isDeleted: false
-    }).populate('assignedTo', 'name email')
+    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false })
+      .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
+      .populate('completedBy', 'name email')
       .populate('comments.userId', 'name email avatar')
-      .populate('reassignedHistory.previousAssignee', 'name email')
-      .populate('reassignedHistory.newAssignee', 'name email')
       .populate('reassignedHistory.reassignedBy', 'name email');
 
-    if (!task) {
-      throw new Error('Task not found');
-    }
+    if (!task) throw new Error('Task not found');
 
-    // Build timeline from various sources
     const timeline = [];
 
-    // Task creation
-    timeline.push({
-      type: 'CREATED',
-      timestamp: task.createdAt,
-      description: `Task created by ${task.assignedBy?.name || 'Unknown'}`,
-      actor: task.assignedBy,
-      details: {
-        title: task.title,
-        priority: task.priority
-      }
-    });
+    const push = (type, timestamp, description, actor, details = {}) => {
+      if (!timestamp) return;
+      timeline.push({ type, timestamp: new Date(timestamp), description, actor: actor || null, details });
+    };
 
-    // Status changes (from comments and history)
+    // 1. Created
+    push('CREATED', task.createdAt,
+      `Task created and assigned by ${task.assignedBy?.name || 'Unknown'}`,
+      task.assignedBy,
+      { title: task.title, priority: task.priority, dueDate: task.dueDate, estimatedHours: task.estimatedHours, estimatedMinutes: task.estimatedMinutes }
+    );
+
+    // 2. Started
     if (task.startedAt) {
-      timeline.push({
-        type: 'STARTED',
-        timestamp: task.startedAt,
-        description: 'Task started',
-        details: { status: 'in-progress' }
-      });
+      push('STARTED', task.startedAt, 'Task started — timer running', null, {});
     }
 
-    if (task.completedAt) {
-      timeline.push({
-        type: 'COMPLETED',
-        timestamp: task.completedAt,
-        description: 'Task completed',
-        details: { status: 'completed' }
-      });
-    }
-
-    // Reassignments
-    for (const reassignment of task.reassignedHistory || []) {
-      timeline.push({
-        type: 'REASSIGNED',
-        timestamp: reassignment.reassignedAt,
-        description: `Reassigned from ${reassignment.previousAssigneeName} to ${reassignment.newAssigneeName}`,
-        actor: reassignment.reassignedBy,
-        details: {
-          from: reassignment.previousAssignee,
-          to: reassignment.newAssignee,
-          reason: reassignment.reason
-        }
-      });
-    }
-
-    // Pause / resume entries
+    // 3. Pause / Resume entries
     for (const entry of task.pauseEntries || []) {
       if (entry.pausedAt) {
-        timeline.push({
-          type: 'PAUSED',
-          timestamp: entry.pausedAt,
-          description: entry.reason ? `Task paused — "${entry.reason}"` : 'Task paused',
-          details: { reason: entry.reason || null }
-        });
+        push('PAUSED', entry.pausedAt, `Paused: ${entry.reason || 'No reason given'}`, null,
+          { reason: entry.reason, note: 'Timer kept running during pause' });
       }
       if (entry.resumedAt) {
-        timeline.push({
-          type: 'RESUMED',
-          timestamp: entry.resumedAt,
-          description: 'Task resumed',
-          details: {}
-        });
+        const dur = entry.pausedDurationInSeconds
+          ? `(${Math.floor(entry.pausedDurationInSeconds / 60)}m ${entry.pausedDurationInSeconds % 60}s)`
+          : '';
+        push('RESUMED', entry.resumedAt, `Resumed from pause ${dur}`, null, { pausedDuration: entry.pausedDurationInSeconds });
       }
     }
 
-    // Comments
-    for (const comment of task.comments || []) {
-      timeline.push({
-        type: 'COMMENT',
-        timestamp: comment.createdAt,
-        description: `${comment.userId?.name || comment.username || 'Unknown'} commented`,
-        actor: comment.userId,
-        details: { text: comment.text, commentId: comment._id }
-      });
+    // 4. Hold / Resume-from-hold entries (from holdEntries array)
+    for (const entry of task.holdEntries || []) {
+      if (entry.heldAt) {
+        push('ON_HOLD', entry.heldAt, `Put on hold: ${entry.reason}`, null,
+          { reason: entry.reason, note: 'Timer frozen — due date will auto-extend on resume' });
+      }
+      if (entry.resumedAt) {
+        const dur = entry.holdDurationInSeconds
+          ? `(${Math.floor(entry.holdDurationInSeconds / 60)}m)`
+          : '';
+        push('RESUMED_FROM_HOLD', entry.resumedAt, `Resumed from hold ${dur} — due date extended`, null,
+          { holdDuration: entry.holdDurationInSeconds });
+      }
     }
 
-    // Sort by timestamp ascending (oldest first — chronological log)
-    timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    // 4b. Fallback: read hold events from activityLog if holdEntries is empty
+    const hasHoldEntries = (task.holdEntries || []).length > 0;
+    if (!hasHoldEntries) {
+      for (const log of task.activityLog || []) {
+        if (log.action === 'blocked' && log.details?.reason) {
+          push('ON_HOLD', log.timestamp, 'Put on hold: ' + log.details.reason, log.user ? { name: log.userName } : null,
+            { reason: log.details.reason, note: 'Timer frozen - due date will auto-extend on resume' });
+        }
+        if (log.action === 'unblocked') {
+          push('RESUMED_FROM_HOLD', log.timestamp, 'Resumed from hold - due date extended',
+            log.user ? { name: log.userName } : null, {});
+        }
+      }
+    }
 
-    return {
-      taskId: task._id,
-      title: task.title,
-      status: task.status,
-      timeline: timeline
-    };
+    // 5. Extension requests
+    for (const ext of task.extensionRequests || []) {
+      push('EXTENSION_REQUESTED', ext.requestedAt,
+        `Extension requested: +${ext.requestedTimeMinutes} min — "${ext.requestRemarks}"`,
+        null, { requestedMinutes: ext.requestedTimeMinutes, remarks: ext.requestRemarks, status: ext.approvalStatus });
+
+      if (ext.approvalStatus === 'approved' && ext.approvedAt) {
+        push('EXTENSION_APPROVED', ext.approvedAt, `Extension approved: +${ext.requestedTimeMinutes} min`, null,
+          { requestedMinutes: ext.requestedTimeMinutes });
+      }
+      if (ext.approvalStatus === 'rejected' && ext.rejectedAt) {
+        push('EXTENSION_REJECTED', ext.rejectedAt,
+          `Extension rejected: ${ext.rejectionReason || 'No reason'}`, null,
+          { reason: ext.rejectionReason });
+      }
+    }
+
+    // 6. Reassignments
+    for (const r of task.reassignedHistory || []) {
+      push('REASSIGNED', r.reassignedAt,
+        `Reassigned from ${r.previousAssigneeName} to ${r.newAssigneeName}`,
+        r.reassignedBy, { reason: r.reason });
+    }
+
+    // 7. Comments
+    for (const c of task.comments || []) {
+      push('COMMENT', c.createdAt,
+        `${c.userId?.name || c.username || 'Unknown'} added a comment`,
+        c.userId, { text: c.text });
+    }
+
+    // 8. Rejection
+    if (task.rejectedAt) {
+      push('REJECTED', task.rejectedAt,
+        `Task rejected: ${task.rejectionReason || 'No reason'}`,
+        task.rejectedBy, { reason: task.rejectionReason });
+    }
+
+    // 9. Completed
+    if (task.completedAt) {
+      const onTime = task.completedOnTime;
+      push('COMPLETED', task.completedAt,
+        `Task completed ${onTime === true ? '✅ on time' : onTime === false ? '⏰ late' : ''}`,
+        task.completedBy,
+        { completionRemarks: task.completionRemarks, onTime,
+          totalActiveSeconds: task.totalActiveTimeInSeconds,
+          totalPausedSeconds: task.totalPausedTimeInSeconds,
+          totalHoldSeconds: task.totalHoldTimeInSeconds }
+      );
+    }
+
+    // Sort chronologically
+    timeline.sort((a, b) => a.timestamp - b.timestamp);
+
+    return { taskId: task._id, title: task.title, status: task.status, timeline };
   },
 
   // Check user workload (count active tasks)
