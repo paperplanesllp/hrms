@@ -78,8 +78,9 @@ export async function sendNotification(userId, options) {
     const preferences = user.emailNotificationPreferences || {};
     const preferenceKey = getPreferenceKey(mappedType);
     const shouldSendEmail = preferenceKey ? preferences[preferenceKey] !== false : false;
+    const skipEmailForReminder = ["task-due-reminder", "task-overdue"].includes(mappedType);
 
-    if (shouldSendEmail && user.email && taskId) {
+    if (!skipEmailForReminder && shouldSendEmail && user.email && taskId) {
       // Prepare task data for email
       const { Task } = await import("../modules/tasks/Task.model.js");
       const task = await Task.findById(taskId).populate("assignedBy", "name").lean();
@@ -102,6 +103,8 @@ export async function sendNotification(userId, options) {
           await notification.save();
         }
       }
+    } else if (skipEmailForReminder) {
+      console.log(`⏭️ Email skipped for ${mappedType} (HRMS-only reminder type)`);
     }
 
     console.log(`✅ Notification sent to ${userId}: ${title}`);

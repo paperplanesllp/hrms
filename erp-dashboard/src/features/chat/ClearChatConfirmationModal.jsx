@@ -19,7 +19,7 @@ export default function ClearChatConfirmationModal({
             <div className="p-3 bg-red-100 rounded-full dark:bg-red-900/30">
               <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Clear Conversation?</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Clear Conversation ?</h3>
           </div>
           <Button 
             onClick={onClose} 
@@ -33,7 +33,7 @@ export default function ClearChatConfirmationModal({
         {/* Message */}
         <div className="mb-6 space-y-3">
           <p className="text-sm text-slate-700 dark:text-gray-300">
-            Are you sure you want to clear all messages in <span className="font-semibold text-slate-900 dark:text-white">{chatName}</span>?
+            Are you sure you want to clear all messages  <span className="font-semibold text-slate-900 dark:text-white">{chatName}</span>?
           </p>
           <div className="p-3 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-900/50">
             <p className="flex items-center gap-2 text-xs text-red-800 dark:text-red-300">

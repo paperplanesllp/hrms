@@ -67,9 +67,10 @@ export async function createTaskNotification(options) {
 
     const preferenceKey = preferencesMap[eventType];
     const shouldSendEmail = preferenceKey ? preferences[preferenceKey] !== false : true;
+    const skipEmailForReminder = ["task-due-reminder", "task-overdue"].includes(eventType);
 
-    // Send email notification if preferences allow
-    if (shouldSendEmail && user.email) {
+    // Send email notification if preferences allow and this event type is not HRMS-only
+    if (!skipEmailForReminder && shouldSendEmail && user.email) {
       const taskData = {
         taskId: task._id.toString(),
         title: task.title,
@@ -98,7 +99,8 @@ export async function createTaskNotification(options) {
         console.log(`✅ Notification created and email sent for ${eventType} (${userId})`);
       }
     } else {
-      console.log(`⏭️ Email skipped for ${eventType} (preference disabled or no email)`);
+      const skipReason = skipEmailForReminder ? "HRMS-only reminder type" : "preference disabled or no email";
+      console.log(`⏭️ Email skipped for ${eventType} (${skipReason})`);
     }
 
     // Emit real-time socket notification

@@ -22,7 +22,7 @@ export default function TaskCard({
   const remaining = calculateRemainingTime(task || {});
   const effectiveDueAt = remaining.effectiveDueAt || task?.dueAt || task?.dueDate;
 
-  const isOverdue = task.status !== 'completed' && new Date(task.dueDate) < new Date();
+  const isOverdue = task.status !== 'completed' && effectiveDueAt && new Date(effectiveDueAt) < new Date();
 
   const handleStatusToggle = (newStatus) => {
     onStatusChange?.(task._id, newStatus);
@@ -145,7 +145,7 @@ export default function TaskCard({
         <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
           <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
             <div>
-              <span className="font-semibold">Due:</span> {formatDistanceToNow(new Date(task.dueDate), { addSuffix: true })}
+              <span className="font-semibold">Due:</span> {effectiveDueAt ? formatDistanceToNow(new Date(effectiveDueAt), { addSuffix: true }) : 'No due date'}
             </div>
             <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
           </div>

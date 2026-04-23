@@ -33,7 +33,6 @@ const STATUS_BADGE = {
   overdue:     'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   extended:    'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
   rejected:    'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-  'on-hold':   'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   completed:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   new:         'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
   cancelled:   'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
@@ -109,11 +108,6 @@ export default function TaskTimerCard({
   const isOverdue = remaining.isOverdue || task.status === 'overdue';
   const dueSoon = !isOverdue && remaining.remainingMinutes !== null && remaining.remainingMinutes <= 30;
 
-  const formatRemaining = () => {
-    if (!countdown.shouldTrack) return countdown.state || 'Not started';
-    return countdown.display;
-  };
-
   return (
     <div
       className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
@@ -155,10 +149,13 @@ export default function TaskTimerCard({
             )}
           </div>
 
-          {/* Live digital timer & Estimated time countdown */}
+          {/* Live digital timer or estimated countdown */}
           <div className="flex items-center gap-2">
-            <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
-            <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            {task.status === 'pending' && !task.startedAt ? (
+              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            ) : (
+              <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+            )}
           </div>
         </div>
 
