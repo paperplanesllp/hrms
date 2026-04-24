@@ -22,6 +22,18 @@ export const extensionController = {
       const isAssignedUser = task.assignedTo?.some(u => u._id.toString() === req.user.id);
       if (!isAssignedUser) return sendError(res, 'You are not assigned to this task', 403);
 
+      // Check if task is completed - completed tasks cannot request extension
+      if (task.status === 'completed') {
+        return sendError(res, 'Completed tasks cannot request extension', 400);
+      }
+
+      // Check if task is self-assigned - self-assigned tasks CANNOT request extension
+      const isSelfAssigned = task.assignedBy?._id.toString() === req.user.id ||
+        task.assignedBy?.toString() === req.user.id;
+      if (isSelfAssigned) {
+        return sendError(res, 'Self-assigned tasks cannot request extension. Please contact your manager if you need more time.', 403);
+      }
+
       const existingPending = await ExtensionRequest.findOne({ taskId, status: 'pending' });
       if (existingPending) return sendError(res, 'An extension request is already pending for this task', 400);
 
@@ -47,13 +59,13 @@ export const extensionController = {
 
       await extensionRequest.populate(['taskId', 'requestedBy', 'requestedFrom']);
 
-      // Notify the assigner (HR/manager)
+      // Notify only the assigner (not HR/Admin)
       await createTaskNotification({
         userId: task.assignedBy._id,
-        taskId,
+        taskId: task._id,
         eventType: 'system',
-        title: `⏳ Extension Requested: ${task.title}`,
-        message: `${req.user.name || 'Employee'} has requested +${additionalHours || 0}h ${additionalMinutes || 0}m extension for "${task.title}". Reason: ${reason.trim()}`,
+        title: '⏳ Extension Request',
+        message: `${req.user.name || 'Employee'} requested +${additionalTotalMinutes} min for "${task.title}". Reason: ${reason.trim()}`,
         triggeredBy: req.user.id
       }).catch(() => {});
 

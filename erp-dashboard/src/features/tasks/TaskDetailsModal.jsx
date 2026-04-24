@@ -414,11 +414,14 @@ export default function TaskDetailsModal({
       );
     }
 
-    // Show Request Extension button if task is overdue and user is assigned
+    // Show Request Extension button if task is overdue and user is assigned (but NOT self-assigned)
     const isUserAssigned = task.assignedTo && task.assignedTo.some(u => u._id === currentUserId || u.id === currentUserId);
-    const taskIsOverdue = isOverdue && task.status !== 'completed' && isUserAssigned;
+    const isSelfAssigned = task.assignedBy?._id === currentUserId || 
+                          task.assignedBy?.id === currentUserId ||
+                          task.assignedBy === currentUserId;
+    const canRequestExtension = isOverdue && task.status !== 'completed' && isUserAssigned && !isSelfAssigned;
     
-    if (taskIsOverdue) {
+    if (canRequestExtension) {
       buttons.push(
         <Button
           key="extension"

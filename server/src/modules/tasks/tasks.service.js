@@ -1022,7 +1022,8 @@ export const tasksService = {
     if (!task) throw new Error('Task not found');
     const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
     if (!isAssignee) throw new Error('Only assigned users can hold this task');
-    if (!['pending', 'in-progress', 'paused'].includes(task.status)) throw new Error('Cannot hold task with status: ' + task.status);
+    const HOLDABLE_STATUSES = ['pending', 'in-progress', 'paused', 'due-soon', 'overdue', 'extended'];
+    if (!HOLDABLE_STATUSES.includes(task.status)) throw new Error('Cannot hold task with status: ' + task.status);
     if (!holdReason || typeof holdReason !== 'string' || !holdReason.trim()) throw new Error('Hold reason is required');
     const now = new Date();
     if (task.isRunning && task.currentSessionStartTime) {

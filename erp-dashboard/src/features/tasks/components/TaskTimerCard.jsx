@@ -264,14 +264,23 @@ export default function TaskTimerCard({
 
         {/* ── Action buttons ── */}
         <div className="flex flex-wrap items-center gap-2">
-          {(isOverdue || (estimatedCountdown.isExpired && estimatedCountdown.estimatedSeconds > 0)) && !['rejected', 'completed', 'extension_requested', 'cancelled'].includes(task.status) && (
-            <button
-              onClick={() => onRequestMoreTime?.(task)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
-            >
-              Request Extension
-            </button>
-          )}
+          {(() => {
+            const isUserAssigned = task.assignedTo?.some(u => u._id === currentUser?._id || u.id === currentUser?._id);
+            const isSelfAssigned = task.assignedBy?._id === currentUser?._id || 
+                                  task.assignedBy?.id === currentUser?._id ||
+                                  task.assignedBy === currentUser?._id;
+            const isOverdueOrTimeUp = (isOverdue || (estimatedCountdown.isExpired && estimatedCountdown.estimatedSeconds > 0)) && !['rejected', 'completed', 'extension_requested', 'cancelled'].includes(task.status);
+            const canRequestExtension = isUserAssigned && !isSelfAssigned && isOverdueOrTimeUp;
+            
+            return canRequestExtension && (
+              <button
+                onClick={() => onRequestMoreTime?.(task)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
+              >
+                Request Extension
+              </button>
+            );
+          })()}
 
           {task.status === 'extension_requested' && (
             <span className="px-3 py-2 text-sm font-semibold text-amber-700 bg-amber-100 rounded-xl dark:bg-amber-900/30 dark:text-amber-300 flex items-center gap-1.5">

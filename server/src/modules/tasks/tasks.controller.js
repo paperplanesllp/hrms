@@ -871,6 +871,19 @@ export const tasksController = {
         return sendError(res, 'Only an assignee can request more time', 403);
       }
 
+      // Check if task is completed - completed tasks cannot request extension
+      if (task.status === 'completed') {
+        return sendError(res, 'Completed tasks cannot request extension', 400);
+      }
+
+      // Check if task is self-assigned - self-assigned tasks CANNOT request extension
+      const isSelfAssigned = task.assignedBy?.toString() === req.user.id ||
+        task.assignedBy?._id?.toString() === req.user.id;
+      
+      if (isSelfAssigned) {
+        return sendError(res, 'Self-assigned tasks cannot request extension. Please contact your manager if you need more time.', 403);
+      }
+
       const effectiveDueAt = task.dueAt || task.dueDate;
       const now = new Date();
       const dueDatePassed = effectiveDueAt && now > new Date(effectiveDueAt);
@@ -937,24 +950,8 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
 
-      // Self-assigned → notify HR. Assigned by someone else → notify that person.
-      const isSelfAssigned = task.assignedBy?.toString() === req.user.id ||
-        task.assignedBy?._id?.toString() === req.user.id;
-
-      if (isSelfAssigned) {
-        const { User } = await import('../users/User.model.js');
-        const hrUsers = await User.find({ role: { $in: ['HR', 'ADMIN'] }, isDeleted: false }).select('_id').lean();
-        for (const hr of hrUsers) {
-          await createTaskNotification({
-            userId: hr._id,
-            taskId: task._id,
-            eventType: 'system',
-            title: '⏳ Extension Request (Self-Assigned)',
-            message: `${req.user.name || 'Employee'} requested +${additionalMinutes} min for self-assigned task "${task.title}". Remarks: ${safeRemarks}`,
-            triggeredBy: req.user.id,
-          }).catch(() => {});
-        }
-      } else if (task.assignedBy) {
+      // Notify only the task assigner (not HR/Admin)
+      if (task.assignedBy) {
         await createTaskNotification({
           userId: task.assignedBy._id || task.assignedBy,
           taskId: task._id,
@@ -978,14 +975,11 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      // Self-assigned tasks: HR/Admin can approve. Otherwise only the assigner.
-      const isSelfAssignedTask = Array.isArray(task.assignedTo) &&
-        task.assignedTo.some(a => a.toString() === (task.assignedBy?._id || task.assignedBy)?.toString());
-      const approverRole = (req.user.role || '').toUpperCase();
+      // Only the task assigner can approve extension requests
       const canApprove = task.assignedBy?.toString() === req.user.id ||
-        (isSelfAssignedTask && (approverRole === 'HR' || approverRole === 'ADMIN'));
+        task.assignedBy?._id?.toString() === req.user.id;
       if (!canApprove) {
-        return sendError(res, 'Only the task assigner (or HR/Admin for self-assigned tasks) can approve', 403);
+        return sendError(res, 'Only the task assigner can approve extension requests', 403);
       }
 
       const requests = task.extensionRequests || [];
@@ -1044,14 +1038,11 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      // Self-assigned tasks: HR/Admin can reject. Otherwise only the assigner.
-      const isSelfAssignedTaskR = Array.isArray(task.assignedTo) &&
-        task.assignedTo.some(a => a.toString() === (task.assignedBy?._id || task.assignedBy)?.toString());
-      const rejecterRole = (req.user.role || '').toUpperCase();
+      // Only the task assigner can reject extension requests
       const canReject = task.assignedBy?.toString() === req.user.id ||
-        (isSelfAssignedTaskR && (rejecterRole === 'HR' || rejecterRole === 'ADMIN'));
+        task.assignedBy?._id?.toString() === req.user.id;
       if (!canReject) {
-        return sendError(res, 'Only the task assigner (or HR/Admin for self-assigned tasks) can reject', 403);
+        return sendError(res, 'Only the task assigner can reject extension requests', 403);
       }
 
       const requests = task.extensionRequests || [];
