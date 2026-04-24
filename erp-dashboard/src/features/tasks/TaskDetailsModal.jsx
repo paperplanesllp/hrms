@@ -714,21 +714,74 @@ export default function TaskDetailsModal({
           </div>
 
           {/* Remarks */}
-          {task.tags && task.tags.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
-              <div className="flex flex-wrap gap-2">
-                {task.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-medium"
-                  >
-                    {tag}
-                  </span>
-                ))}
+          {(() => {
+            const lastPauseReason =
+              Array.isArray(task.pauseEntries) && task.pauseEntries.length > 0
+                ? task.pauseEntries[task.pauseEntries.length - 1]?.reason
+                : null;
+
+            const lastExtensionRemark =
+              Array.isArray(task.extensionRequests) && task.extensionRequests.length > 0
+                ? task.extensionRequests[task.extensionRequests.length - 1]?.requestRemarks
+                : task.requestRemarks || null;
+
+            const infoRows = [
+              task.status === 'completed' && task.completionRemarks && canViewCompletionRemarks()
+                ? { label: 'Completion Summary', value: task.completionRemarks }
+                : null,
+              task.holdReason
+                ? { label: 'Hold Reason', value: task.holdReason }
+                : null,
+              lastPauseReason
+                ? { label: 'Latest Pause Reason', value: lastPauseReason }
+                : null,
+              lastExtensionRemark
+                ? { label: 'Extension Remark', value: lastExtensionRemark }
+                : null,
+            ].filter(Boolean);
+
+            const hasTags = Array.isArray(task.tags) && task.tags.length > 0;
+            const hasAnyRemarks = infoRows.length > 0 || hasTags;
+
+            if (!hasAnyRemarks) return null;
+
+            return (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
+
+                {infoRows.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {infoRows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700"
+                      >
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                          {row.label}
+                        </p>
+                        <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                          {row.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {hasTags && (
+                  <div className="flex flex-wrap gap-2">
+                    {task.tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Workflow Actions */}
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4">

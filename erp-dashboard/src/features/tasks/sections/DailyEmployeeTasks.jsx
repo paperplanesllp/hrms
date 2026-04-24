@@ -107,8 +107,6 @@ export default function DailyEmployeeTasks() {
   const [sortBy, setSortBy] = useState('name');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [remarks, setRemarks] = useState({}); // Store remarks by taskId
-  const [approvedTasks, setApprovedTasks] = useState({}); // Store approval status by taskId
   const [editingTask, setEditingTask] = useState(null); // Task being edited
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
   const [deleting, setDeleting] = useState({}); // Track deletion state
@@ -182,18 +180,6 @@ export default function DailyEmployeeTasks() {
   }, [date]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Approve task with remarks
-  const approveTask = (taskId, remark) => {
-    if (!remark.trim()) {
-      alert('Please add remarks before approving');
-      return;
-    }
-    setApprovedTasks(prev => ({ ...prev, [taskId]: true }));
-    console.log(`✅ Task ${taskId} approved with remark: ${remark}`);
-    // Optional: Send to backend API
-    // api.patch(`/tasks/${taskId}`, { hoExceededApproved: true, exceedRemarks: remark });
-  };
 
   // Handle delete task
   const handleDeleteTask = async (taskId) => {
@@ -782,45 +768,7 @@ export default function DailyEmployeeTasks() {
                             )}
                           </div>
 
-                          {/* Exceed Approval Section */}
-                          {isTimeExceeded && (
-                            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
-                              <div className="font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
-                                <span>⚠️ HR Approval Required</span>
-                                {approvedTasks[t._id] && (
-                                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                    ✓ Approved
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <textarea 
-                                value={remarks[t._id] || ''}
-                                onChange={(e) => setRemarks(prev => ({ ...prev, [t._id]: e.target.value }))}
-                                placeholder="Add remarks about why time was exceeded (employee reason, blockers, etc.)..."
-                                disabled={approvedTasks[t._id]}
-                                className="w-full px-3 py-2 text-xs rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 resize-none disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900"
-                                rows="2"
-                              />
-                              
-                              <div className="flex gap-2 mt-2">
-                                <button 
-                                  onClick={() => approveTask(t._id, remarks[t._id] || '')}
-                                  disabled={approvedTasks[t._id]}
-                                  className="flex-1 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
-                                >
-                                  {approvedTasks[t._id] ? '✓ Approved' : 'Approve & Submit'}
-                                </button>
-                              </div>
-                              
-                              {approvedTasks[t._id] && remarks[t._id] && (
-                                <div className="mt-2 p-2 rounded-lg bg-white dark:bg-slate-700/50 border border-green-200 dark:border-green-800">
-                                  <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">📝 Remarks:</div>
-                                  <div className="text-xs text-slate-700 dark:text-slate-300">{remarks[t._id]}</div>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {/* NOTE: HR approval UI removed (premium-only / deprecated). */}
 
                           {/* Update and Delete Buttons */}
                           {t.status !== 'completed' && (
