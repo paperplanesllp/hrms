@@ -823,6 +823,15 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
     const { shiftStart, shiftEnd } = await getShiftForDate(targetDate);
 
     for (const staff of staffUsers) {
+      const leaveRecord = await Event.findOne({
+        userId: staff._id,
+        date: targetDate,
+        purpose: EVENT_PURPOSE.PERSONAL,
+        status: { $ne: "CANCELLED" }
+      });
+
+      const status = leaveRecord ? "ABSENT" : "HOLIDAY";
+
       await Attendance.findOneAndUpdate(
         { userId: staff._id, date: targetDate },
         {
@@ -830,8 +839,10 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
             shiftStart,
             shiftEnd,
             shiftName: holidayName,
-            status: "HOLIDAY",
-            totalHours: 0
+            status,
+            totalHours: 0,
+            checkIn: "",
+            checkOut: ""
           }
         },
         { upsert: true, returnDocument: "after" }
@@ -982,19 +993,87 @@ export async function autoMarkAbsentees() {
   try {
     const today = getCurrentDateIST();
 
-    // Get all staff users (non-admin)
     const staffUsers = await User.find({
       role: { $ne: ROLES.ADMIN },
       isActive: true
     }).select("_id name email");
 
-    // Same-day policy: auto-mark only for today.
     const result = await autoMarkAbsenteesForDate(today, staffUsers, { forceFinalize: false });
 
     console.log(`\n✅ Auto-mark attendance completed:`, result);
     return result;
   } catch (error) {
     console.error("❌ Error in autoMarkAbsentees:", error.message);
+    return {
+      total: 0,
+      marked: 0,
+      errors: 1,
+      error: error.message
+    };
+  }
+}
+
+export async function markPublicHolidayForAllEmployees(date, holidayName) {
+  try {
+    console.log(`🎉 Marking public holiday: ${date} (${holidayName})`);
+    
+    const staffUsers = await User.find({
+      role: { $ne: ROLES.ADMIN },
+      isActive: true
+    }).select("_id name email");
+
+    const { shiftStart, shiftEnd } = await getShiftForDate(date);
+    let markedCount = 0;
+    let errorCount = 0;
+
+    for (const staff of staffUsers) {
+      try {
+        const leaveRecord = await Event.findOne({
+          userId: staff._id,
+          date: date,
+          purpose: EVENT_PURPOSE.PERSONAL,
+          status: { $ne: "CANCELLED" }
+        });
+
+        const status = leaveRecord ? "ABSENT" : "HOLIDAY";
+
+        await Attendance.findOneAndUpdate(
+          { userId: staff._id, date: date },
+          {
+            $set: {
+              shiftStart,
+              shiftEnd,
+              shiftName: holidayName,
+              status,
+              totalHours: 0,
+              checkIn: "",
+              checkOut: ""
+            }
+          },
+          { upsert: true, returnDocument: "after" }
+        );
+
+        console.log(`  ✓ ${staff.name} - ${status}`);
+        markedCount++;
+      } catch (error) {
+        console.error(`  ⚠️ Error marking ${staff.name}:`, error.message);
+        errorCount++;
+      }
+    }
+
+    const result = {
+      date,
+      holidayName,
+      total: staffUsers.length,
+      marked: markedCount,
+      errors: errorCount,
+      message: `Marked ${markedCount} employees for holiday (${holidayName})`
+    };
+
+    console.log(`\n✅ Holiday marking completed:`, result);
+    return result;
+  } catch (error) {
+    console.error("❌ Error in markPublicHolidayForAllEmployees:", error.message);
     return {
       total: 0,
       marked: 0,

@@ -241,21 +241,39 @@ async function syncPublicHolidayAttendance(date, holidayName) {
 
   if (!staffUsers.length) return;
 
-  const updates = staffUsers.map((staff) => ({
-    updateOne: {
-      filter: { userId: staff._id, date },
-      update: {
-        $set: {
-          status: "HOLIDAY",
-          totalHours: 0,
-          shiftName: holidayName || "Public Holiday"
-        }
-      },
-      upsert: true
-    }
-  }));
+  const updates = [];
+  for (const staff of staffUsers) {
+    // Check if employee took leave on this day
+    const leaveRecord = await Leave.findOne({
+      userId: staff._id,
+      status: "APPROVED",
+      fromDate: { $lte: date },
+      toDate: { $gte: date }
+    });
 
-  await Attendance.bulkWrite(updates, { ordered: false });
+    // If they took leave, mark as ABSENT; otherwise mark as HOLIDAY
+    const status = leaveRecord ? "ABSENT" : "HOLIDAY";
+
+    updates.push({
+      updateOne: {
+        filter: { userId: staff._id, date },
+        update: {
+          $set: {
+            status,
+            totalHours: 0,
+            shiftName: holidayName || "Public Holiday",
+            checkIn: "",
+            checkOut: ""
+          }
+        },
+        upsert: true
+      }
+    });
+  }
+
+  if (updates.length > 0) {
+    await Attendance.bulkWrite(updates, { ordered: false });
+  }
 }
 
 /**

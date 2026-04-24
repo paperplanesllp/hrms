@@ -1,46 +1,25 @@
 /**
  * Payroll PDF Generator Utility
  * Generates professional salary slips using jsPDF
- * 
- * Prerequisites: npm install jspdf jspdf-autotable
  */
 
-import jsPDFModule from "jspdf";
-import "jspdf-autotable";
-
-const { jsPDF } = jsPDFModule;
+import { jsPDF } from "jspdf";
 
 const generatePayslipPDF = (payroll, companyName = "ERP HRMS System") => {
-  // jsPDF and autoTable are now available globally after import
-  try {
-    if (!window.jsPDF) {
-      throw new Error("jsPDF not loaded");
-    }
-  } catch (e) {
-    console.error("jsPDF not installed. Run: npm install jspdf jspdf-autotable");
-    throw new Error("PDF generation library not installed");
-  }
-
   const doc = new jsPDF("p", "mm", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   let yPosition = 15;
 
-  // Set default font
-  doc.setFont("Helvetica");
-
   // ============ HEADER SECTION ============
-  // Company Logo/Name area
-  doc.setFillColor(19, 115, 51); // Dark green from your design system
+  doc.setFillColor(19, 115, 51);
   doc.rect(0, 0, pageWidth, 25, "F");
 
-  // Company Name
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont("Helvetica", "bold");
   doc.text(companyName, pageWidth / 2, 12, { align: "center" });
 
-  // Subtitle
   doc.setFontSize(10);
   doc.setFont("Helvetica", "normal");
   doc.text("Monthly Salary Slip", pageWidth / 2, 20, { align: "center" });
@@ -63,12 +42,10 @@ const generatePayslipPDF = (payroll, companyName = "ERP HRMS System") => {
   const rightColumn = pageWidth / 2 + 5;
   yPosition += 8;
 
-  // Left column info
   doc.text(`Employee Name: ${payroll.userId?.name || "---"}`, leftColumn, yPosition);
   doc.text(`Employee ID: ${payroll.userId?.employeeId || "---"}`, leftColumn, yPosition + 6);
   doc.text(`Department: ${payroll.userId?.department || "---"}`, leftColumn, yPosition + 12);
 
-  // Right column info
   doc.text(`Designation: ${payroll.userId?.designation || "---"}`, rightColumn, yPosition);
   doc.text(`Payroll Month: ${payroll.month || "---"}`, rightColumn, yPosition + 6);
   doc.text(`Payroll Year: ${payroll.year || "---"}`, rightColumn, yPosition + 12);
@@ -83,8 +60,8 @@ const generatePayslipPDF = (payroll, companyName = "ERP HRMS System") => {
 
   yPosition += 8;
 
-  // Earnings table
-  const earningsData = [
+  // Draw earnings table manually
+  const earningsRows = [
     ["Earnings", "Amount (₹)"],
     ["Basic Salary", formatCurrency(payroll.basicSalary || 0)],
     ["Allowances", formatCurrency(payroll.allowances || 0)],
@@ -92,97 +69,35 @@ const generatePayslipPDF = (payroll, companyName = "ERP HRMS System") => {
     ["Overtime Pay", formatCurrency(payroll.overtimePay || 0)],
   ];
 
-  doc.autoTable({
-    startY: yPosition,
-    margin: { left: 15, right: 15 },
-    head: earningsData.slice(0, 1),
-    body: earningsData.slice(1),
-    theme: "plain",
-    headStyles: {
-      fillColor: [19, 115, 51],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 9,
-      padding: 5,
-      halign: "left"
-    },
-    bodyStyles: {
-      fillColor: [246, 250, 253],
-      textColor: [10, 25, 49],
-      fontSize: 9,
-      padding: 4,
-      halign: "right"
-    },
-    alternateRowStyles: {
-      fillColor: [255, 255, 255]
-    },
-    columnStyles: {
-      0: { halign: "left", cellWidth: pageWidth - 60 },
-      1: { halign: "right", cellWidth: 45 }
-    }
-  });
+  yPosition = drawTable(doc, earningsRows, yPosition, 15, pageWidth - 30, [19, 115, 51]);
 
-  yPosition = doc.lastAutoTable.finalY + 8;
-
-  // Total Earnings
-  doc.setFont("Helvetica", "bold");
-  doc.setFillColor(230, 244, 234);
   const totalEarnings = (payroll.basicSalary || 0) + 
                         (payroll.allowances || 0) + 
                         (payroll.bonus || 0) + 
                         (payroll.overtimePay || 0);
+  doc.setFont("Helvetica", "bold");
+  doc.setFillColor(230, 244, 234);
   doc.rect(15, yPosition - 2, pageWidth - 30, 7, "F");
   doc.text("Total Earnings", 15, yPosition + 2);
   doc.text(formatCurrency(totalEarnings), pageWidth - 20, yPosition + 2, { align: "right" });
 
   yPosition += 12;
 
-  // Deductions table
+  // ============ DEDUCTIONS SECTION ============
   doc.setFont("Helvetica", "bold");
   doc.setTextColor(19, 115, 51);
   doc.text("Deductions", 15, yPosition);
 
   yPosition += 6;
 
-  const deductionsData = [
+  const deductionsRows = [
     ["Deductions", "Amount (₹)"],
     ["Deductions (PF, Insurance, etc.)", formatCurrency(payroll.deductions || 0)],
     ["Tax (TDS / Income Tax)", formatCurrency(payroll.tax || 0)],
   ];
 
-  doc.autoTable({
-    startY: yPosition,
-    margin: { left: 15, right: 15 },
-    head: deductionsData.slice(0, 1),
-    body: deductionsData.slice(1),
-    theme: "plain",
-    headStyles: {
-      fillColor: [242, 113, 28], // Orange from your palette
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 9,
-      padding: 5,
-      halign: "left"
-    },
-    bodyStyles: {
-      fillColor: [255, 250, 245],
-      textColor: [10, 25, 49],
-      fontSize: 9,
-      padding: 4,
-      halign: "right"
-    },
-    alternateRowStyles: {
-      fillColor: [255, 255, 255]
-    },
-    columnStyles: {
-      0: { halign: "left", cellWidth: pageWidth - 60 },
-      1: { halign: "right", cellWidth: 45 }
-    }
-  });
+  yPosition = drawTable(doc, deductionsRows, yPosition, 15, pageWidth - 30, [242, 113, 28]);
 
-  yPosition = doc.lastAutoTable.finalY + 8;
-
-  // Total Deductions
   const totalDeductions = (payroll.deductions || 0) + (payroll.tax || 0);
   doc.setFillColor(255, 240, 230);
   doc.rect(15, yPosition - 2, pageWidth - 30, 7, "F");
@@ -268,27 +183,15 @@ const generatePayslipPDF = (payroll, companyName = "ERP HRMS System") => {
   doc.setTextColor(150, 150, 150);
   doc.text("© 2026 ERP HRMS System. All rights reserved.", pageWidth / 2, pageHeight - 5, { align: "center" });
 
-  // Save the PDF
   const fileName = `Payslip_${payroll.userId?.name || "Employee"}_${payroll.month}.pdf`;
   doc.save(fileName);
 };
 
-// Generate monthly payroll report (all employees)
 const generateMonthlyPayrollReportPDF = (payrolls, month, year, companyName = "ERP HRMS System") => {
-  try {
-    if (!window.jsPDF) {
-      throw new Error("jsPDF not loaded");
-    }
-  } catch (e) {
-    console.error("jsPDF not installed. Run: npm install jspdf jspdf-autotable");
-    throw new Error("PDF generation library not installed");
-  }
-
-  const doc = new jsPDF("l", "mm", "a4"); // Landscape orientation
+  const doc = new jsPDF("l", "mm", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Header
   doc.setFillColor(19, 115, 51);
   doc.rect(0, 0, pageWidth, 20, "F");
 
@@ -301,71 +204,29 @@ const generateMonthlyPayrollReportPDF = (payrolls, month, year, companyName = "E
   doc.setFont("Helvetica", "normal");
   doc.text(`Month: ${month} | Year: ${year}`, pageWidth / 2, 18, { align: "center" });
 
-  // Prepare table data
-  const tableData = payrolls.map(p => [
-    p.userId?.name || "---",
-    p.userId?.employeeId || "---",
-    p.userId?.department || "---",
-    formatCurrency(p.basicSalary || 0),
-    formatCurrency((p.allowances || 0) + (p.bonus || 0) + (p.overtimePay || 0)),
-    formatCurrency((p.deductions || 0) + (p.tax || 0)),
-    formatCurrency(p.netSalary || 0),
-    p.paymentMethod || "---",
-    p.paymentStatus || "PENDING"
-  ]);
+  const tableData = [
+    ["Employee", "ID", "Department", "Basic", "Additions", "Deductions", "Net Salary", "Payment Method", "Status"],
+    ...payrolls.map(p => [
+      p.userId?.name || "---",
+      p.userId?.employeeId || "---",
+      p.userId?.department || "---",
+      formatCurrency(p.basicSalary || 0),
+      formatCurrency((p.allowances || 0) + (p.bonus || 0) + (p.overtimePay || 0)),
+      formatCurrency((p.deductions || 0) + (p.tax || 0)),
+      formatCurrency(p.netSalary || 0),
+      p.paymentMethod || "---",
+      p.paymentStatus || "PENDING"
+    ])
+  ];
 
-  // Generate table
-  doc.autoTable({
-    startY: 25,
-    margin: { left: 10, right: 10 },
-    head: [[
-      "Employee",
-      "ID",
-      "Department",
-      "Basic",
-      "Additions",
-      "Deductions",
-      "Net Salary",
-      "Payment Method",
-      "Status"
-    ]],
-    body: tableData,
-    theme: "grid",
-    headStyles: {
-      fillColor: [19, 115, 51],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 8,
-      padding: 3
-    },
-    bodyStyles: {
-      textColor: [10, 25, 49],
-      fontSize: 8,
-      padding: 2
-    },
-    alternateRowStyles: {
-      fillColor: [246, 250, 253]
-    },
-    columnStyles: {
-      0: { cellWidth: 30 },
-      1: { cellWidth: 18 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 20, halign: "right" },
-      4: { cellWidth: 20, halign: "right" },
-      5: { cellWidth: 20, halign: "right" },
-      6: { cellWidth: 20, halign: "right" },
-      7: { cellWidth: 25 },
-      8: { cellWidth: 15 }
-    }
-  });
+  drawTable(doc, tableData, 25, 10, pageWidth - 20, [19, 115, 51]);
 
-  // Summary
-  const finalY = doc.lastAutoTable.finalY + 10;
   const totalBasic = payrolls.reduce((sum, p) => sum + (p.basicSalary || 0), 0);
   const totalAdditions = payrolls.reduce((sum, p) => sum + (p.allowances || 0) + (p.bonus || 0) + (p.overtimePay || 0), 0);
   const totalDeductions = payrolls.reduce((sum, p) => sum + (p.deductions || 0) + (p.tax || 0), 0);
   const totalNetSalary = payrolls.reduce((sum, p) => sum + (p.netSalary || 0), 0);
 
+  const finalY = pageHeight - 40;
   doc.setFont("Helvetica", "bold");
   doc.setFillColor(230, 244, 234);
   doc.rect(10, finalY, pageWidth - 20, 8, "F");
@@ -375,7 +236,6 @@ const generateMonthlyPayrollReportPDF = (payrolls, month, year, companyName = "E
   doc.text(formatCurrency(totalDeductions), 135, finalY + 5, { align: "right" });
   doc.text(formatCurrency(totalNetSalary), 155, finalY + 5, { align: "right" });
 
-  // Footer
   doc.setFontSize(8);
   doc.setTextColor(112, 117, 122);
   doc.setFont("Helvetica", "normal");
@@ -387,7 +247,39 @@ const generateMonthlyPayrollReportPDF = (payrolls, month, year, companyName = "E
   doc.save(fileName);
 };
 
-// ============ HELPER FUNCTIONS ============
+function drawTable(doc, rows, startY, leftMargin, tableWidth, headerColor) {
+  const colWidth = tableWidth / rows[0].length;
+  const rowHeight = 6;
+  let yPos = startY;
+
+  rows.forEach((row, rowIndex) => {
+    if (rowIndex === 0) {
+      doc.setFillColor(...headerColor);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(9);
+    } else {
+      if (rowIndex % 2 === 0) {
+        doc.setFillColor(246, 250, 253);
+      } else {
+        doc.setFillColor(255, 255, 255);
+      }
+      doc.setTextColor(10, 25, 49);
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8);
+    }
+
+    row.forEach((cell, colIndex) => {
+      const xPos = leftMargin + colIndex * colWidth;
+      doc.rect(xPos, yPos, colWidth, rowHeight, "F");
+      doc.text(cell, xPos + 2, yPos + 4, { maxWidth: colWidth - 4, align: colIndex === 0 ? "left" : "right" });
+    });
+
+    yPos += rowHeight;
+  });
+
+  return yPos;
+}
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-IN", {
