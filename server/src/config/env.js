@@ -8,10 +8,11 @@ export const env = {
   PORT: Number(process.env.PORT || 5000),
   MONGO_URI: process.env.MONGO_URI,
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN,
+  SERVER_URL: process.env.SERVER_URL || "http://localhost:3000",
 
   ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET,
   REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
-  JWT_ACCESS_SECRET: process.env.ACCESS_TOKEN_SECRET, // Same as ACCESS_TOKEN_SECRET for socket auth
+  JWT_ACCESS_SECRET: process.env.ACCESS_TOKEN_SECRET,
   ACCESS_TOKEN_EXPIRES: process.env.ACCESS_TOKEN_EXPIRES || "15m",
   REFRESH_TOKEN_EXPIRES: process.env.REFRESH_TOKEN_EXPIRES || "7d",
 

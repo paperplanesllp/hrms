@@ -6,21 +6,19 @@ import { User } from "../users/User.model.js";
 import { notifyNewsCreated, notifyNewsDeleted, notifyNewsPolicyUpdate } from "../../utils/socket.js";
 
 export const postNews = asyncHandler(async (req, res) => {
-  // Convert string boolean from FormData to actual boolean
   if (req.body.isPolicyUpdate) {
     req.body.isPolicyUpdate = req.body.isPolicyUpdate === 'true';
   }
   
   const data = newsCreateSchema.parse(req.body);
   
-  // Handle file upload
   if (req.file) {
-    data.imageUrl = `/uploads/news/${req.file.filename}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    data.imageUrl = `${baseUrl}/uploads/news/${req.file.filename}`;
   }
   
   const doc = await createNews(req.user.id, data);
   
-  // Create notifications for all users
   const users = await User.find({}).select('_id');
   const userIds = users.map(user => user._id);
   
@@ -34,7 +32,6 @@ export const postNews = asyncHandler(async (req, res) => {
     isPolicyUpdate: data.isPolicyUpdate
   });
   
-  // Emit socket event for real-time update
   if (data.isPolicyUpdate) {
     notifyNewsPolicyUpdate(doc, data.title);
   } else {
@@ -55,18 +52,16 @@ export const getNewsDetail = asyncHandler(async (req, res) => {
 });
 
 export const patchNews = asyncHandler(async (req, res) => {
-  // Convert string boolean from FormData to actual boolean
   if (req.body.isPolicyUpdate) {
     req.body.isPolicyUpdate = req.body.isPolicyUpdate === 'true';
   }
   
   const patch = newsUpdateSchema.parse(req.body);
   
-  // Handle file upload - only update imageUrl if new file provided
   if (req.file) {
-    patch.imageUrl = `/uploads/news/${req.file.filename}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    patch.imageUrl = `${baseUrl}/uploads/news/${req.file.filename}`;
   } else if (req.body.imageUrl === "") {
-    // Allow clearing image
     patch.imageUrl = null;
   }
   

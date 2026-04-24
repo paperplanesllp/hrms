@@ -41,8 +41,8 @@ export default function TaskReportsSection() {
       setIsLoading(true);
       setError(null);
       
-      // Skip API calls for daily and progress views (they handle their own data)
-      if (dateRange === 'daily' || dateRange === 'progress') {
+      // Skip API calls for daily, period and progress views (they handle their own data)
+      if (dateRange === 'daily' || dateRange === 'period' || dateRange === 'progress') {
         setAnalyticsData(null);
         setTeamPerformance([]);
         return;
@@ -85,7 +85,7 @@ export default function TaskReportsSection() {
   useEffect(() => {
     if (refreshKey === 0) return;
     // Only auto-refresh for date views that use the analytics API
-    if (dateRange !== 'daily' && dateRange !== 'progress') {
+    if (dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress') {
       loadAnalytics();
     }
   }, [refreshKey, loadAnalytics, dateRange]);
@@ -98,7 +98,7 @@ export default function TaskReportsSection() {
     const scheduleRefresh = () => {
       if (socketRefreshTimer.current) clearTimeout(socketRefreshTimer.current);
       socketRefreshTimer.current = setTimeout(() => {
-        if (dateRange !== 'daily' && dateRange !== 'progress') {
+        if (dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress') {
           loadAnalytics();
         }
       }, 1000); // slight delay so DB aggregations settle
@@ -283,7 +283,7 @@ export default function TaskReportsSection() {
       </Card>
 
       {/* Key Metrics */}
-      {dateRange !== 'daily' && dateRange !== 'progress' && (
+      {dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {reports.map((report, idx) => {
           const Icon = report.icon;
@@ -324,7 +324,7 @@ export default function TaskReportsSection() {
       )}
 
       {/* Charts Placeholder */}
-      {dateRange !== 'daily' && dateRange !== 'progress' && (
+      {dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress' && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Completion Trend Chart */}
         <Card className="p-6">
@@ -462,9 +462,35 @@ export default function TaskReportsSection() {
       </Card>
       )}
 
-      {/* Daily employee tasks (HR view) - Show when Daily tab is selected */}
-      {dateRange === 'daily' && (
-        <DailyEmployeeTasks />
+      {/* Daily employee tasks (HR view) - Show when Daily or Period tab is selected */}
+      {(dateRange === 'daily' || dateRange === 'period') && (
+        <div className="relative">
+          <DailyEmployeeTasks 
+            customFrom={dateRange === 'period' ? periodFrom : null}
+            customTo={dateRange === 'period' ? periodTo : null}
+            title={dateRange === 'period' ? `Period Tasks: ${periodFrom} → ${periodTo}` : 'Daily Employee Tasks'}
+          />
+          {/* Export PDF Button for Period section */}
+          {dateRange === 'period' && (
+            <div className="absolute top-0 right-0">
+              <Button 
+                variant="primary" 
+                size="sm" 
+                leftIcon={<Download className="w-4 h-4" />}
+                onClick={() => {
+                  const element = document.getElementById('daily-employee-tasks-section');
+                  if (element) {
+                    exportElementAsPDF(element, `task-report-period-${periodFrom}-to-${periodTo}-${new Date().getTime()}.pdf`);
+                  } else {
+                    toast({ title: 'Export failed', message: 'Could not find the tasks section to export', type: 'error' });
+                  }
+                }}
+              >
+                Export PDF
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Task Progress Reports - Show when Progress tab is selected */}
@@ -474,8 +500,8 @@ export default function TaskReportsSection() {
         </Card>
       )}
 
-      {/* Export Options - Hide in daily and progress views */}
-      {dateRange !== 'daily' && dateRange !== 'progress' && (
+      {/* Export Options - Hide in daily, period and progress views */}
+      {dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress' && (
       <Card className="p-6 bg-gradient-to-br from-brand-accent/5 to-transparent dark:from-brand-accent/10">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
           Export Reports

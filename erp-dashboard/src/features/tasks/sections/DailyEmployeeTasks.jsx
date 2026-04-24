@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Download, Calendar, RefreshCw, Search, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -7,6 +7,8 @@ import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.j
 import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatusUtils.js';
 import TaskDetailsModal from '../components/TaskDetailsModal.jsx';
 import ModalBase from '../../../components/ui/Modal.jsx';
+import { toast } from '../../../store/toastStore.js';
+import { exportDailyTasksAsPDF } from '../utils/exportReports.js';
 
 // Helper function to get dates with offset
 const getDateWithOffset = (offsetDays = 0) => {
@@ -19,6 +21,15 @@ const toDayRange = (d) => {
   const date = new Date(d);
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+};
+
+// Helper to convert custom date range to ISO strings
+const toCustomRange = (fromDate, toDate) => {
+  const start = new Date(fromDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(toDate);
+  end.setHours(23, 59, 59, 999);
   return { start: start.toISOString(), end: end.toISOString() };
 };
 
@@ -98,7 +109,7 @@ const groupByAssignee = (tasks) => {
   return Object.values(map);
 };
 
-export default function DailyEmployeeTasks() {
+export default function DailyEmployeeTasks({ customFrom, customTo, title: customTitle }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [groups, setGroups] = useState([]);
   const [users, setUsers] = useState([]);
@@ -111,12 +122,24 @@ export default function DailyEmployeeTasks() {
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
   const [deleting, setDeleting] = useState({}); // Track deletion state
   const [selectedTaskDetails, setSelectedTaskDetails] = useState(null); // Task details modal state
+  
+  // Ref for PDF export
+  const tasksContainerRef = useRef(null);
+
+  // Determine if we're using custom date range (for Period section)
+  const isCustomRange = customFrom && customTo;
+  const displayTitle = customTitle || 'Daily Employee Tasks';
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const { start, end } = toDayRange(date);
+      
+      // Use custom date range if provided (for Period section), otherwise use single date
+      const { start, end } = isCustomRange 
+        ? toCustomRange(customFrom, customTo)
+        : toDayRange(date);
+      
       const [tasksRes, usersRes] = await Promise.all([
         api.get('/tasks', { params: { from: start, to: end, limit: 1000, populate: 'assignedTo' } }),
         api.get('/users?limit=1000')
@@ -177,9 +200,11 @@ export default function DailyEmployeeTasks() {
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, customFrom, customTo]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { 
+    load(); 
+  }, [load, customFrom, customTo]);
 
   // Handle delete task
   const handleDeleteTask = async (taskId) => {
@@ -451,36 +476,113 @@ export default function DailyEmployeeTasks() {
     };
   }, [filteredGroups]);
 
+  // Calculate metrics for each member
+  const memberMetrics = useMemo(() => {
+    const metrics = {};
+
+    groups.forEach((group) => {
+      const memberId = group.id;
+      const memberTasks = group.tasks || [];
+      
+      if (memberTasks.length === 0) {
+        metrics[memberId] = {
+          totalTasks: 0,
+          completed: 0,
+          inProgress: 0,
+          paused: 0,
+          overdue: 0,
+          completionRate: 0,
+        };
+        return;
+      }
+
+      let completed = 0;
+      let inProgress = 0;
+      let paused = 0;
+      let overdue = 0;
+
+      memberTasks.forEach((task) => {
+        const status = String(task.status || '').toLowerCase();
+        
+        if (status === 'completed') {
+          completed += 1;
+        } else if (['in-progress', 'due-soon', 'extended'].includes(status)) {
+          inProgress += 1;
+        } else if (task.isPaused || status === 'paused' || status === 'on-hold') {
+          paused += 1;
+        } else if (status === 'overdue') {
+          overdue += 1;
+        }
+      });
+
+      const completionRate = Math.round((completed / memberTasks.length) * 100);
+
+      metrics[memberId] = {
+        totalTasks: memberTasks.length,
+        completed,
+        inProgress,
+        paused,
+        overdue,
+        completionRate,
+      };
+    });
+
+    return metrics;
+  }, [groups]);
+
   const selectedMemberName = useMemo(() => {
     if (selectedMember === 'all') return 'All Members';
     return members.find((m) => m._id === selectedMember)?.name || 'Employee';
   }, [members, selectedMember]);
 
   return (
-    <Card className="p-6">
+    <Card id="daily-employee-tasks-section" className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Daily Employee Tasks</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">{displayTitle}</h3>
           <p className="text-sm text-slate-500">
-            📅 {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {isCustomRange ? (
+              <>📅 {customFrom} → {customTo}</>
+            ) : (
+              <>📅 {new Date(date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</>
+            )}
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Calendar Date Picker */}
-          <div className="relative">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="px-3 py-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold cursor-pointer hover:border-brand-accent dark:hover:border-brand-accent transition-colors"
-              title="Pick any date"
-            />
-            <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-          </div>
+          {/* Calendar Date Picker - Hide when using custom range */}
+          {!isCustomRange && (
+            <div className="relative">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="px-3 py-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold cursor-pointer hover:border-brand-accent dark:hover:border-brand-accent transition-colors"
+                title="Pick any date"
+              />
+              <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          )}
 
           <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="w-3 h-3" />} onClick={load}>
             Refresh
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            leftIcon={<Download className="w-3 h-3" />}
+            onClick={() => {
+              const dateLabel = isCustomRange ? `${customFrom} → ${customTo}` : date;
+              exportDailyTasksAsPDF(
+                filteredGroups,
+                dailyAnalytics,
+                dateLabel,
+                `daily-tasks-${dateLabel.replace(/[^\w-]/g, '_')}.pdf`
+              );
+            }}
+            disabled={loading || filteredGroups.length === 0}
+          >
+            Download PDF
           </Button>
         </div>
       </div>
@@ -513,26 +615,48 @@ export default function DailyEmployeeTasks() {
               className={`w-full text-left p-3 rounded-lg transition ${selectedMember==='all' ? 'bg-slate-100 dark:bg-slate-900' : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-900/50'}`}
             >
               <div className="font-semibold text-slate-900 dark:text-white">All Members</div>
-              <div className="text-xs text-slate-500">{groups.reduce((a,b)=>a+b.tasks.length,0)} tasks</div>
+              <div className="text-xs text-slate-500">
+                {dailyAnalytics.totalTasks} tasks · {dailyAnalytics.completionRate}% done
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 space-y-0.5">
+                <div className="flex justify-between">
+                  <span>✓ {dailyAnalytics.completed}</span>
+                  <span className="text-slate-500">⏳ {dailyAnalytics.inProgress}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-orange-600">⏸ {dailyAnalytics.paused}</span>
+                  <span className="text-red-600">⚠ {dailyAnalytics.overdue}</span>
+                </div>
+              </div>
             </button>
 
-            {members.map(m => (
-              <button 
-                key={m._id} 
-                onClick={()=>setSelectedMember(m._id)} 
-                className={`w-full text-left p-3 rounded-lg transition ${selectedMember===m._id ? 'bg-slate-100 dark:bg-slate-900' : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-900/50'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-semibold text-slate-800 dark:text-white text-sm">
-                    {(m.name||'U').split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
+            {members.map(m => {
+              const metrics = memberMetrics[m._id] || {};
+              return (
+                <button 
+                  key={m._id} 
+                  onClick={()=>setSelectedMember(m._id)} 
+                  className={`w-full text-left p-3 rounded-lg transition ${selectedMember===m._id ? 'bg-slate-100 dark:bg-slate-900' : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-900/50'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-semibold text-slate-800 dark:text-white text-sm">
+                      {(m.name||'U').split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-slate-900 dark:text-white text-sm">{m.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {metrics.totalTasks || 0} tasks · {metrics.completionRate || 0}% done
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 flex gap-2">
+                        <span>✓{metrics.completed || 0}</span>
+                        <span>⏳{metrics.inProgress || 0}</span>
+                        <span>⏸{metrics.paused || 0}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-slate-900 dark:text-white text-sm">{m.name}</div>
-                    <div className="text-xs text-slate-500">{m.count} task(s)</div>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
 

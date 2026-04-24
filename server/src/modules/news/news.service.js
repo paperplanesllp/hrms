@@ -22,7 +22,6 @@ function deleteImageFile(imageUrl) {
     }
   } catch (error) {
     console.error("⚠️ Error deleting image file:", error);
-    // Don't throw - just log warning
   }
 }
 
@@ -118,7 +117,6 @@ export async function cleanupMissingImages() {
         const filename = path.basename(news.imageUrl);
         const filepath = path.join(uploadsDir, filename);
         
-        // If image file doesn't exist, clear the imageUrl from database
         if (!fs.existsSync(filepath)) {
           console.warn(`🧹 [CLEANUP] Removing missing image reference: ${news.imageUrl}`);
           await News.findByIdAndUpdate(news._id, { $set: { imageUrl: null } });
@@ -134,7 +132,6 @@ export async function cleanupMissingImages() {
     return cleanedCount;
   } catch (error) {
     console.error("Error cleaning up missing images:", error);
-    // Don't throw - just log warning
     return 0;
   }
 }
