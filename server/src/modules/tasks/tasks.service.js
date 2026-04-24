@@ -619,12 +619,21 @@ export const tasksService = {
   },
 
   // Get all tasks analytics (admin/HR only)
-  async getAllTasksAnalytics(dateRange = 'month') {
-    // Calculate date range
+  async getAllTasksAnalytics(opts = {}) {
+    const dateRange = opts?.dateRange || 'month';
     const now = new Date();
-    let fromDate = new Date();
-    
-    switch(dateRange) {
+
+    // If explicit from/to provided, prefer them.
+    const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
+    let fromDate = hasExplicitFromTo && opts?.from ? new Date(opts.from) : new Date();
+    let toDate = hasExplicitFromTo && opts?.to ? new Date(opts.to) : now;
+
+    if (hasExplicitFromTo) {
+      if (Number.isNaN(fromDate.getTime())) fromDate = new Date(now);
+      if (Number.isNaN(toDate.getTime())) toDate = new Date(now);
+      toDate.setHours(23, 59, 59, 999);
+    } else {
+      switch(dateRange) {
       case 'week':
         fromDate.setDate(now.getDate() - 7);
         break;
@@ -639,11 +648,13 @@ export const tasksService = {
         break;
       default:
         fromDate.setMonth(now.getMonth() - 1);
+      }
+      toDate = now;
     }
 
     const query = {
       isDeleted: false,
-      createdAt: { $gte: fromDate, $lte: now }
+      createdAt: { $gte: fromDate, $lte: toDate }
     };
 
     const allTasks = await Task.find(query).select('status priority assignedBy assignedTo extensionRequests estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
@@ -748,16 +759,24 @@ export const tasksService = {
         extensionApprovedTasks,
         extensionRejectedTasks,
       },
-      dateRange
+      dateRange: hasExplicitFromTo ? 'period' : dateRange,
+      period: hasExplicitFromTo ? { from: fromDate, to: toDate } : null
     };
   },
 
   // Get team performance analytics (admin/HR only)
-  async getTeamPerformanceAnalytics(dateRange = 'month') {
+  async getTeamPerformanceAnalytics(opts = {}) {
+    const dateRange = opts?.dateRange || 'month';
     const now = new Date();
-    const fromDate = new Date();
+    const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
+    let fromDate = hasExplicitFromTo && opts?.from ? new Date(opts.from) : new Date();
+    let toDate = hasExplicitFromTo && opts?.to ? new Date(opts.to) : now;
 
-    switch (dateRange) {
+    if (hasExplicitFromTo) {
+      if (Number.isNaN(fromDate.getTime())) fromDate = new Date(now);
+      if (Number.isNaN(toDate.getTime())) toDate = new Date(now);
+      toDate.setHours(23, 59, 59, 999);
+    } else switch (dateRange) {
       case 'week':
         fromDate.setDate(now.getDate() - 7);
         break;
@@ -773,10 +792,11 @@ export const tasksService = {
       default:
         fromDate.setMonth(now.getMonth() - 1);
     }
+    if (!hasExplicitFromTo) toDate = now;
 
     const taskQueryBase = {
       isDeleted: false,
-      createdAt: { $gte: fromDate, $lte: now }
+      createdAt: { $gte: fromDate, $lte: toDate }
     };
 
     // Get all users with tasks

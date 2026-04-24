@@ -198,6 +198,40 @@ export const exportAsPDF = async (analyticsData, teamPerformance, fileName = 'ta
   }
 };
 
+/**
+ * Export an existing DOM element as PDF (full page/section export).
+ */
+export const exportElementAsPDF = async (element, fileName = 'task-reports.pdf') => {
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+    if (!window.html2pdf) throw new Error('html2pdf library failed to load');
+    if (!element) throw new Error('Export element not found');
+
+    const options = {
+      margin: 8,
+      filename: fileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+    };
+
+    await window.html2pdf().set(options).from(element).save();
+
+    toast({
+      title: 'Export successful',
+      message: `Reports exported as ${fileName}`,
+      type: 'success'
+    });
+  } catch (error) {
+    console.error('Error exporting PDF element:', error);
+    toast({
+      title: 'PDF export failed',
+      message: error?.message || 'Failed to export PDF',
+      type: 'error'
+    });
+  }
+};
+
 const generatePDFSimple = (analyticsData, teamPerformance, fileName) => {
   try {
     // Create HTML content for PDF

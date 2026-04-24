@@ -369,7 +369,9 @@ export const tasksController = {
   async getAllTasksAnalytics(req, res) {
     try {
       const dateRange = req.query.dateRange || 'month';
-      const analytics = await tasksService.getAllTasksAnalytics(dateRange);
+      const from = req.query.from;
+      const to = req.query.to;
+      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to });
       sendSuccess(res, analytics, 'Analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -380,7 +382,9 @@ export const tasksController = {
   async getTeamPerformanceAnalytics(req, res) {
     try {
       const dateRange = req.query.dateRange || 'month';
-      const performance = await tasksService.getTeamPerformanceAnalytics(dateRange);
+      const from = req.query.from;
+      const to = req.query.to;
+      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to });
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
