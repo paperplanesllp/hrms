@@ -266,11 +266,18 @@ export const tasksService = {
       data.priority = 'MEDIUM';
     }
 
+    const estimatedTotalMinutes = Number(data.estimatedTotalMinutes);
+    const rawEstimatedHours = Number(data.estimatedHours);
+    const rawEstimatedMinutes = Number(data.estimatedMinutes);
     const estimatedMinutes = Math.max(
       0,
-      Number.isFinite(Number(data.estimatedMinutes))
-        ? Math.round(Number(data.estimatedMinutes))
-        : Math.round((Number(data.estimatedHours) || 0) * 60)
+      Number.isFinite(estimatedTotalMinutes) && estimatedTotalMinutes >= 0
+        ? Math.round(estimatedTotalMinutes)
+        : Number.isFinite(rawEstimatedHours) && rawEstimatedHours > 0 && Number.isFinite(rawEstimatedMinutes) && rawEstimatedMinutes >= 0 && rawEstimatedMinutes < 60
+        ? Math.round(rawEstimatedHours * 60 + rawEstimatedMinutes)
+        : Number.isFinite(rawEstimatedMinutes) && rawEstimatedMinutes >= 0
+        ? Math.round(rawEstimatedMinutes)
+        : Math.round((rawEstimatedHours || 0) * 60)
     );
 
     const dueDate = data.dueDate ? new Date(data.dueDate) : null;
@@ -296,8 +303,9 @@ export const tasksService = {
       tags: data.tags || [],
       progress: data.progress || 0,
       isRecurring: data.isRecurring || false,
-      estimatedHours: Number(data.estimatedHours) || 0,
+      estimatedHours: Math.floor(estimatedMinutes / 60),
       estimatedMinutes,
+      estimatedTotalMinutes: estimatedMinutes,
       pausedDurationMs: 0,
       pausedDurationMinutes: 0
     };
@@ -1075,7 +1083,6 @@ export const tasksService = {
     }
     if (holdDurationSeconds > 0) {
       task.dueDate = new Date(new Date(task.dueDate).getTime() + holdDurationSeconds * 1000);
-      if (task.dueAt) task.dueAt = new Date(new Date(task.dueAt).getTime() + holdDurationSeconds * 1000);
     }
     task.status = 'in-progress';
     task.holdReason = null;

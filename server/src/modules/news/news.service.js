@@ -103,3 +103,38 @@ export async function markPolicyViewed(newsId, userId) {
     throw error;
   }
 }
+
+/**
+ * Clean up news items with missing image files from the database
+ * Called on startup or periodically to maintain consistency
+ */
+export async function cleanupMissingImages() {
+  try {
+    const allNews = await News.find({ imageUrl: { $exists: true, $ne: null } });
+    let cleanedCount = 0;
+    
+    for (const news of allNews) {
+      if (news.imageUrl) {
+        const filename = path.basename(news.imageUrl);
+        const filepath = path.join(uploadsDir, filename);
+        
+        // If image file doesn't exist, clear the imageUrl from database
+        if (!fs.existsSync(filepath)) {
+          console.warn(`🧹 [CLEANUP] Removing missing image reference: ${news.imageUrl}`);
+          await News.findByIdAndUpdate(news._id, { $set: { imageUrl: null } });
+          cleanedCount++;
+        }
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`✅ [CLEANUP] Cleaned up ${cleanedCount} news items with missing images`);
+    }
+    
+    return cleanedCount;
+  } catch (error) {
+    console.error("Error cleaning up missing images:", error);
+    // Don't throw - just log warning
+    return 0;
+  }
+}

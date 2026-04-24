@@ -682,7 +682,6 @@ export const tasksController = {
         pausedDurationInSeconds: 0
       });
 
-      syncTaskTimingFields(task, now);
       logTaskTimingSnapshot(task, now, 'pauseTask');
 
       await task.save();
@@ -738,7 +737,6 @@ export const tasksController = {
       task.isPaused = false;
       task.currentSessionStartTime = now;
 
-      syncTaskTimingFields(task, now);
       logTaskTimingSnapshot(task, now, 'resumeTask');
 
       await task.save();

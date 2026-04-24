@@ -10,6 +10,7 @@
  */
 
 import { formatISTDateTime } from '../../../lib/dateTimeUtils.js';
+import { calculateRemainingTime, formatToIST, getTaskDueDisplay } from './taskDeadlineUtils.js';
 
 // ========================================
 // TIMING STATE HELPERS
@@ -21,6 +22,8 @@ import { formatISTDateTime } from '../../../lib/dateTimeUtils.js';
  * @returns {string} - 'completed' | 'overdue' | 'due-today' | 'due-soon' | 'upcoming' | 'no-deadline'
  */
 export const getTaskTimingState = (task) => {
+  const remaining = calculateRemainingTime(task);
+
   // Rule 1: If completed, return completed state (never overdue/due)
   if (task.status === 'completed' && task.completedAt) {
     return 'completed';
@@ -31,14 +34,11 @@ export const getTaskTimingState = (task) => {
     return 'completed';
   }
 
-  // Rule 3: No due date
-  if (!task.dueDateTime) {
+  if (!remaining.shouldTrackDeadline || !remaining.effectiveDueAt) {
     return 'no-deadline';
   }
 
-  const now = new Date();
-  const dueDate = new Date(task.dueDateTime);
-  const diffMs = dueDate - now;
+  const diffMs = remaining.remainingMs;
   const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = Math.floor(diffHours / 24);
 
@@ -80,12 +80,13 @@ export const getCompletionState = (task) => {
     return 'not-completed';
   }
 
-  if (!task.dueDateTime) {
+  const remaining = calculateRemainingTime(task);
+  const dueTime = remaining.effectiveDueAt;
+  if (!dueTime) {
     return 'no-due-date';
   }
 
   const completedTime = new Date(task.completedAt);
-  const dueTime = new Date(task.dueDateTime);
 
   if (completedTime <= dueTime) {
     return 'on-time';
@@ -104,19 +105,11 @@ export const getCompletionState = (task) => {
  * @returns {string} - e.g., "2h 15m" or "1 day 3h"
  */
 export const getOverdueDuration = (task) => {
-  if (task.status === 'completed' || !task.dueDateTime) {
+  const remaining = calculateRemainingTime(task);
+  if (task.status === 'completed' || !remaining.isOverdue) {
     return null;
   }
-
-  const now = new Date();
-  const dueDate = new Date(task.dueDateTime);
-  const diffMs = now - dueDate;
-
-  if (diffMs <= 0) {
-    return null; // Not overdue
-  }
-
-  return formatDurationHuman(diffMs);
+  return formatDurationHuman(Math.abs(remaining.remainingMs || 0));
 };
 
 /**
@@ -125,12 +118,13 @@ export const getOverdueDuration = (task) => {
  * @returns {string} - e.g., "45m" or "1h 20m"
  */
 export const getCompletionOverageDuration = (task) => {
-  if (task.status !== 'completed' || !task.completedAt || !task.dueDateTime) {
+  const remaining = calculateRemainingTime(task);
+  if (task.status !== 'completed' || !task.completedAt || !remaining.effectiveDueAt) {
     return null;
   }
 
   const completedTime = new Date(task.completedAt);
-  const dueTime = new Date(task.dueDateTime);
+  const dueTime = new Date(remaining.effectiveDueAt);
   const diffMs = completedTime - dueTime;
 
   if (diffMs <= 0) {
@@ -179,8 +173,8 @@ export const formatDurationHuman = (ms) => {
  */
 export const getHumanDeadlineLabel = (task) => {
   const timingState = getTaskTimingState(task);
-  const now = new Date();
-  const dueDate = task.dueDateTime ? new Date(task.dueDateTime) : null;
+  const remaining = calculateRemainingTime(task);
+  const dueDate = remaining.effectiveDueAt ? new Date(remaining.effectiveDueAt) : null;
 
   switch (timingState) {
     case 'overdue': {
@@ -211,7 +205,7 @@ export const getHumanDeadlineLabel = (task) => {
     }
 
     case 'no-deadline':
-      return 'No deadline';
+      return getTaskDueDisplay(task);
 
     default:
       return 'No deadline';
@@ -235,7 +229,9 @@ export const getHumanCompletionLabel = (task) => {
     case 'on-time': {
       // Check if completed significantly early
       if (task.dueDateTime) {
-        const dueTime = new Date(task.dueDateTime);
+        const remaining = calculateRemainingTime(task);
+        const dueTime = remaining.effectiveDueAt ? new Date(remaining.effectiveDueAt) : null;
+        if (!dueTime) return 'Completed on time';
         const diffMs = dueTime - completedAt;
         const diffHours = diffMs / (1000 * 60 * 60);
 

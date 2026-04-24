@@ -3,6 +3,8 @@
  * Enterprise-level color palette for task priority and status
  */
 
+import { calculateRemainingTime, getTaskDueDisplay, isTaskActuallyOverdue } from './utils/taskDeadlineUtils.js';
+
 // ========================================
 // PRIORITY COLOR SYSTEM
 // ========================================
@@ -225,10 +227,14 @@ export const getPriorityOrder = (priority) => {
  * @param {string} status
  * @returns {boolean}
  */
-export const isTaskOverdue = (dueDate, status) => {
+export const isTaskOverdue = (taskOrDueDate, status) => {
+  if (taskOrDueDate && typeof taskOrDueDate === 'object' && !Array.isArray(taskOrDueDate)) {
+    return isTaskActuallyOverdue(taskOrDueDate);
+  }
+
   if (['completed', 'rejected', 'cancelled'].includes(status)) return false;
-  if (!dueDate) return false;
-  return new Date() > new Date(dueDate);
+  if (!taskOrDueDate) return false;
+  return new Date() > new Date(taskOrDueDate);
 };
 
 /**
@@ -236,13 +242,19 @@ export const isTaskOverdue = (dueDate, status) => {
  * @param {Date} dueDate
  * @returns {number} Days until due (negative if overdue)
  */
-export const getDaysUntilDue = (dueDate) => {
+export const getDaysUntilDue = (taskOrDueDate) => {
+  if (taskOrDueDate && typeof taskOrDueDate === 'object' && !Array.isArray(taskOrDueDate)) {
+    const remaining = calculateRemainingTime(taskOrDueDate);
+    if (!remaining.effectiveDueAt) return null;
+    if (remaining.remainingMs === null) return null;
+    return Math.ceil(remaining.remainingMs / (1000 * 60 * 60 * 24));
+  }
+
   const now = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-  const due = new Date(new Date(dueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const due = new Date(new Date(taskOrDueDate).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const nowDate = new Date(now);
   const diffTime = due - nowDate;
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
 /**
@@ -251,47 +263,15 @@ export const getDaysUntilDue = (dueDate) => {
  * @param {string} status
  * @returns {string} Formatted date with time (e.g., "26 Mar 2026, 05:30 am") or just date for date-only entries
  */
-export const getDueDateDisplay = (dueDate, status) => {
-  if (status === 'completed') return 'Completed';
-  
-  if (!dueDate) return 'No due date';
-  
-  try {
-    const date = new Date(dueDate);
-    
-    // Check if this was originally set as date-only (midnight UTC = 5:30 AM IST)
-    const utcHours = date.getUTCHours();
-    const utcMinutes = date.getUTCMinutes();
-    const utcSeconds = date.getUTCSeconds();
-    const isDateOnly = utcHours === 0 && utcMinutes === 0 && utcSeconds === 0;
-    
-    // Get date components in Asia/Kolkata timezone
-    const dateStr = date.toLocaleString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'Asia/Kolkata'
-    });
-    
-    // If it was set as date-only, show only the date
-    if (isDateOnly) {
-      return dateStr;
-    }
-    
-    // Get time components separately to ensure proper formatting
-    const timeStr = date.toLocaleString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Kolkata'
-    });
-    
-    // Format: "26 Mar 2026, 05:30 am"
-    return `${dateStr}, ${timeStr}`;
-  } catch (err) {
-    console.error('Error formatting date:', err);
-    return 'Invalid date';
+export const getDueDateDisplay = (taskOrDueDate, status) => {
+  if (taskOrDueDate && typeof taskOrDueDate === 'object' && !Array.isArray(taskOrDueDate)) {
+    if (taskOrDueDate.status === 'completed') return 'Completed';
+    return getTaskDueDisplay(taskOrDueDate);
   }
+
+  if (status === 'completed') return 'Completed';
+  if (!taskOrDueDate) return 'No due date';
+  return getTaskDueDisplay({ dueDate: taskOrDueDate, status });
 };
 
 /**

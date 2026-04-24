@@ -1,7 +1,10 @@
 import React from 'react';
 import { X, Clock, User, Calendar, AlertCircle, FileText, MessageSquare, CheckCircle } from 'lucide-react';
 import ModalBase from '../../../components/ui/Modal.jsx';
+import PriorityBadge from './PriorityBadge.jsx';
+import StatusBadge from './StatusBadge.jsx';
 import { formatSecondsHuman, calcActiveSeconds } from '../utils/taskTimerUtils.js';
+import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
 
 // Format time to IST 12-hour format
 const formatToIST12Hour = (dateString) => {
@@ -72,7 +75,8 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
 
   // Calculate time metrics
   const activeSeconds = calcActiveSeconds(task);
-  const estimatedSeconds = (task.estimatedHours || 0) * 3600 + (task.estimatedMinutes || 0) * 60;
+  const remaining = calculateRemainingTime(task);
+  const estimatedSeconds = (remaining.estimatedMinutes || 0) * 60;
   const isTimeExceeded = estimatedSeconds > 0 && activeSeconds > estimatedSeconds;
   const percentageUsed = estimatedSeconds > 0 ? Math.round((activeSeconds / estimatedSeconds) * 100) : 0;
 
@@ -98,9 +102,6 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
     ? (typeof task.assignedBy === 'string' ? task.assignedBy : (task.assignedBy.name || task.assignedBy.userName || 'Unknown'))
     : 'System';
 
-  // Check if overdue
-  const isOverdue = task.status === 'overdue' || (task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed');
-
   return (
     <ModalBase
       isOpen={isOpen}
@@ -108,32 +109,18 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
       title="Task Details"
       size="lg"
     >
-      <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
+      <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-4">
         
         {/* Header Section - Task Title & Status */}
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-            {task.title}
-          </h2>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className={`px-3 py-1 rounded-full font-semibold text-sm border ${getStatusColor(task.status)}`}>
-              {task.status === 'in-progress' ? '⚙️ In Progress' :
-               task.status === 'completed' ? '✅ Completed' :
-               task.status === 'pending' ? '⏳ Pending' :
-               task.status === 'overdue' ? '🔴 Overdue' :
-               task.status === 'paused' ? '⏸️ Paused' :
-               task.status.charAt(0).toUpperCase() + task.status.slice(1)}
-            </span>
-            {isTimeExceeded && (
-              <span className="px-3 py-1 rounded-full font-semibold text-sm border bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700">
-                ⚠️ Time Exceeded
-              </span>
-            )}
-            {isOverdue && (
-              <span className="px-3 py-1 rounded-full font-semibold text-sm border bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700">
-                🚨 Overdue
-              </span>
-            )}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex-1">
+              {task.title}
+            </h2>
+            <div className="flex gap-2 flex-shrink-0">
+              <PriorityBadge priority={task.priority} size="sm" />
+              <StatusBadge status={task.status} size="sm" />
+            </div>
           </div>
         </div>
 
@@ -212,16 +199,13 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
               <Calendar className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               <h3 className="font-semibold text-slate-900 dark:text-white">Due Date & Time</h3>
             </div>
-            <div className={`p-4 rounded-lg border ${isOverdue ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'}`}>
-              <p className={`font-medium ${isOverdue ? 'text-red-900 dark:text-red-200' : 'text-orange-900 dark:text-orange-200'}`}>
-                {task.dueDate ? formatToISTDate(task.dueDate) : '—'}
-                {task.dueTime ? ` at ${task.dueTime}` : ''}
+            <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
+              <p className="text-orange-900 dark:text-orange-200 font-medium">
+                {task.dueAt ? formatToIST(task.dueAt) : 'No due date'}
               </p>
-              {isOverdue && (
-                <p className="text-xs text-red-700 dark:text-red-400 mt-1 font-semibold">
-                  🚨 This task is overdue
-                </p>
-              )}
+              <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                {remaining.remainingLabel}
+              </p>
             </div>
           </div>
         </div>
@@ -239,11 +223,11 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-700 dark:text-slate-300 font-semibold text-sm">Estimated Time</span>
                 <span className="text-slate-900 dark:text-white font-bold">
-                  {formatSecondsHuman(estimatedSeconds)}
+                  {remaining.estimatedLabel || formatSecondsHuman(estimatedSeconds)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {task.estimatedHours}h {task.estimatedMinutes}m
+                Starts from actual started time
               </p>
             </div>
 
@@ -252,7 +236,7 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-700 dark:text-slate-300 font-semibold text-sm">Time Worked</span>
                 <span className="text-slate-900 dark:text-white font-bold">
-                  {formatSecondsHuman(activeSeconds)}
+                  {remaining.activeWorkedLabel || formatSecondsHuman(activeSeconds)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -302,11 +286,29 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
 
         {/* Additional Metadata */}
         <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-          <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
             <div>
               <span className="text-slate-500 dark:text-slate-400">Priority</span>
               <p className="text-slate-900 dark:text-white font-semibold capitalize mt-1">
                 {task.priority || 'Normal'}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-500 dark:text-slate-400">Progress</span>
+              <p className="text-slate-900 dark:text-white font-semibold mt-1">
+                {task.progress || 0}%
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-500 dark:text-slate-400">Estimated</span>
+              <p className="text-slate-900 dark:text-white font-semibold mt-1">
+                {remaining.estimatedLabel}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-500 dark:text-slate-400">Status</span>
+              <p className="text-slate-900 dark:text-white font-semibold capitalize mt-1">
+                {task.status}
               </p>
             </div>
           </div>

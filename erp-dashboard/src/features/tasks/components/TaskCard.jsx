@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { MoreVertical, Eye, CheckCircle, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import PriorityBadge from './PriorityBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
-import { formatDistanceToNow } from 'date-fns';
 import TimerChip from './TimerChip.jsx';
 import { useCountdownTimer } from '../hooks/useTaskTimer.js';
 import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
@@ -20,9 +19,7 @@ export default function TaskCard({
   const [showMenu, setShowMenu] = useState(false);
   const countdown = useCountdownTimer(task || {});
   const remaining = calculateRemainingTime(task || {});
-  const effectiveDueAt = remaining.effectiveDueAt || task?.dueAt || task?.dueDate;
-
-  const isOverdue = task.status !== 'completed' && effectiveDueAt && new Date(effectiveDueAt) < new Date();
+  const effectiveDueAt = remaining.effectiveDueAt || null;
 
   const handleStatusToggle = (newStatus) => {
     onStatusChange?.(task._id, newStatus);
@@ -118,11 +115,6 @@ export default function TaskCard({
         <div className="flex flex-wrap gap-2 mb-3">
           <PriorityBadge priority={task.priority} size="sm" />
           <StatusBadge status={task.status} size="sm" />
-          {isOverdue && (
-            <div className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 font-semibold">
-              <AlertCircle size={12} /> Overdue
-            </div>
-          )}
         </div>
 
         {/* Progress bar */}
@@ -145,9 +137,10 @@ export default function TaskCard({
         <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
           <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
             <div>
-              <span className="font-semibold">Due:</span> {effectiveDueAt ? formatDistanceToNow(new Date(effectiveDueAt), { addSuffix: true }) : 'No due date'}
+              <span className="font-semibold">Due:</span>{' '}
+              {remaining.remainingLabel}
             </div>
-            <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+            <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : 'No due date'}`} />
           </div>
 
           {/* Quick action button */}

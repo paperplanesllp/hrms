@@ -431,7 +431,13 @@ export default function DailyEmployeeTasks() {
       const activeSeconds = calcActiveSeconds(task);
       totalActiveSeconds += activeSeconds;
 
-      const estimatedSeconds = (task.estimatedHours || 0) * 3600 + (task.estimatedMinutes || 0) * 60;
+      const estimatedMinutesTotal =
+        Number.isFinite(Number(task.estimatedTotalMinutes)) && Number(task.estimatedTotalMinutes) >= 0
+          ? Math.round(Number(task.estimatedTotalMinutes))
+          : Number(task.estimatedHours || 0) > 0 && Number(task.estimatedMinutes || 0) < 60
+          ? Math.round((Number(task.estimatedHours) || 0) * 60 + (Number(task.estimatedMinutes) || 0))
+          : Math.round(Number(task.estimatedMinutes) || 0);
+      const estimatedSeconds = estimatedMinutesTotal * 60;
       totalEstimatedSeconds += estimatedSeconds;
 
       if (estimatedSeconds > 0 && activeSeconds > estimatedSeconds) {
@@ -647,7 +653,13 @@ export default function DailyEmployeeTasks() {
                       const activeSeconds = calcActiveSeconds(t);
                       
                       // Calculate estimated time in seconds
-                      const estimatedSeconds = (t.estimatedHours || 0) * 3600 + (t.estimatedMinutes || 0) * 60;
+                      const estimatedMinutesTotal =
+                        Number.isFinite(Number(t.estimatedTotalMinutes)) && Number(t.estimatedTotalMinutes) >= 0
+                          ? Math.round(Number(t.estimatedTotalMinutes))
+                          : Number(t.estimatedHours || 0) > 0 && Number(t.estimatedMinutes || 0) < 60
+                          ? Math.round((Number(t.estimatedHours) || 0) * 60 + (Number(t.estimatedMinutes) || 0))
+                          : Math.round(Number(t.estimatedMinutes) || 0);
+                      const estimatedSeconds = estimatedMinutesTotal * 60;
                       
                       // Check if time exceeded
                       const isTimeExceeded = estimatedSeconds > 0 && activeSeconds > estimatedSeconds;

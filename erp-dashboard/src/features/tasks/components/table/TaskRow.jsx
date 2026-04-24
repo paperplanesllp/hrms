@@ -15,6 +15,7 @@ import {
   isTaskOverdue,
   getDaysUntilDue
 } from '../../taskUtils.js';
+import { getTaskDueDisplay } from '../../utils/taskDeadlineUtils.js';
 
 const PRIORITY_OPTIONS = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 const STATUS_OPTIONS = ['new', 'pending', 'in-progress', 'on-hold', 'under-review', 'completed', 'overdue', 'cancelled'];
@@ -148,8 +149,8 @@ const TaskRow = memo(({
   };
 
   // Overdue indicator
-  const overdue = isTaskOverdue(task.dueDate);
-  const daysUntil = getDaysUntilDue(task.dueDate);
+  const overdue = isTaskOverdue(task);
+  const daysUntil = getDaysUntilDue(task);
   
   const priorityStyle = getPriorityStyles(task.priority);
   const statusStyle = getStatusStyles(task.status);
@@ -329,7 +330,7 @@ const TaskRow = memo(({
           >
             <Clock size={16} />
             <span className="text-sm">
-              {getCellContent('dueDate')}
+              {getTaskDueDisplay(task)}
               {overdue && ' ⚠️'}
             </span>
           </button>

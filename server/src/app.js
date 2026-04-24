@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { corsOptions } from "./config/cors.js";
 import { notFound, errorHandler } from "./middleware/error.js";
@@ -60,7 +61,14 @@ export function createApp() {
 
   // Serve static files from uploads directory with CORS headers and proper Content-Type
   app.use("/uploads", (req, res, next) => {
+    const fullPath = path.join(uploadsPath, req.path);
     console.log("📥 [STATIC] Requested file:", req.path);
+    console.log("📥 [STATIC] Full path:", fullPath);
+    
+    // Check if file exists
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`⚠️  [STATIC] File not found: ${fullPath}`);
+    }
     
     // Set proper Content-Type and headers based on file type
     if (req.path.toLowerCase().endsWith('.pdf')) {
@@ -77,7 +85,11 @@ export function createApp() {
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Cache-Control", "public, max-age=3600");
     next();
-  }, express.static(uploadsPath));
+  }, express.static(uploadsPath, { 
+    setHeaders: (res, path, stat) => {
+      console.log("📥 [STATIC] Serving file successfully:", path);
+    }
+  }));
 
   app.get("/health", (req, res) => res.json({ ok: true }));
 

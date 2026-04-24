@@ -32,18 +32,6 @@ export function useTaskTimer(task) {
   };
 }
 
-const getActivePauseStartedAt = (task) => {
-  if (!task?.isPaused || !Array.isArray(task?.pauseEntries) || task.pauseEntries.length === 0) {
-    return null;
-  }
-
-  const activePause = [...task.pauseEntries]
-    .reverse()
-    .find((entry) => entry?.pausedAt && !entry?.resumedAt);
-
-  return activePause?.pausedAt ? new Date(activePause.pausedAt) : null;
-};
-
 const computeCountdown = (task, now = new Date()) => {
   // Completed tasks should not show any countdown or overdue indicator
   if (task?.status === 'completed') {
@@ -60,21 +48,19 @@ const computeCountdown = (task, now = new Date()) => {
     };
   }
 
-  const pauseStartedAt = getActivePauseStartedAt(task);
-  const referenceNow = pauseStartedAt || now;
-  const remaining = calculateRemainingTime(task, referenceNow);
+  const remaining = calculateRemainingTime(task, now);
 
   if (!remaining.shouldTrackDeadline || remaining.remainingMs === null) {
-    return {
-      shouldTrack: false,
-      remainingMs: null,
-      remainingSeconds: 0,
-      display: remaining.state || '-',
-      urgency: 'none',
-      isOverdue: false,
-      isDueNow: false,
-      state: remaining.state || '-',
-    };
+  return {
+    shouldTrack: false,
+    remainingMs: null,
+    remainingSeconds: 0,
+    display: remaining.remainingLabel || remaining.state || '-',
+    urgency: 'none',
+    isOverdue: false,
+    isDueNow: false,
+    state: remaining.state || '-',
+  };
   }
 
   const remainingSeconds = Math.floor(remaining.remainingMs / 1000);
@@ -103,12 +89,12 @@ const computeCountdown = (task, now = new Date()) => {
     shouldTrack: true,
     remainingMs: remaining.remainingMs,
     remainingSeconds,
-    display: isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : absDisplay,
+    display: isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : remaining.remainingLabel || absDisplay,
     urgency,
     isOverdue,
     isDueNow,
     overdueByMinutes,
-    state: isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : 'In progress',
+    state: remaining.state || (isOverdue ? `Overdue by ${formatOverdueDuration(overdueByMinutes)}` : 'In progress'),
   };
 };
 

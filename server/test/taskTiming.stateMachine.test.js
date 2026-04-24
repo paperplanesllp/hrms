@@ -150,3 +150,37 @@ test('startedAt after createdAt remains valid and not overdue early', () => {
   assert.equal(normalized.isOverdue, false);
   assert.equal(normalized.remainingState === REMAINING_STATE.IN_PROGRESS || normalized.remainingState === REMAINING_STATE.DUE_SOON, true);
 });
+
+test('not-started task with estimate does not begin countdown from createdAt', () => {
+  const task = makeTask({
+    createdAt: new Date('2026-04-14T09:06:00.000Z'),
+    startedAt: null,
+    estimatedMinutes: 150,
+    status: 'pending',
+  });
+
+  const normalized = normalizeTaskTiming(task, new Date('2026-04-14T11:00:00.000Z'));
+  assert.equal(normalized.dueAt, null);
+  assert.equal(normalized.shouldTrackDeadline, false);
+  assert.equal(normalized.remainingState, REMAINING_STATE.NOT_STARTED);
+  assert.equal(normalized.isOverdue, false);
+});
+
+test('ongoing pause freezes remaining time and extends effective dueAt', () => {
+  const task = makeTask({
+    startedAt: new Date('2026-04-14T10:00:00.000Z'),
+    estimatedMinutes: 150,
+    status: 'paused',
+    isPaused: true,
+    pauseEntries: [{ pausedAt: new Date('2026-04-14T10:40:00.000Z'), resumedAt: null }],
+  });
+
+  const atPauseStart = normalizeTaskTiming(task, new Date('2026-04-14T10:40:00.000Z'));
+  const afterTwentyMinutesPaused = normalizeTaskTiming(task, new Date('2026-04-14T11:00:00.000Z'));
+
+  assert.equal(atPauseStart.remainingMinutes, afterTwentyMinutesPaused.remainingMinutes);
+  assert.equal(
+    afterTwentyMinutesPaused.dueAt.getTime() - atPauseStart.dueAt.getTime(),
+    20 * 60 * 1000
+  );
+});

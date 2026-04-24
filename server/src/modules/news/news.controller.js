@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { newsCreateSchema, newsUpdateSchema } from "./news.schemas.js";
-import { createNews, listNews, getNewsById, updateNews, deleteNews, markPolicyViewed } from "./news.service.js";
+import { createNews, listNews, getNewsById, updateNews, deleteNews, markPolicyViewed, cleanupMissingImages } from "./news.service.js";
 import { createBulkNotifications } from "../notifications/notification.service.js";
 import { User } from "../users/User.model.js";
 import { notifyNewsCreated, notifyNewsDeleted, notifyNewsPolicyUpdate } from "../../utils/socket.js";
@@ -90,4 +90,17 @@ export const removeNews = asyncHandler(async (req, res) => {
 export const markViewed = asyncHandler(async (req, res) => {
   const news = await markPolicyViewed(req.params.id, req.user.id);
   res.json({ ok: true, news });
+});
+
+/**
+ * Admin endpoint: Clean up news items with missing image files
+ * POST /news/admin/cleanup-images (HR only)
+ */
+export const cleanupImages = asyncHandler(async (req, res) => {
+  const cleanedCount = await cleanupMissingImages();
+  res.json({ 
+    ok: true, 
+    message: `Cleaned up ${cleanedCount} news items with missing images`,
+    cleanedCount 
+  });
 });

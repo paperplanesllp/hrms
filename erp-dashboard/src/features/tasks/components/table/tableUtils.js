@@ -3,6 +3,8 @@
  * Advanced features: sorting, filtering, date calculations, formatting
  */
 
+import { calculateRemainingTime, isTaskActuallyOverdue } from '../../utils/taskDeadlineUtils.js';
+
 // ========================================
 // DATE UTILITIES
 // ========================================
@@ -12,11 +14,14 @@
  * @param {Date|String} dueDate - Task due date
  * @returns {Boolean}
  */
-export const isTaskOverdue = (dueDate) => {
-  if (!dueDate) return false;
+export const isTaskOverdue = (taskOrDueDate) => {
+  if (taskOrDueDate && typeof taskOrDueDate === 'object' && !Array.isArray(taskOrDueDate)) {
+    return isTaskActuallyOverdue(taskOrDueDate);
+  }
+  if (!taskOrDueDate) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
+  const due = new Date(taskOrDueDate);
   due.setHours(0, 0, 0, 0);
   return due < today;
 };
@@ -26,11 +31,16 @@ export const isTaskOverdue = (dueDate) => {
  * @param {Date|String} dueDate - Task due date
  * @returns {Number} Days remaining (negative if overdue)
  */
-export const getDaysUntilDue = (dueDate) => {
-  if (!dueDate) return null;
+export const getDaysUntilDue = (taskOrDueDate) => {
+  if (taskOrDueDate && typeof taskOrDueDate === 'object' && !Array.isArray(taskOrDueDate)) {
+    const remaining = calculateRemainingTime(taskOrDueDate);
+    if (remaining.remainingMs === null) return null;
+    return Math.ceil(remaining.remainingMs / (1000 * 60 * 60 * 24));
+  }
+  if (!taskOrDueDate) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
+  const due = new Date(taskOrDueDate);
   due.setHours(0, 0, 0, 0);
   const diffTime = due.getTime() - today.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -302,7 +312,7 @@ export const filterByDueDate = (tasks, filterType) => {
         return due >= today && due <= monthEnd;
       });
     case 'overdue':
-      return tasks.filter(t => isTaskOverdue(t.dueDate));
+      return tasks.filter(t => isTaskOverdue(t));
     case 'no-date':
       return tasks.filter(t => !t.dueDate);
     default:
@@ -379,7 +389,7 @@ export const calculateTaskStats = (tasks) => {
     if (task.status === 'completed') stats.completed++;
     if (task.status === 'in-progress') stats.inProgress++;
     if (task.status === 'pending' || task.status === 'new') stats.pending++;
-    if (isTaskOverdue(task.dueDate) && task.status !== 'completed') stats.overdue++;
+    if (isTaskOverdue(task) && task.status !== 'completed') stats.overdue++;
 
     stats.byPriority[task.priority]++;
   });

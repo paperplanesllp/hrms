@@ -12,7 +12,7 @@ import EstimatedTimeTimer from './EstimatedTimeTimer.jsx';
 import TaskAnalysisPanel from './TaskAnalysisPanel.jsx';
 import { calcPausedSeconds, formatSecondsHuman, getTimerState } from '../utils/taskTimerUtils.js';
 import { useAuthStore } from '../../../store/authStore.js';
-import { calculateRemainingTime, formatToIST } from '../utils/taskDeadlineUtils.js';
+import { calculateRemainingTime, getTaskDueDisplay, formatToIST } from '../utils/taskDeadlineUtils.js';
 
 // ─── Style maps ────────────────────────────────────────────────────────────────
 
@@ -104,9 +104,10 @@ export default function TaskTimerCard({
   };
 
   const remaining = calculateRemainingTime(task);
-  const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
-  const isOverdue = remaining.isOverdue || task.status === 'overdue';
-  const dueSoon = !isOverdue && remaining.remainingMinutes !== null && remaining.remainingMinutes <= 30;
+  const effectiveDueAt = remaining.effectiveDueAt || null;
+  const isOverdue = remaining.isOverdue;
+  const dueSoon = remaining.isDueSoon;
+  const dueDisplay = getTaskDueDisplay(task);
 
   return (
     <div
@@ -154,7 +155,7 @@ export default function TaskTimerCard({
             {task.status === 'pending' && !task.startedAt ? (
               <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
             ) : (
-              <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`} />
+              <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`} />
             )}
           </div>
         </div>
@@ -224,15 +225,15 @@ export default function TaskTimerCard({
         <div className="flex flex-wrap items-center gap-3 mb-4 text-xs text-slate-400 dark:text-slate-500">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            Due: {formatToIST(effectiveDueAt)}
+            Due: {effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}
           </span>
           <span>
-            Estimated: {(task.estimatedHours > 0 || task.estimatedMinutes > 0) ? formatSecondsHuman((task.estimatedHours * 3600) + (task.estimatedMinutes * 60)) : 'No estimate set'}
+            Estimated: {remaining.estimatedLabel || 'No estimate set'}
           </span>
           {!isCompleted && (
             <span className={task.status === 'on-hold' || task.isOnHold ? 'text-slate-500 dark:text-slate-400 flex items-center gap-1' : ''}>
               {(task.status === 'on-hold' || task.isOnHold) && <Lock className="w-3 h-3" />}
-              Remaining: {(task.status === 'on-hold' || task.isOnHold) ? 'Timer frozen' : countdown.shouldTrack ? countdown.display : (countdown.state === 'Not started' ? 'Not started' : countdown.display || countdown.state)}
+              Remaining: {(task.status === 'on-hold' || task.isOnHold) ? remaining.remainingLabel : countdown.shouldTrack ? countdown.display : (countdown.state === 'Not started' ? 'Not started' : countdown.display || countdown.state)}
             </span>
           )}
           {(task.status === 'on-hold' || task.isOnHold) && task.holdReason && (

@@ -9,17 +9,14 @@ import { getAuth } from '../../lib/auth.js';
 import { useAuthStore } from '../../store/authStore.js';
 import TimerChip from './components/TimerChip.jsx';
 import ActivityTimeline from './components/ActivityTimeline.jsx';
-import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
-import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
-import { calculateRemainingTime, formatToIST } from './utils/taskDeadlineUtils.js';
+import { calculateRemainingTime, formatDurationMs, formatToIST, getTaskDueDisplay } from './utils/taskDeadlineUtils.js';
 import { formatMilliseconds } from './utils/taskTimerUtils.js';
 import {
   getPriorityStyles,
   getStatusStyles,
   getPriorityLabel,
   getStatusLabel,
-  isTaskOverdue,
   getDaysUntilDue
 } from './taskUtils.js';
 import RequestExtensionModal from './modals/RequestExtensionModal.jsx';
@@ -78,7 +75,6 @@ export default function TaskDetailsModal({
   ];
 
   const countdown = useTaskCountdown(task || {});
-  const estimatedCountdown = useEstimatedTimeCountdown(task || {});
   const remaining = calculateRemainingTime(task || {});
 
   // Fetch users when reassign modal opens
@@ -137,7 +133,8 @@ export default function TaskDetailsModal({
   const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
-  const isOverdue = countdown.shouldTrack ? countdown.isOverdue : isTaskOverdue(task.dueDate, task.status);
+  const isOverdue = remaining.isOverdue;
+  const dueDisplay = getTaskDueDisplay(task);
 
   // Helper function to get file type
   const getFileType = (fileName) => {
@@ -484,16 +481,13 @@ export default function TaskDetailsModal({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <TimerChip
-                countdown={countdown}
-                isPaused={task.isPaused}
-                dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`}
-              />
-            </div>
-            <div className="mt-2">
-              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
-            </div>
+                <div className="mt-3">
+                  <TimerChip
+                    countdown={countdown}
+                    isPaused={task.isPaused}
+                    dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`}
+                  />
+                </div>
           </div>
 
           <div className="flex gap-2">
@@ -601,7 +595,7 @@ export default function TaskDetailsModal({
                 {isOverdue ? 'OVERDUE' : 'Due Date & Time'}
               </p>
               <p className={`text-sm font-medium ${isOverdue ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-white'}`}>
-                {formatToIST(effectiveDueAt)}
+                {effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}
               </p>
               {isOverdue && (
                 <p className="text-xs font-semibold text-red-600 dark:text-red-300 mt-1">
@@ -1061,36 +1055,37 @@ export default function TaskDetailsModal({
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Lifecycle Duration</p>
                         <p className="text-sm text-slate-900 dark:text-white font-medium">
-                          {task.startedAt ? (() => {
-                            const start = new Date(task.startedAt);
-                            const end = task.completedAt ? new Date(task.completedAt) : new Date();
-                            const totalMs = end - start;
-                            const totalMinutes = Math.floor(totalMs / (1000 * 60));
-                            const hours = Math.floor(totalMinutes / 60);
-                            const minutes = totalMinutes % 60;
-                            return `${hours}h ${minutes}m`;
-                          })() : 'Not started'}
+                          {task.startedAt ? formatDurationMs((task.completedAt ? new Date(task.completedAt) : new Date()) - new Date(task.startedAt)) : 'Not started'}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Estimated Time</p>
                         <p className="text-sm text-slate-900 dark:text-white">
-                          {task.estimatedMinutes && task.estimatedMinutes > 0 
-                            ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`
-                            : 'No estimate set'
-                          }
+                          {remaining.estimatedLabel || 'No estimate set'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Worked Time</p>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Active Worked Time</p>
                         <p className="text-sm text-slate-900 dark:text-white font-medium">
-                          {task.totalActiveTimeInSeconds ? `${Math.floor(task.totalActiveTimeInSeconds / 3600)}h ${Math.floor((task.totalActiveTimeInSeconds % 3600) / 60)}m` : '0m'}
+                          {remaining.activeWorkedLabel || '0m'}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Paused Time</p>
                         <p className="text-sm text-slate-900 dark:text-white">
-                          {task.totalPausedTimeInSeconds ? `${Math.floor(task.totalPausedTimeInSeconds / 60)}m` : '0m'}
+                          {remaining.pausedDurationLabel || '0m'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Remaining Time</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {remaining.remainingLabel || 'Not started'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Due At</p>
+                        <p className="text-sm text-slate-900 dark:text-white">
+                          {effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}
                         </p>
                       </div>
                     </div>

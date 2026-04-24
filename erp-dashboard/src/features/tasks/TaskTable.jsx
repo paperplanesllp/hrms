@@ -117,7 +117,7 @@ export default function TaskTable({
           {tasks.map((task) => {
             const priorityStyles = getPriorityStyles(task.priority);
             const statusStyles = getStatusStyles(task.status);
-            const isOverdue = isTaskOverdue(task.dueDate, task.status);
+            const isOverdue = isTaskOverdue(task);
 
             return (
               <tr
@@ -196,11 +196,11 @@ export default function TaskTable({
                     <span className={`text-sm font-medium ${
                       isOverdue ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
                     }`}>
-                      {getDueDateDisplay(task.dueDate, task.status)}
+                      {getDueDateDisplay(task)}
                     </span>
                     {isOverdue && (
                       <span className="text-xs font-semibold text-red-500 dark:text-red-400">
-                        ⚠️ {Math.abs(getDaysUntilDue(task.dueDate))} days overdue
+                        ⚠️ {Math.abs(getDaysUntilDue(task))} days overdue
                       </span>
                     )}
                   </div>

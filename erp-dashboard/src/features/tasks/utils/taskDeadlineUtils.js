@@ -1,5 +1,7 @@
 const IST_TIMEZONE = "Asia/Kolkata";
 
+const TERMINAL_STATUSES = ['completed', 'rejected', 'cancelled'];
+
 const toDate = (value) => {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value);
@@ -12,95 +14,260 @@ const toMinutes = (value) => {
   return Math.round(num);
 };
 
-export function calculateDueTime(startedAt, estimatedMinutes, pausedDurationMinutes = 0) {
+const toMs = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return Math.round(num);
+};
+
+export function getEstimatedTotalMinutes(taskOrMinutes, fallbackHours = 0) {
+  if (taskOrMinutes && typeof taskOrMinutes === 'object' && !Array.isArray(taskOrMinutes)) {
+    const totalMinutes = Number(taskOrMinutes?.estimatedTotalMinutes);
+    if (Number.isFinite(totalMinutes) && totalMinutes >= 0) {
+      return Math.round(totalMinutes);
+    }
+
+    const estimatedMinutes = Number(taskOrMinutes?.estimatedMinutes);
+    const estimatedHours = Number(taskOrMinutes?.estimatedHours);
+    const safeMinutes = Number.isFinite(estimatedMinutes) && estimatedMinutes >= 0 ? estimatedMinutes : 0;
+    const safeHours = Number.isFinite(estimatedHours) && estimatedHours >= 0 ? estimatedHours : 0;
+
+    if (safeHours > 0 && safeMinutes < 60) {
+      return Math.round(safeHours * 60 + safeMinutes);
+    }
+
+    if (safeMinutes > 0) {
+      return Math.round(safeMinutes);
+    }
+
+    return Math.round(safeHours * 60);
+  }
+
+  const totalMinutes = Number(taskOrMinutes);
+  const hours = Number(fallbackHours);
+  const safeMinutes = Number.isFinite(totalMinutes) && totalMinutes >= 0 ? totalMinutes : 0;
+  const safeHours = Number.isFinite(hours) && hours >= 0 ? hours : 0;
+
+  if (safeHours > 0 && safeMinutes < 60) {
+    return Math.round(safeHours * 60 + safeMinutes);
+  }
+
+  if (safeMinutes > 0) {
+    return Math.round(safeMinutes);
+  }
+
+  return Math.round(safeHours * 60);
+}
+
+export function formatDurationMinutes(totalMinutes) {
+  const safeMinutes = Math.max(0, Math.ceil(Number(totalMinutes) || 0));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+export function formatDurationMs(totalMs) {
+  return formatDurationMinutes((Number(totalMs) || 0) / 60000);
+}
+
+const getCurrentPauseStart = (task) => {
+  if (!task?.isPaused || !Array.isArray(task?.pauseEntries) || task.pauseEntries.length === 0) {
+    return null;
+  }
+
+  const activePause = [...task.pauseEntries]
+    .reverse()
+    .find((entry) => entry?.pausedAt && !entry?.resumedAt);
+
+  return toDate(activePause?.pausedAt);
+};
+
+const getCurrentHoldStart = (task) => {
+  if (!(task?.isOnHold || task?.status === 'on-hold') || !Array.isArray(task?.holdEntries) || task.holdEntries.length === 0) {
+    return null;
+  }
+
+  const activeHold = [...task.holdEntries]
+    .reverse()
+    .find((entry) => entry?.heldAt && !entry?.resumedAt);
+
+  return toDate(activeHold?.heldAt);
+};
+
+const getOngoingBlockedDurationMs = (task, now = new Date()) => {
+  const current = toDate(now) || new Date();
+  const pauseStartedAt = getCurrentPauseStart(task);
+  const holdStartedAt = getCurrentHoldStart(task);
+  const blockedStartedAt =
+    [pauseStartedAt, holdStartedAt]
+      .filter(Boolean)
+      .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+
+  if (!blockedStartedAt) return 0;
+  return Math.max(0, current.getTime() - blockedStartedAt.getTime());
+};
+
+export function getEffectivePausedDurationMs(task, now = new Date()) {
+  return toMs(task?.pausedDurationMs ?? task?.pausedDurationMinutes) + getOngoingBlockedDurationMs(task, now);
+}
+
+export function getActiveWorkedMs(task, now = new Date()) {
+  const current = toDate(now) || new Date();
+  let activeMs = Math.max(
+    toMs(task?.activeWorkedMs),
+    toMs(task?.totalActiveMilliseconds),
+    toMs(task?.totalActiveTimeInSeconds) * 1000
+  );
+
+  if (
+    task?.isRunning &&
+    !task?.isPaused &&
+    !(task?.isOnHold || task?.status === 'on-hold') &&
+    task?.currentSessionStartTime
+  ) {
+    const sessionStart = toDate(task.currentSessionStartTime);
+    if (sessionStart) {
+      activeMs += Math.max(0, current.getTime() - sessionStart.getTime());
+    }
+  }
+
+  return activeMs;
+}
+
+export function calculateDueTime(startedAt, estimatedMinutes, pausedDurationMs = 0) {
   const start = toDate(startedAt);
-  const estimated = toMinutes(estimatedMinutes);
+  const estimated = getEstimatedTotalMinutes(estimatedMinutes);
   if (!start || estimated <= 0) return null;
 
-  const pausedMs = Math.max(0, Math.round(Number(pausedDurationMinutes) || 0));
-  const normalizedPausedMs = pausedMs > 1000 ? pausedMs : toMinutes(pausedDurationMinutes) * 60000;
-  return new Date(start.getTime() + estimated * 60000 + normalizedPausedMs);
+  return new Date(start.getTime() + estimated * 60000 + toMs(pausedDurationMs));
 }
 
 export function calculateRemainingTime(task, now = new Date()) {
-  // Completed tasks must never show overdue or remaining time
-  if (task?.status === 'completed') {
+  const current = toDate(now) || new Date();
+  const estimatedMinutes = getEstimatedTotalMinutes(task);
+  const estimatedLabel = estimatedMinutes > 0 ? formatDurationMinutes(estimatedMinutes) : 'No estimate set';
+  const activeWorkedMs = getActiveWorkedMs(task, current);
+  const activeWorkedLabel = activeWorkedMs > 0 ? formatDurationMs(activeWorkedMs) : '0m';
+  const pausedDurationMs = getEffectivePausedDurationMs(task, current);
+  const pausedDurationLabel = pausedDurationMs > 0 ? formatDurationMs(pausedDurationMs) : '0m';
+  const terminal = TERMINAL_STATUSES.includes(task?.status);
+  const completed = task?.status === 'completed';
+  const startedAt = toDate(task?.startedAt);
+  const effectiveDueAt = calculateDueTime(startedAt, estimatedMinutes, pausedDurationMs);
+  const shouldTrackDeadline = Boolean(startedAt) && estimatedMinutes > 0 && !terminal;
+
+  if (completed) {
     return {
       shouldTrackDeadline: false,
-      effectiveDueAt: toDate(task?.dueDate),
+      effectiveDueAt: effectiveDueAt || toDate(task?.dueAt) || toDate(task?.dueDate),
       state: 'Completed',
+      estimatedMinutes,
+      estimatedLabel,
+      activeWorkedMs,
+      activeWorkedLabel,
+      pausedDurationMs,
+      pausedDurationLabel,
       remainingMs: null,
       remainingMinutes: null,
       remainingSeconds: null,
+      remainingLabel: 'Completed',
       isOverdue: false,
+      isDueSoon: false,
       isDueNow: false,
       isCompleted: true,
     };
   }
 
-  const current = toDate(now) || new Date();
-  const effectiveDueAt =
-    calculateDueTime(task?.startedAt, task?.estimatedMinutes, task?.pausedDurationMs ?? task?.pausedDurationMinutes) ||
-    toDate(task?.dueAt) ||
-    toDate(task?.dueDate);
-
-  const shouldTrackDeadline = Boolean(task?.startedAt) && toMinutes(task?.estimatedMinutes) > 0;
-
-  // Fallback: if no estimate, use dueDate directly to show time until deadline
-  const fallbackDueAt = toDate(task?.dueAt) || toDate(task?.dueDate);
-  if (!effectiveDueAt || !shouldTrackDeadline) {
-    if (fallbackDueAt && task?.startedAt) {
-      const remainingMs = fallbackDueAt.getTime() - current.getTime();
-      const remainingSeconds = Math.floor(remainingMs / 1000);
-      const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
-      const h = Math.floor(overdueByMinutes / 60);
-      const m = overdueByMinutes % 60;
-      const overdueDurationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
-      return {
-        shouldTrackDeadline: true,
-        effectiveDueAt: fallbackDueAt,
-        state: remainingSeconds < 0 ? `Overdue by ${overdueDurationStr}` : 'In progress',
-        remainingMs,
-        remainingMinutes: remainingMs / 60000,
-        remainingSeconds,
-        overdueByMinutes,
-        isDueNow: remainingSeconds === 0,
-        isOverdue: remainingSeconds < 0,
-      };
-    }
-    const state = !task?.startedAt ? 'Not started' : 'No estimate set';
+  if (!shouldTrackDeadline) {
+    const state = !startedAt ? 'Not started' : estimatedMinutes <= 0 ? 'No estimate set' : 'Not tracking';
     return {
-      shouldTrackDeadline,
-      effectiveDueAt: fallbackDueAt,
+      shouldTrackDeadline: false,
+      effectiveDueAt: effectiveDueAt || null,
       state,
+      estimatedMinutes,
+      estimatedLabel,
+      activeWorkedMs,
+      activeWorkedLabel,
+      pausedDurationMs,
+      pausedDurationLabel,
       remainingMs: null,
       remainingMinutes: null,
       remainingSeconds: null,
+      remainingLabel: state,
       isOverdue: false,
+      isDueSoon: false,
       isDueNow: false,
+      isCompleted: false,
     };
   }
 
   const remainingMs = effectiveDueAt.getTime() - current.getTime();
   const remainingSeconds = Math.floor(remainingMs / 1000);
-  const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
+  const remainingDurationLabel = formatDurationMinutes(Math.abs(remainingMs) / 60000);
+  const isOverdue = remainingSeconds < 0;
+  const isDueSoon = remainingSeconds >= 0 && remainingSeconds <= 30 * 60;
+  const timingFrozen = Boolean(task?.isPaused || task?.isOnHold || task?.status === 'paused' || task?.status === 'on-hold');
 
-  // Format overdue duration as "Xh Ym" instead of raw minutes
-  const h = Math.floor(overdueByMinutes / 60);
-  const m = overdueByMinutes % 60;
-  const overdueDurationStr = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+  let state = 'In progress';
+  if (timingFrozen) state = 'Paused';
+  else if (isOverdue) state = `Overdue by ${remainingDurationLabel}`;
+  else if (isDueSoon) state = `Due in ${remainingDurationLabel}`;
 
   return {
-    shouldTrackDeadline,
+    shouldTrackDeadline: true,
     effectiveDueAt,
-    state: remainingSeconds < 0 ? `Overdue by ${overdueDurationStr}` : 'In progress',
+    state,
+    estimatedMinutes,
+    estimatedLabel,
+    activeWorkedMs,
+    activeWorkedLabel,
+    pausedDurationMs,
+    pausedDurationLabel,
     remainingMs,
     remainingMinutes: remainingMs / 60000,
     remainingSeconds,
-    overdueByMinutes,
+    remainingLabel: isOverdue ? `Overdue by ${remainingDurationLabel}` : `${remainingDurationLabel} remaining`,
+    isOverdue,
+    isDueSoon,
     isDueNow: remainingSeconds === 0,
-    isOverdue: remainingSeconds < 0,
+    isCompleted: false,
   };
+}
+
+export function normalizeTaskTiming(task, now = new Date()) {
+  const remaining = calculateRemainingTime(task, now);
+
+  return {
+    dueAt: remaining.effectiveDueAt || null,
+    estimatedMinutes: remaining.estimatedMinutes,
+    estimatedLabel: remaining.estimatedLabel,
+    activeWorkedMs: remaining.activeWorkedMs,
+    activeWorkedLabel: remaining.activeWorkedLabel,
+    pausedDurationMs: remaining.pausedDurationMs,
+    pausedDurationLabel: remaining.pausedDurationLabel,
+    remainingMs: remaining.remainingMs,
+    remainingMinutes: remaining.remainingMinutes,
+    remainingSeconds: remaining.remainingSeconds,
+    remainingLabel: remaining.remainingLabel,
+    state: remaining.state,
+    isOverdue: remaining.isOverdue,
+    isDueSoon: remaining.isDueSoon,
+    shouldTrackDeadline: remaining.shouldTrackDeadline,
+  };
+}
+
+export function isTaskActuallyOverdue(task, now = new Date()) {
+  return calculateRemainingTime(task, now).isOverdue;
+}
+
+export function getTaskDueDisplay(task, now = new Date()) {
+  const timing = calculateRemainingTime(task, now);
+  if (timing.effectiveDueAt) return formatToIST(timing.effectiveDueAt);
+  if (!task?.startedAt && timing.estimatedMinutes > 0) return 'Starts when task begins';
+  return 'No due time';
 }
 
 export function formatTime(totalSeconds, includeSeconds = true) {
@@ -117,7 +284,7 @@ export function formatTime(totalSeconds, includeSeconds = true) {
 }
 
 export function extendTaskTime(task, additionalMinutes) {
-  const existingDue = toDate(task?.dueAt) || toDate(task?.dueDate);
+  const existingDue = calculateRemainingTime(task).effectiveDueAt || toDate(task?.dueAt) || toDate(task?.dueDate);
   if (!existingDue) return null;
   const extra = toMinutes(additionalMinutes);
   if (extra <= 0) return null;

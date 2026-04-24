@@ -219,8 +219,23 @@ export default function NewsPage() {
                     src={getImageUrl(heroNews.imageUrl)}
                     alt={heroNews.title}
                     className="relative z-10 object-cover w-full h-full"
+                    onError={(e) => {
+                      // Fallback when image fails to load (404 or other error)
+                      e.target.style.display = 'none';
+                      const fallback = e.target.parentElement?.querySelector('.image-fallback');
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
                   />
                   <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                  <div 
+                    className="image-fallback absolute inset-0 z-10 items-center justify-center bg-[#242B1E]" 
+                    style={{ display: 'none' }}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <Megaphone className="w-24 h-24 text-white/60" />
+                      <p className="text-sm text-white/50">Image unavailable</p>
+                    </div>
+                  </div>
                 </>
               ) : (
                 <div className="w-full h-full bg-[#242B1E] flex items-center justify-center">

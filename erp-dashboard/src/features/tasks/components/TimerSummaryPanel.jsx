@@ -1,5 +1,6 @@
 import React from 'react';
 import { Clock, CheckCircle2, AlertCircle, Zap, Pause } from 'lucide-react';
+import { calculateRemainingTime, formatToIST, getTaskDueDisplay } from '../utils/taskDeadlineUtils.js';
 
 /**
  * Timer Summary Panel
@@ -27,7 +28,8 @@ export default function TimerSummaryPanel({ task, countdown }) {
   const pausedSeconds = task.totalPausedTimeInSeconds || 0;
   const totalTimeSpent = activeSeconds + pausedSeconds;
   const estimatedSeconds = countdown.estimatedSeconds || 0;
-  const isOverdue = new Date() > new Date(task.dueDate);
+  const remaining = calculateRemainingTime(task);
+  const isOverdue = remaining.isOverdue;
   const overdueSeconds = countdown.overdueSeconds || 0;
 
   // Calculate metrics
@@ -102,7 +104,7 @@ export default function TimerSummaryPanel({ task, countdown }) {
             {isOverdue ? 'Overdue Since' : 'Due Date'}
           </p>
           <p className={`text-sm font-bold truncate ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-            {new Date(task.dueDate).toLocaleDateString()} at {new Date(task.dueDate).toLocaleTimeString()}
+            {remaining.effectiveDueAt ? formatToIST(remaining.effectiveDueAt) : getTaskDueDisplay(task)}
           </p>
           {isOverdue && (
             <p className="text-xs text-red-600 dark:text-red-400 mt-1">

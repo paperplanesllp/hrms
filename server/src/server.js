@@ -3,6 +3,7 @@ import { connectDB } from "./config/db.js";
 import { env } from "./config/env.js";
 import { startCronJobs } from "./utils/cronJobs.js";
 import { initializeSocket } from "./utils/socket.js";
+import { cleanupMissingImages } from "./modules/news/news.service.js";
 import { createServer } from "http";
 
 const app = createApp();
@@ -12,6 +13,9 @@ await connectDB();
 
 // Initialize Socket.IO
 initializeSocket(server);
+
+// Clean up news items with missing images
+await cleanupMissingImages();
 
 // Start cron jobs for automated reminders
 startCronJobs();

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from '../../../store/toastStore.js';
+import { calculateRemainingTime, getEstimatedTotalMinutes } from '../utils/taskDeadlineUtils.js';
 
 // Global tracking to prevent duplicate "TIME UP!" notifications
 let globalTimeUpShownAt = 0;
@@ -23,10 +24,7 @@ export function useEstimatedTimeCountdown(task) {
   // Calculate initial estimated seconds
   const getEstimatedSeconds = () => {
     if (!task) return 0;
-    // Check for both possible field names: estimatedHours/estimatedMinutes or estimatedTime variants
-    const hours = parseInt(task.estimatedHours) || 0;
-    const minutes = parseInt(task.estimatedMinutes) || 0;
-    const totalSeconds = hours * 3600 + minutes * 60;
+    const totalSeconds = getEstimatedTotalMinutes(task) * 60;
     return Math.max(0, totalSeconds); // Ensure non-negative
   };
 
@@ -64,7 +62,8 @@ export function useEstimatedTimeCountdown(task) {
     const interval = setInterval(() => {
       const estimated = getEstimatedSeconds();
       const elapsed = calculateElapsedSeconds();
-      const remaining = Math.max(0, estimated - elapsed);
+      const normalized = calculateRemainingTime(task, new Date());
+      const remaining = Math.max(0, normalized.remainingSeconds ?? Math.max(0, estimated - elapsed));
       
       setRemainingSeconds(remaining);
 
@@ -161,13 +160,9 @@ export function useEstimatedTimeCountdown(task) {
 
   // Calculate overdue time (time spent AFTER due date)
   const getOverdueSeconds = () => {
-    if (!task || !task.dueDate) return 0;
-    const dueTime = new Date(task.dueDate).getTime();
-    const now = new Date().getTime();
-    if (now > dueTime) {
-      return Math.floor((now - dueTime) / 1000);
-    }
-    return 0;
+    const normalized = calculateRemainingTime(task, new Date());
+    if (!normalized.isOverdue) return 0;
+    return Math.abs(normalized.remainingSeconds || 0);
   };
 
   // Get total time spent (active + paused)

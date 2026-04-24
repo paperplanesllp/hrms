@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, AlertCircle, Calendar, Clock, User, FileText, Flag, CheckCircle2, Zap, BarChart3, MessageCircle } from 'lucide-react';
+import { calculateRemainingTime, formatToIST, getTaskDueDisplay } from '../utils/taskDeadlineUtils.js';
 
 export default function TaskAnalysisModal({ task, onClose, onStatusChange, isLoading = false }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -26,8 +27,10 @@ export default function TaskAnalysisModal({ task, onClose, onStatusChange, isLoa
     return colors[priority] || colors['LOW'];
   };
 
-  const isOverdue = new Date(task.dueDate) < new Date() && task.status !== 'completed';
-  const daysLeft = Math.ceil((new Date(task.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+  const remaining = calculateRemainingTime(task);
+  const isOverdue = remaining.isOverdue;
+  const daysLeft = remaining.remainingMs === null ? null : Math.ceil(remaining.remainingMs / (1000 * 60 * 60 * 24));
+  const dueDisplay = getTaskDueDisplay(task);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
@@ -84,7 +87,9 @@ export default function TaskAnalysisModal({ task, onClose, onStatusChange, isLoa
             )}
             <div className={`flex items-center gap-2 ${isOverdue ? 'font-bold' : ''}`}>
               <Calendar className="w-4 h-4" />
-              <span>{isOverdue ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}</span>
+              <span>
+                {remaining.remainingLabel || (daysLeft === null ? dueDisplay : isOverdue ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`)}
+              </span>
             </div>
           </div>
         </div>
@@ -133,7 +138,7 @@ export default function TaskAnalysisModal({ task, onClose, onStatusChange, isLoa
                 <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">DUE DATE</p>
                   <p className={`text-lg font-bold ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
-                    {new Date(task.dueDate).toLocaleDateString()}
+                    {remaining.effectiveDueAt ? formatToIST(remaining.effectiveDueAt) : dueDisplay}
                   </p>
                 </div>
 
@@ -141,7 +146,7 @@ export default function TaskAnalysisModal({ task, onClose, onStatusChange, isLoa
                 <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">TIME LEFT</p>
                   <p className={`text-lg font-bold ${isOverdue ? 'text-red-600 dark:text-red-400' : daysLeft <= 3 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                    {isOverdue ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft} days`}
+                    {remaining.remainingLabel || (daysLeft === null ? 'Not started' : isOverdue ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft} days`)}
                   </p>
                 </div>
               </div>
