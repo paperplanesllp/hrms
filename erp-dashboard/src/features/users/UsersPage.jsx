@@ -21,6 +21,7 @@ import {
   Plus, 
   Eye,
   Pencil,
+  Trash2,
   User,
   Mail,
   Phone,
@@ -222,6 +223,21 @@ export default function UsersPage() {
       });
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`Are you sure you want to delete "${user.name}"? This action cannot be undone.`)) return;
+    try {
+      await api.delete(`/users/${user._id}`);
+      setItems((prev) => prev.filter((u) => u._id !== user._id));
+      toast({ title: "User deleted successfully", type: "success" });
+    } catch (err) {
+      toast({
+        title: "Failed to delete user",
+        message: err?.response?.data?.message || "Please try again.",
+        type: "error",
+      });
     }
   };
 
@@ -851,6 +867,19 @@ export default function UsersPage() {
                             >
                               <Pencil className="w-3.5 h-3.5" />
                               Edit
+                            </Button>
+                          )}
+                          {(
+                            (currentUser?.role === ROLES.HR && user.role === ROLES.USER) ||
+                            (currentUser?.role === ROLES.ADMIN && user.role !== ROLES.ADMIN)
+                          ) && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleDeleteUser(user)}
+                              className="bg-red-500 hover:bg-red-600 text-white border-0 shadow-sm flex items-center gap-1.5"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete
                             </Button>
                           )}
                         </div>

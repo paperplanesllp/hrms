@@ -401,6 +401,45 @@ export const updateCurrentLocation = asyncHandler(async (req, res) => {
   });
 });
 
+export const deleteUser = asyncHandler(async (req, res) => {
+  const targetUser = await getUserById(req.params.id);
+
+  // Nobody can delete themselves
+  if (req.user.id === String(targetUser._id)) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "You cannot delete your own account");
+  }
+
+  // HR can only delete USER accounts
+  if (req.user.role === ROLES.HR && targetUser.role !== ROLES.USER) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR can only delete employee accounts");
+  }
+
+  // ADMIN can delete USER and HR accounts, but not other ADMINs
+  if (req.user.role === ROLES.ADMIN && targetUser.role === ROLES.ADMIN) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "Admin accounts cannot be deleted");
+  }
+
+  await User.findByIdAndDelete(req.params.id);
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "USER_DELETE",
+      module: "Users",
+      description: `Deleted ${targetUser.role} user: ${targetUser.name} (${targetUser.email})`,
+      targetUserId: targetUser._id,
+      targetUserName: targetUser.name,
+      metadata: { email: targetUser.email, role: targetUser.role },
+    });
+  } catch (logError) {
+    console.error("Failed to log delete activity:", logError.message);
+  }
+
+  res.json({ message: "User deleted successfully" });
+});
+
 // Get active employees' real-time locations (HR & Admin only)
 export const getActiveLocations = asyncHandler(async (req, res) => {
   // Only HR and Admin can view employee locations

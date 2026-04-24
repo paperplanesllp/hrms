@@ -8,6 +8,7 @@ import {
 	getMe,
 	getUser,
 	patchUser,
+	deleteUser,
 	updateMe,
 	updateUserLocation,
 	updateCurrentLocation,
@@ -73,9 +74,10 @@ router.post("/location/update", requireAuth, updateCurrentLocation);
 // Get active employees' real-time locations (HR & Admin only)
 router.get("/location/active", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getActiveLocations);
 
-// Admin & HR can view/edit users
+// Admin & HR can view/edit/delete users (role-based restrictions enforced in controller)
 router.get("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getUser);
 router.patch("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), patchUser);
+router.delete("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), deleteUser);
 
 // User can update their own location (or admin can update anyone's)
 router.patch("/:id/update-location", requireAuth, updateUserLocation);
