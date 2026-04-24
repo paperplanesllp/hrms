@@ -113,6 +113,7 @@ export default function TaskReportsSection() {
   }, [loadAnalytics, dateRange]);
 
   // Build reports array dynamically from API data
+  const analyticsMetrics = analyticsData?.metrics || {};
   const reports = analyticsData ? [
     {
       icon: BarChart3,
@@ -135,8 +136,8 @@ export default function TaskReportsSection() {
       icon: PieChart,
       title: 'In Progress',
       description: 'Currently active tasks',
-      metric: analyticsData?.inProgressTasks || 0,
-      change: analyticsData?.onHoldTasks || 0,
+      metric: (analyticsMetrics?.runningTasks ?? analyticsData?.inProgressTasks) ?? 0,
+      change: (analyticsMetrics?.onHoldTasks ?? analyticsData?.onHoldTasks) ?? 0,
       sublabel: 'On Hold',
       color: 'from-purple-500 to-purple-600',
     },

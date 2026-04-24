@@ -99,14 +99,11 @@ export const extensionController = {
       extensionRequest.approvedAt = new Date();
       await extensionRequest.save();
 
-      // Update task: extend time + reset status to in-progress
+      // Update task: extend effective due time only (never estimated time)
       const task = await Task.findById(extensionRequest.taskId._id || extensionRequest.taskId);
       if (task) {
         const additionalMinutes = extensionRequest.additionalHoursRequested * 60 + extensionRequest.additionalMinutesRequested;
-        task.estimatedTotalMinutes = (task.estimatedTotalMinutes || 0) + additionalMinutes;
-        task.estimatedHours = Math.floor(task.estimatedTotalMinutes / 60);
-        task.estimatedMinutes = task.estimatedTotalMinutes % 60;
-        // Extend dueDate
+        // Extend effective due timestamps; preserve estimate baseline.
         const currentDue = new Date(task.dueDate);
         task.dueDate = new Date(currentDue.getTime() + additionalMinutes * 60000);
         if (task.dueAt) task.dueAt = new Date(new Date(task.dueAt).getTime() + additionalMinutes * 60000);

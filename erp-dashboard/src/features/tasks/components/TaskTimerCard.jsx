@@ -104,10 +104,19 @@ export default function TaskTimerCard({
   };
 
   const remaining = calculateRemainingTime(task);
-  const effectiveDueAt = remaining.effectiveDueAt || null;
-  const isOverdue = remaining.isOverdue;
-  const dueSoon = remaining.isDueSoon;
+  const metrics = task?.metrics || {};
+  const effectiveDueAt = metrics?.effectiveDueAt || null;
+  const isOverdue = Boolean(metrics?.isOverdue);
+  const dueSoon = Boolean(metrics?.isDueSoon);
   const dueDisplay = getTaskDueDisplay(task);
+  const isOnHold = task.status === 'on-hold' || task.isOnHold;
+
+  const getDaysOnlyLabel = (remainingMs) => {
+    if (typeof remainingMs !== 'number' || Number.isNaN(remainingMs)) return 'On Hold';
+    const days = Math.max(0, Math.ceil(Math.abs(remainingMs) / (24 * 60 * 60 * 1000)));
+    if (remainingMs < 0) return `Overdue by ${days} day${days === 1 ? '' : 's'}`;
+    return `${days} day${days === 1 ? '' : 's'} remaining`;
+  };
 
   return (
     <div
@@ -154,6 +163,10 @@ export default function TaskTimerCard({
           <div className="flex items-center gap-2">
             {task.status === 'pending' && !task.startedAt ? (
               <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            ) : isOnHold ? (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                On Hold
+              </span>
             ) : (
               <TimerChip countdown={countdown} isPaused={task.isPaused} dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`} />
             )}
@@ -231,12 +244,12 @@ export default function TaskTimerCard({
             Estimated: {remaining.estimatedLabel || 'No estimate set'}
           </span>
           {!isCompleted && (
-            <span className={task.status === 'on-hold' || task.isOnHold ? 'text-slate-500 dark:text-slate-400 flex items-center gap-1' : ''}>
-              {(task.status === 'on-hold' || task.isOnHold) && <Lock className="w-3 h-3" />}
-              Remaining: {(task.status === 'on-hold' || task.isOnHold) ? remaining.remainingLabel : countdown.shouldTrack ? countdown.display : (countdown.state === 'Not started' ? 'Not started' : countdown.display || countdown.state)}
+            <span className={isOnHold ? 'text-slate-500 dark:text-slate-400 flex items-center gap-1' : ''}>
+              {isOnHold && <Lock className="w-3 h-3" />}
+              Remaining: {isOnHold ? getDaysOnlyLabel(metrics.deadlineRemainingMs ?? remaining.remainingMs) : metrics.remainingMs != null ? formatSecondsHuman(Math.floor(metrics.remainingMs / 1000)) : (countdown.shouldTrack ? countdown.display : (countdown.state === 'Not started' ? 'Not started' : countdown.display || countdown.state))}
             </span>
           )}
-          {(task.status === 'on-hold' || task.isOnHold) && task.holdReason && (
+          {isOnHold && task.holdReason && (
             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1 w-full">
               <Lock className="w-3 h-3 flex-shrink-0" />
               Blocked: {task.holdReason}

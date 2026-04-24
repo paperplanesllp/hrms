@@ -13,8 +13,8 @@ router.use(requireAuth);
 router.get('/debug/diagnostics', tasksController.getTasksDiagnostics);
 
 // Analytics routes (all employees can view)
-router.get('/analytics/all', tasksController.getAllTasksAnalytics);
-router.get('/analytics/team-performance', tasksController.getTeamPerformanceAnalytics);
+router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
+router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
 router.get('/analytics/completion-trends', tasksController.getTaskCompletionTrends);
 
 // My tasks routes
@@ -74,7 +74,7 @@ router.post('/:id/reopen', tasksController.reopenTask);
 router.get('/check-workload/:userId', tasksController.checkWorkload);
 
 // Get dashboard metrics
-router.get('/dashboard/metrics', tasksController.getDashboardMetrics);
+router.get('/dashboard/metrics', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getDashboardMetrics);
 
 // ─── TIMER ACTION ROUTES ───────────────────────────────────────────────────────────
 // Timer action routes (assignee only)

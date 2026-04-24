@@ -76,6 +76,7 @@ export default function TaskDetailsModal({
 
   const countdown = useTaskCountdown(task || {});
   const remaining = calculateRemainingTime(task || {});
+  const metrics = task?.metrics || {};
 
   // Fetch users when reassign modal opens
   useEffect(() => {
@@ -130,11 +131,19 @@ export default function TaskDetailsModal({
     return false;
   };
 
-  const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
+  const effectiveDueAt = metrics?.effectiveDueAt || null;
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
-  const isOverdue = remaining.isOverdue;
+  const isOverdue = Boolean(metrics?.isOverdue);
   const dueDisplay = getTaskDueDisplay(task);
+  const isOnHold = task.status === 'on-hold' || task.isOnHold;
+
+  const getDaysOnlyLabel = (remainingMs) => {
+    if (typeof remainingMs !== 'number' || Number.isNaN(remainingMs)) return 'On Hold';
+    const days = Math.max(0, Math.ceil(Math.abs(remainingMs) / (24 * 60 * 60 * 1000)));
+    if (remainingMs < 0) return `Overdue by ${days} day${days === 1 ? '' : 's'}`;
+    return `${days} day${days === 1 ? '' : 's'} remaining`;
+  };
 
   // Helper function to get file type
   const getFileType = (fileName) => {
@@ -485,11 +494,17 @@ export default function TaskDetailsModal({
               )}
             </div>
                 <div className="mt-3">
-                  <TimerChip
-                    countdown={countdown}
-                    isPaused={task.isPaused}
-                    dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`}
-                  />
+                  {isOnHold ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                      On Hold
+                    </span>
+                  ) : (
+                    <TimerChip
+                      countdown={countdown}
+                      isPaused={task.isPaused}
+                      dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`}
+                    />
+                  )}
                 </div>
           </div>
 
@@ -602,7 +617,7 @@ export default function TaskDetailsModal({
               </p>
               {isOverdue && (
                 <p className="text-xs font-semibold text-red-600 dark:text-red-300 mt-1">
-                  {countdown.shouldTrack ? countdown.display : `Overdue for ${Math.abs(getDaysUntilDue(task.dueDate))} days`}
+                  {getDaysOnlyLabel(metrics.deadlineRemainingMs ?? remaining.remainingMs)}
                 </p>
               )}
             </div>

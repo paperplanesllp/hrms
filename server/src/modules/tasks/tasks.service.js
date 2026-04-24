@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Task } from './Task.model.js';
 import { User } from '../users/User.model.js';
 import { Department } from '../department/Department.model.js';
-import { TASK_TIMING_STATE, evaluateEmployeePerformance, syncTaskTimingFields } from './taskDeadline.utils.js';
+import { TASK_TIMING_STATE, calculateTaskMetrics, evaluateEmployeePerformance, syncTaskTimingFields } from './taskDeadline.utils.js';
 import { ROLES } from '../../middleware/roles.js';
 
 export const tasksService = {
@@ -476,75 +476,78 @@ export const tasksService = {
   // Get task stats for dashboard (with all priorities and statuses)
   async getTaskStats(userId) {
     const userObjectId = new mongoose.Types.ObjectId(userId);
-    
-    // Get tasks by status
-    const statusStats = await Task.aggregate([
-      { 
-        $match: { 
-          assignedTo: userObjectId,
-          isDeleted: false 
-        } 
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-    
-    // Get tasks by priority
-    const priorityStats = await Task.aggregate([
-      { 
-        $match: { 
-          assignedTo: userObjectId,
-          isDeleted: false,
-          status: { $ne: 'completed' }
-        } 
-      },
-      {
-        $group: {
-          _id: '$priority',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-    
-    // Get overdue tasks
-    const overdueCount = await Task.countDocuments({
+    const tasks = await Task.find({
       assignedTo: userObjectId,
       isDeleted: false,
-      startedAt: { $ne: null },
-      status: { $nin: ['completed', 'rejected', 'cancelled'] },
-      $or: [
-        { dueAt: { $lt: new Date() } },
-        { dueAt: null, dueDate: { $lt: new Date() } }
-      ]
-    });
-    
+    }).select('status priority assignedBy estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
+
+    const now = new Date();
+    const statusCounts = {
+      pending: 0,
+      'in-progress': 0,
+      completed: 0,
+      'on-hold': 0,
+      cancelled: 0,
+      total: tasks.length,
+    };
+    const priorityCounts = { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 };
+    let overdueOpenTasks = 0;
+    let runningTasks = 0;
+    let pausedTasks = 0;
+    let completedOnTimeTasks = 0;
+    let completedLateTasks = 0;
+    let totalActiveWorkMs = 0;
+    let estimateAccuracyAccumulator = 0;
+    let estimateAccuracySamples = 0;
+
+    for (const task of tasks) {
+      const metrics = calculateTaskMetrics(task, now);
+      const status = task.status;
+      if (status === 'completed') statusCounts.completed += 1;
+      else if (['in-progress', 'due-soon', 'extended', 'overdue'].includes(status)) statusCounts['in-progress'] += 1;
+      else if (['paused', 'on-hold'].includes(status) || metrics.isPaused || metrics.isOnHold) statusCounts['on-hold'] += 1;
+      else if (status === 'cancelled') statusCounts.cancelled += 1;
+      else statusCounts.pending += 1;
+
+      if (priorityCounts[task.priority] !== undefined && status !== 'completed') {
+        priorityCounts[task.priority] += 1;
+      }
+      if (metrics.isOverdue) overdueOpenTasks += 1;
+      if (metrics.isRunning) runningTasks += 1;
+      if (metrics.isPaused || metrics.isOnHold) pausedTasks += 1;
+      if (status === 'completed') {
+        if (metrics.completedOnTime === true) completedOnTimeTasks += 1;
+        else completedLateTasks += 1;
+      }
+      totalActiveWorkMs += metrics.activeWorkedMs || 0;
+      if (metrics.estimatedMs > 0) {
+        const varianceRatio = Math.min(1, Math.abs((metrics.activeWorkedMs || 0) - metrics.estimatedMs) / metrics.estimatedMs);
+        estimateAccuracyAccumulator += (1 - varianceRatio) * 100;
+        estimateAccuracySamples += 1;
+      }
+    }
+
+    const completionRate = statusCounts.total > 0
+      ? Math.round((statusCounts.completed / statusCounts.total) * 100)
+      : 0;
+
     return {
-      byStatus: {
-        pending: statusStats.find(s => s._id === 'pending')?.count || 0,
-        'in-progress':
-          (statusStats.find(s => s._id === 'in-progress')?.count || 0) +
-          (statusStats.find(s => s._id === 'due-soon')?.count || 0),
-        completed: statusStats.find(s => s._id === 'completed')?.count || 0,
-        'on-hold':
-          (statusStats.find(s => s._id === 'on-hold')?.count || 0) +
-          (statusStats.find(s => s._id === 'paused')?.count || 0),
-        cancelled: statusStats.find(s => s._id === 'cancelled')?.count || 0,
-        total: statusStats.reduce((sum, s) => sum + s.count, 0)
+      byStatus: statusCounts,
+      byPriority: priorityCounts,
+      overdue: overdueOpenTasks,
+      completionRate,
+      metrics: {
+        totalTasks: statusCounts.total,
+        runningTasks,
+        pausedTasks,
+        onHoldTasks: statusCounts['on-hold'],
+        completedTasks: statusCounts.completed,
+        overdueOpenTasks,
+        completedOnTimeTasks,
+        completedLateTasks,
+        totalActiveWorkMs,
+        estimateAccuracyPct: estimateAccuracySamples > 0 ? Math.round(estimateAccuracyAccumulator / estimateAccuracySamples) : 0,
       },
-      byPriority: {
-        LOW: priorityStats.find(p => p._id === 'LOW')?.count || 0,
-        MEDIUM: priorityStats.find(p => p._id === 'MEDIUM')?.count || 0,
-        HIGH: priorityStats.find(p => p._id === 'HIGH')?.count || 0,
-        URGENT: priorityStats.find(p => p._id === 'URGENT')?.count || 0
-      },
-      overdue: overdueCount,
-      completionRate: statusStats.reduce((sum, s) => sum + s.count, 0) > 0 
-        ? Math.round(((statusStats.find(s => s._id === 'completed')?.count || 0) / statusStats.reduce((sum, s) => sum + s.count, 0)) * 100)
-        : 0
     };
   },
 
@@ -643,60 +646,78 @@ export const tasksService = {
       createdAt: { $gte: fromDate, $lte: now }
     };
 
-    // Get all tasks
-    const allTasks = await Task.find(query);
-    
-    // Get completed tasks
-    const completedTasks = await Task.countDocuments({
-      ...query,
-      status: 'completed'
-    });
+    const allTasks = await Task.find(query).select('status priority assignedBy assignedTo extensionRequests estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
 
-    // Get in-progress tasks
-    const inProgressTasks = await Task.countDocuments({
-      ...query,
-      status: 'in-progress'
-    });
+    let runningTasks = 0;
+    let pausedTasks = 0;
+    let onHoldTasks = 0;
+    let completedTasks = 0;
+    let completedOnTimeTasks = 0;
+    let completedLateTasks = 0;
+    let inProgressTasks = 0;
+    let pendingTasks = 0;
+    let cancelledTasks = 0;
+    let overdueCount = 0;
+    let totalActiveWorkMs = 0;
+    let avgActiveCompletionAccumulator = 0;
+    let avgActiveCompletionSamples = 0;
+    let estimateAccuracyAccumulator = 0;
+    let estimateAccuracySamples = 0;
+    let selfAssignedTasks = 0;
+    let assignedByOthersTasks = 0;
+    let extensionRequestedTasks = 0;
+    let extensionApprovedTasks = 0;
+    let extensionRejectedTasks = 0;
+    const byPriority = { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 };
 
-    // Get pending tasks
-    const pendingTasks = await Task.countDocuments({
-      ...query,
-      status: 'pending'
-    });
+    for (const task of allTasks) {
+      const metrics = calculateTaskMetrics(task, now);
+      const status = task.status;
 
-    // Get on-hold tasks
-    const onHoldTasks = await Task.countDocuments({
-      ...query,
-      status: 'on-hold'
-    });
+      if (byPriority[task.priority] !== undefined) byPriority[task.priority] += 1;
+      if (metrics.isRunning) runningTasks += 1;
+      if (metrics.isPaused) pausedTasks += 1;
+      if (metrics.isOnHold || status === 'on-hold') onHoldTasks += 1;
+      if (metrics.isOverdue) overdueCount += 1;
+      totalActiveWorkMs += metrics.activeWorkedMs || 0;
 
-    // Get cancelled tasks
-    const cancelledTasks = await Task.countDocuments({
-      ...query,
-      status: 'cancelled'
-    });
+      if (status === 'completed') {
+        completedTasks += 1;
+        if (metrics.completedOnTime === true) completedOnTimeTasks += 1;
+        else completedLateTasks += 1;
+        avgActiveCompletionAccumulator += metrics.activeWorkedMs || 0;
+        avgActiveCompletionSamples += 1;
+      } else if (['in-progress', 'due-soon', 'extended', 'overdue'].includes(status)) {
+        inProgressTasks += 1;
+      } else if (['paused', 'on-hold'].includes(status)) {
+        // tracked above in paused/on-hold buckets
+      } else if (status === 'cancelled') {
+        cancelledTasks += 1;
+      } else {
+        pendingTasks += 1;
+      }
 
-    // Get tasks by priority
-    const byPriority = await Task.aggregate([
-      { $match: query },
-      { $group: { _id: '$priority', count: { $sum: 1 } } }
-    ]);
+      if (metrics.estimatedMs > 0) {
+        const varianceRatio = Math.min(1, Math.abs((metrics.activeWorkedMs || 0) - metrics.estimatedMs) / metrics.estimatedMs);
+        estimateAccuracyAccumulator += (1 - varianceRatio) * 100;
+        estimateAccuracySamples += 1;
+      }
 
-    // Get overdue tasks
-    const overdueCount = await Task.countDocuments({
-      ...query,
-      startedAt: { $ne: null },
-      status: { $nin: ['completed', 'rejected', 'cancelled'] },
-      $or: [
-        { dueAt: { $lt: now } },
-        { dueAt: null, dueDate: { $lt: now } }
-      ]
-    });
+      const assignerId = task.assignedBy?.toString?.() || task.assignedBy?._id?.toString?.();
+      const isSelfAssigned = Array.isArray(task.assignedTo) && assignerId
+        ? task.assignedTo.some((id) => id?.toString?.() === assignerId)
+        : false;
+      if (isSelfAssigned) selfAssignedTasks += 1;
+      else assignedByOthersTasks += 1;
+
+      const requests = task.extensionRequests || [];
+      if (requests.length > 0) extensionRequestedTasks += 1;
+      extensionApprovedTasks += requests.filter((r) => r.approvalStatus === 'approved').length;
+      extensionRejectedTasks += requests.filter((r) => r.approvalStatus === 'rejected').length;
+    }
 
     const totalTasks = allTasks.length;
-    const completionRate = totalTasks > 0 
-      ? Math.round((completedTasks / totalTasks) * 100)
-      : 0;
+    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     return {
       completionRate,
@@ -707,11 +728,25 @@ export const tasksService = {
       onHoldTasks,
       cancelledTasks,
       overdueCount,
-      byPriority: {
-        LOW: byPriority.find(p => p._id === 'LOW')?.count || 0,
-        MEDIUM: byPriority.find(p => p._id === 'MEDIUM')?.count || 0,
-        HIGH: byPriority.find(p => p._id === 'HIGH')?.count || 0,
-        URGENT: byPriority.find(p => p._id === 'URGENT')?.count || 0
+      byPriority,
+      metrics: {
+        totalTasks,
+        runningTasks,
+        pausedTasks,
+        onHoldTasks,
+        completedTasks,
+        overdueOpenTasks: overdueCount,
+        completedOnTimeTasks,
+        completedLateTasks,
+        completionRate,
+        totalActiveWorkMs,
+        avgActiveCompletionMs: avgActiveCompletionSamples > 0 ? Math.round(avgActiveCompletionAccumulator / avgActiveCompletionSamples) : 0,
+        estimateAccuracyPct: estimateAccuracySamples > 0 ? Math.round(estimateAccuracyAccumulator / estimateAccuracySamples) : 0,
+        selfAssignedTasks,
+        assignedByOthersTasks,
+        extensionRequestedTasks,
+        extensionApprovedTasks,
+        extensionRejectedTasks,
       },
       dateRange
     };
@@ -864,19 +899,19 @@ export const tasksService = {
           isDeleted: false
         });
 
-        // Calculate average completion time
+        // Calculate average completion time using active worked duration
         const completedTasksData = await Task.find({
           assignedTo: userId,
           status: 'completed',
           ...taskQueryBase,
           completedAt: { $exists: true }
-        }).select('createdAt completedAt');
+        }).select('estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds status');
 
         let avgCompletionTime = 'N/A';
         if (completedTasksData.length > 0) {
           const totalTime = completedTasksData.reduce((sum, task) => {
-            const time = task.completedAt - task.createdAt;
-            return sum + time;
+            const metrics = calculateTaskMetrics(task, now);
+            return sum + (metrics.activeWorkedMs || 0);
           }, 0);
           const avgMs = totalTime / completedTasksData.length;
           const avgDays = Math.floor(avgMs / (1000 * 60 * 60 * 24));

@@ -17,13 +17,15 @@ export default function ProductivityAnalytics({ departmentId = null }) {
   const loadAnalytics = async () => {
     try {
       setLoading(true);
-      const [analyticsRes, overloadedRes] = await Promise.all([
-        api.get('/tasks/analytics/dashboard'),
-        api.get('/tasks/analytics/overloaded-employees')
+      const [analyticsRes, teamRes] = await Promise.all([
+        api.get('/tasks/analytics/all', { params: { dateRange: 'month' } }),
+        api.get('/tasks/analytics/team-performance', { params: { dateRange: 'month' } })
       ]);
 
-      setAnalytics(analyticsRes.data?.data || {});
-      setOverloaded(overloadedRes.data?.data || []);
+      const analyticsData = analyticsRes.data?.data || {};
+      const teamData = teamRes.data?.data || [];
+      setAnalytics(analyticsData);
+      setOverloaded((Array.isArray(teamData) ? teamData : []).filter(member => (member.overdueCount || 0) > 0));
     } catch (err) {
       console.error('Error loading analytics:', err);
     } finally {
@@ -32,12 +34,14 @@ export default function ProductivityAnalytics({ departmentId = null }) {
   };
 
   if (loading) return <Spinner />;
+  const metrics = analytics?.metrics || {};
+  const teamPerformance = Array.isArray(overloaded) ? overloaded : [];
 
   const productivityData = [
     { name: 'Completed', value: analytics.completedTasks || 0, fill: '#10b981' },
     { name: 'Pending', value: analytics.pendingTasks || 0, fill: '#f59e0b' },
-    { name: 'Overdue', value: analytics.overdueTasks || 0, fill: '#ef4444' },
-    { name: 'On Hold', value: analytics.onHoldTasks || 0, fill: '#6366f1' }
+    { name: 'Overdue', value: metrics.overdueOpenTasks || analytics.overdueCount || 0, fill: '#ef4444' },
+    { name: 'On Hold', value: metrics.onHoldTasks || analytics.onHoldTasks || 0, fill: '#6366f1' }
   ];
 
   const scoreHistory = analytics.scoreHistory || [];
@@ -53,7 +57,7 @@ export default function ProductivityAnalytics({ departmentId = null }) {
             <div>
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase">Productivity Score</p>
               <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 mt-1">
-                {Math.round(analytics.averageProductivityScore || 0)}%
+                {Math.round(metrics.estimateAccuracyPct || 0)}%
               </p>
             </div>
             <div className="p-2 bg-blue-200 dark:bg-blue-800/50 rounded-lg">
@@ -67,7 +71,7 @@ export default function ProductivityAnalytics({ departmentId = null }) {
             <div>
               <p className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase">Completion Rate</p>
               <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-1">
-                {Math.round(analytics.avgCompletionRate || 0)}%
+                {Math.round(analytics.completionRate || 0)}%
               </p>
             </div>
             <div className="p-2 bg-green-200 dark:bg-green-800/50 rounded-lg">
@@ -81,7 +85,7 @@ export default function ProductivityAnalytics({ departmentId = null }) {
             <div>
               <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase">On-Time Rate</p>
               <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1">
-                {Math.round(analytics.onTimeCompletionRate || 0)}%
+                {metrics.completedTasks > 0 ? Math.round(((metrics.completedOnTimeTasks || 0) / metrics.completedTasks) * 100) : 0}%
               </p>
             </div>
             <div className="p-2 bg-purple-200 dark:bg-purple-800/50 rounded-lg">
@@ -95,7 +99,7 @@ export default function ProductivityAnalytics({ departmentId = null }) {
             <div>
               <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase">Overloaded</p>
               <p className="text-3xl font-bold text-red-900 dark:text-red-100 mt-1">
-                {overloaded.length}
+                {teamPerformance.length}
               </p>
             </div>
             <div className="p-2 bg-red-200 dark:bg-red-800/50 rounded-lg">
@@ -182,19 +186,17 @@ export default function ProductivityAnalytics({ departmentId = null }) {
             Overloaded Employees Requiring Attention
           </h3>
           <div className="space-y-3">
-            {overloaded.slice(0, 10).map((emp) => (
-              <div key={emp._id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
+            {teamPerformance.slice(0, 10).map((emp) => (
+              <div key={emp._id || emp.email} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg">
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{emp.employeeId?.name}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{emp.name || emp.userName || emp.email}</p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {emp.pendingTasks} pending • {emp.overdueTasks} overdue
+                    {(emp.inProgress || 0)} in progress • {(emp.overdueCount || 0)} overdue
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className={`text-sm font-bold ${emp.currentWorkload === 'overloaded' ? 'text-red-600' : 'text-orange-600'}`}>
-                    {emp.currentWorkload}
-                  </p>
-                  <p className="text-xs text-slate-500">Score: {emp.productivityScore}%</p>
+                  <p className="text-sm font-bold text-red-600">{emp.classification || 'Needs Improvement'}</p>
+                  <p className="text-xs text-slate-500">Score: {emp.performanceScore || 0}%</p>
                 </div>
               </div>
             ))}

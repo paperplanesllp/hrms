@@ -18,7 +18,7 @@ export default function WorkloadAnalysis() {
   const loadWorkload = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/tasks/analytics/workload');
+      const response = await api.get('/tasks/analytics/team-performance', { params: { dateRange: 'month' } });
       setWorkload(response.data?.data || []);
     } catch (err) {
       setError(err.message);
@@ -32,12 +32,12 @@ export default function WorkloadAnalysis() {
   if (error) return <p className="text-red-600">Error loading workload</p>;
 
   const workloadData = workload.map(emp => ({
-    name: emp.employeeId?.name || 'Unknown',
-    pending: emp.pendingTasks,
+    name: emp.name || emp.userName || 'Unknown',
+    pending: emp.inProgress || 0,
     completed: emp.completedTasks,
-    overdue: emp.overdueTasks,
-    productivity: emp.productivityScore,
-    workload: emp.currentWorkload
+    overdue: emp.overdueCount || 0,
+    productivity: emp.performanceScore || 0,
+    workload: (emp.overdueCount || 0) > 3 ? 'overloaded' : (emp.inProgress || 0) > 6 ? 'heavy' : 'normal'
   }));
 
   const workloadStatusColor = {
@@ -81,7 +81,7 @@ export default function WorkloadAnalysis() {
             <div>
               <p className="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase">Heavy Workload</p>
               <p className="text-3xl font-bold text-orange-900 dark:text-orange-100 mt-1">
-                {workload.filter(e => e.currentWorkload === 'heavy').length}
+                {workloadData.filter(e => e.workload === 'heavy').length}
               </p>
             </div>
             <TrendingUp className="w-5 h-5 text-orange-600" />
@@ -93,7 +93,7 @@ export default function WorkloadAnalysis() {
             <div>
               <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase">Overloaded</p>
               <p className="text-3xl font-bold text-red-900 dark:text-red-100 mt-1">
-                {workload.filter(e => e.currentWorkload === 'overloaded').length}
+                {workloadData.filter(e => e.workload === 'overloaded').length}
               </p>
             </div>
             <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -160,43 +160,45 @@ export default function WorkloadAnalysis() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {workload.map((emp) => (
+              {workload.map((emp) => {
+                const currentWorkload = (emp.overdueCount || 0) > 3 ? 'overloaded' : (emp.inProgress || 0) > 6 ? 'heavy' : 'normal';
+                return (
                 <tr key={emp._id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
                   <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
-                    {emp.employeeId?.name}
+                    {emp.name || emp.userName || emp.email}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${workloadStatusColor[emp.currentWorkload]}`}>
-                      {getWorkloadIcon(emp.currentWorkload)} {emp.currentWorkload}
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${workloadStatusColor[currentWorkload]}`}>
+                      {getWorkloadIcon(currentWorkload)} {currentWorkload}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center text-slate-600 dark:text-slate-400 font-semibold">
-                    {emp.pendingTasks}
+                    {emp.inProgress || 0}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`font-semibold ${emp.overdueTasks > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {emp.overdueTasks}
+                    <span className={`font-semibold ${(emp.overdueCount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {emp.overdueCount || 0}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center">
                       <div className="w-12 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${emp.productivityScore >= 80 ? 'bg-green-500' : emp.productivityScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                          style={{ width: `${emp.productivityScore}%` }}
+                          className={`h-full ${emp.performanceScore >= 80 ? 'bg-green-500' : emp.performanceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                          style={{ width: `${emp.performanceScore || 0}%` }}
                         ></div>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {emp.currentWorkload === 'overloaded' && (
+                    {currentWorkload === 'overloaded' && (
                       <Button size="sm" variant="outline" className="text-xs">
                         Reassign Tasks
                       </Button>
                     )}
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>

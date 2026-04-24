@@ -86,6 +86,7 @@ const formatDurationFromMinutes = (totalMinutes) => {
 };
 
 const formatDurationFromMs = (totalMs) => formatDurationFromMinutes((Number(totalMs) || 0) / 60000);
+const DUE_SOON_THRESHOLD_MS = Number(process.env.DUE_SOON_THRESHOLD_MS) || 15 * 60 * 1000;
 
 const isTerminalWorkflowStatus = (status) =>
   ["completed", "rejected", "cancelled"].includes(status);
@@ -151,6 +152,145 @@ const getActiveWorkedMs = (task, now = new Date()) => {
 
   return activeMs;
 };
+
+const getPauseEntriesDurationMs = (task, now = new Date()) => {
+  if (!Array.isArray(task?.pauseEntries) || task.pauseEntries.length === 0) return 0;
+  const current = toDate(now) || new Date();
+  return task.pauseEntries.reduce((sum, entry) => {
+    const pausedAt = toDate(entry?.pausedAt);
+    if (!pausedAt) return sum;
+    const resumedAt = toDate(entry?.resumedAt) || current;
+    return sum + Math.max(0, resumedAt.getTime() - pausedAt.getTime());
+  }, 0);
+};
+
+const getHoldEntriesDurationMs = (task, now = new Date()) => {
+  if (!Array.isArray(task?.holdEntries) || task.holdEntries.length === 0) return 0;
+  const current = toDate(now) || new Date();
+  return task.holdEntries.reduce((sum, entry) => {
+    const heldAt = toDate(entry?.heldAt);
+    if (!heldAt) return sum;
+    const resumedAt = toDate(entry?.resumedAt) || current;
+    return sum + Math.max(0, resumedAt.getTime() - heldAt.getTime());
+  }, 0);
+};
+
+export function calculateTaskMetrics(task, now = new Date()) {
+  const current = toDate(now) || new Date();
+  const startedAt = toDate(task?.startedAt);
+  const completedAt = toDate(task?.completedAt);
+  const status = task?.status || 'pending';
+  const terminal = isTerminalWorkflowStatus(status);
+  const isStarted = Boolean(startedAt);
+  const isPaused = Boolean(task?.isPaused || status === 'paused');
+  const isOnHold = Boolean(task?.isOnHold || status === 'on-hold');
+  const isRunning = Boolean(task?.isRunning && !isPaused && !isOnHold && !terminal);
+
+  const estimatedMinutes = getEstimatedTotalMinutes(task);
+  const estimatedMs = estimatedMinutes > 0 ? estimatedMinutes * 60 * 1000 : 0;
+
+  const metricsNow = terminal && completedAt ? completedAt : current;
+
+  const activeWorkedMs = terminal
+    ? Math.max(
+        toMs(task?.totalWorkedMilliseconds),
+        toMs(task?.totalActiveTimeInSeconds) * 1000,
+        toMs(task?.totalActiveMilliseconds)
+      )
+    : Math.max(
+        toMs(task?.totalWorkedMilliseconds),
+        getActiveWorkedMs(task, metricsNow)
+      );
+
+  const pausedMs = Math.max(
+    toMs(task?.totalPausedMilliseconds),
+    toMs(task?.pausedDurationMs),
+    toMs(task?.totalPausedTimeInSeconds) * 1000,
+    getPauseEntriesDurationMs(task, metricsNow)
+  );
+
+  const holdMs = Math.max(
+    toMs(task?.totalHoldTimeInSeconds) * 1000,
+    getHoldEntriesDurationMs(task, metricsNow)
+  );
+
+  const effectiveDueAt = isStarted && estimatedMs > 0
+    ? new Date(startedAt.getTime() + estimatedMs + pausedMs + holdMs)
+    : null;
+
+  const remainingMs = terminal
+    ? 0
+    : estimatedMs > 0
+      ? Math.max(0, estimatedMs - activeWorkedMs)
+      : null;
+  const deadlineRemainingMs = effectiveDueAt ? effectiveDueAt.getTime() - metricsNow.getTime() : null;
+
+  const isOverdue = Boolean(
+    isStarted &&
+    !terminal &&
+    estimatedMs > 0 &&
+    (activeWorkedMs > estimatedMs || (effectiveDueAt && metricsNow > effectiveDueAt))
+  );
+
+  const isDueSoon = Boolean(
+    isStarted &&
+    !terminal &&
+    !isOverdue &&
+    estimatedMs > 0 &&
+    (isRunning || (!isPaused && !isOnHold)) &&
+    typeof deadlineRemainingMs === 'number' &&
+    deadlineRemainingMs > 0 &&
+    deadlineRemainingMs <= DUE_SOON_THRESHOLD_MS
+  );
+
+  const completedOnTime = terminal && completedAt && effectiveDueAt
+    ? completedAt.getTime() <= effectiveDueAt.getTime()
+    : null;
+
+  const statusLabel = terminal
+    ? 'Completed'
+    : isOnHold
+      ? 'On Hold'
+      : isPaused
+        ? 'Paused'
+        : isOverdue
+          ? 'Overdue'
+          : isDueSoon
+            ? 'Due Soon'
+            : isRunning
+              ? 'Running'
+              : isStarted
+                ? 'Started'
+                : 'Not Started';
+
+  const remainingRatio = estimatedMs > 0 && typeof remainingMs === 'number'
+    ? remainingMs / estimatedMs
+    : null;
+  const timingHealth = isOverdue
+    ? 'overdue'
+    : remainingRatio !== null && remainingRatio < 0.2
+      ? 'risk'
+      : 'on-track';
+
+  return {
+    estimatedMs,
+    activeWorkedMs,
+    pausedMs,
+    holdMs,
+    effectiveDueAt,
+    remainingMs,
+    deadlineRemainingMs,
+    isStarted,
+    isRunning,
+    isPaused,
+    isOnHold,
+    isDueSoon,
+    isOverdue,
+    completedOnTime,
+    statusLabel,
+    timingHealth,
+  };
+}
 
 export function calculateDueTime(startedAt, estimatedMinutes, pausedDurationMs = 0) {
   const startDate = toDate(startedAt);
@@ -254,14 +394,11 @@ export function calculateRemainingTime(task, now = new Date()) {
   const nowDate = toDate(now) || new Date();
   const timingState = resolveTaskTimingState(task, nowDate);
   const estimatedMinutes = getEstimatedTotalMinutes(task);
-  const activeWorkedMs = getActiveWorkedMs(task, nowDate);
-  const pausedDurationMs = getEffectivePausedDurationMs(task, nowDate);
-  const effectiveDueAt =
-    calculateDueTime(task?.startedAt, estimatedMinutes, pausedDurationMs) ||
-    toDate(task?.dueAt) ||
-    toDate(task?.dueDate);
-
-  const shouldTrackDeadline = Boolean(task?.startedAt) && estimatedMinutes > 0;
+  const metrics = calculateTaskMetrics(task, nowDate);
+  const activeWorkedMs = metrics.activeWorkedMs;
+  const pausedDurationMs = metrics.pausedMs + metrics.holdMs;
+  const effectiveDueAt = metrics.effectiveDueAt || toDate(task?.dueAt) || toDate(task?.dueDate);
+  const shouldTrackDeadline = Boolean(metrics.isStarted) && estimatedMinutes > 0;
   const estimatedLabel = estimatedMinutes > 0 ? formatDurationFromMinutes(estimatedMinutes) : "No estimate set";
   const activeWorkedLabel = activeWorkedMs > 0 ? formatDurationFromMs(activeWorkedMs) : "0m";
   const pausedDurationLabel = pausedDurationMs > 0 ? formatDurationFromMs(pausedDurationMs) : "0m";
@@ -291,18 +428,18 @@ export function calculateRemainingTime(task, now = new Date()) {
     };
   }
 
-  const remainingMs = effectiveDueAt.getTime() - nowDate.getTime();
+  const remainingMs = metrics.deadlineRemainingMs;
   const remainingSeconds = Math.floor(remainingMs / 1000);
   const overdueByMinutes = Math.max(1, Math.ceil(Math.abs(remainingSeconds) / 60));
   const remainingDurationLabel = formatDurationFromMinutes(Math.abs(remainingMs) / 60000);
 
   let state = "In progress";
   if (timingState === TASK_TIMING_STATE.PAUSED) state = "Paused";
-  if (remainingSeconds < 0) state = `Overdue by ${remainingDurationLabel}`;
-  else if (remainingSeconds <= 30 * 60) state = `Due in ${remainingDurationLabel}`;
+  if (metrics.isOverdue) state = `Overdue by ${remainingDurationLabel}`;
+  else if (metrics.isDueSoon) state = `Due in ${remainingDurationLabel}`;
 
   const remainingLabel =
-    remainingSeconds < 0
+    metrics.isOverdue
       ? `Overdue by ${remainingDurationLabel}`
       : `${remainingDurationLabel} remaining`;
 
@@ -323,23 +460,24 @@ export function calculateRemainingTime(task, now = new Date()) {
     overdueByMinutes,
     remainingLabel,
     isDueNow: remainingSeconds === 0,
-    isOverdue: remainingSeconds < 0,
-    isDueSoon: remainingSeconds >= 0 && remainingSeconds <= 30 * 60,
+    isOverdue: metrics.isOverdue,
+    isDueSoon: metrics.isDueSoon,
   };
 }
 
 export function getRemainingState(task, now = new Date()) {
   const timingState = resolveTaskTimingState(task, now);
+  const metrics = calculateTaskMetrics(task, now);
 
   if (timingState === TASK_TIMING_STATE.COMPLETED) return REMAINING_STATE.COMPLETED;
   if (!task?.startedAt) return REMAINING_STATE.NOT_STARTED;
   if (toMinutes(task?.estimatedMinutes) <= 0) return REMAINING_STATE.NO_ESTIMATE;
   if (timingState === TASK_TIMING_STATE.PAUSED) return REMAINING_STATE.PAUSED;
 
-  const remainingMs = getRemainingMs(task, now);
+  const remainingMs = metrics.deadlineRemainingMs;
   if (remainingMs === null) return REMAINING_STATE.NO_ESTIMATE;
-  if (remainingMs < 0) return REMAINING_STATE.OVERDUE;
-  if (remainingMs <= 30 * 60 * 1000) return REMAINING_STATE.DUE_SOON;
+  if (metrics.isOverdue) return REMAINING_STATE.OVERDUE;
+  if (metrics.isDueSoon) return REMAINING_STATE.DUE_SOON;
 
   return REMAINING_STATE.IN_PROGRESS;
 }
@@ -376,29 +514,55 @@ export function shouldSendReminder(task, reminderType, now = new Date()) {
 }
 
 export function normalizeTaskTiming(task, now = new Date()) {
-  const remaining = calculateRemainingTime(task, now);
-  const remainingState = getRemainingState(task, now);
-  const remainingLabel = remaining.remainingLabel || getRemainingLabel(task, now);
-  const isDueSoon = remainingState === REMAINING_STATE.DUE_SOON;
+  const metrics = calculateTaskMetrics(task, now);
+  const terminal = isTerminalWorkflowStatus(task?.status);
+  const shouldTrackDeadline = Boolean(metrics.isStarted) && metrics.estimatedMs > 0 && !terminal;
+  const remainingMs = shouldTrackDeadline ? metrics.deadlineRemainingMs : null;
+  const remainingSeconds = typeof remainingMs === 'number' ? Math.floor(remainingMs / 1000) : null;
+  const remainingMinutes = typeof remainingMs === 'number' ? remainingMs / 60000 : null;
+  const remainingState = terminal
+    ? REMAINING_STATE.COMPLETED
+    : !metrics.isStarted
+      ? REMAINING_STATE.NOT_STARTED
+      : metrics.estimatedMs <= 0
+        ? REMAINING_STATE.NO_ESTIMATE
+        : (metrics.isPaused || metrics.isOnHold)
+          ? REMAINING_STATE.PAUSED
+          : metrics.isOverdue
+            ? REMAINING_STATE.OVERDUE
+            : metrics.isDueSoon
+              ? REMAINING_STATE.DUE_SOON
+              : REMAINING_STATE.IN_PROGRESS;
+  const remainingLabel = terminal
+    ? 'Completed'
+    : typeof remainingMs !== 'number'
+      ? (!metrics.isStarted ? 'Not started' : metrics.estimatedMs <= 0 ? 'No estimate set' : 'Not tracking')
+      : metrics.isOverdue
+        ? `Overdue by ${formatDurationFromMs(Math.abs(remainingMs))}`
+        : `${formatDurationFromMs(remainingMs)} remaining`;
 
   return {
-    dueAt: task?.dueAt || null,
+    dueAt: metrics.effectiveDueAt || task?.dueAt || null,
     startedAt: task?.startedAt || null,
-    pausedDurationMs: remaining.pausedDurationMs ?? toMs(task?.pausedDurationMs),
-    pausedDurationLabel: remaining.pausedDurationLabel || "0m",
-    activeWorkedMs: remaining.activeWorkedMs ?? getActiveWorkedMs(task, now),
-    activeWorkedLabel: remaining.activeWorkedLabel || "0m",
-    estimatedMinutes: remaining.estimatedMinutes ?? toMinutes(task?.estimatedMinutes),
-    estimatedLabel: remaining.estimatedLabel || "No estimate set",
-    remainingMs: remaining.remainingMs,
-    remainingSeconds: remaining.remainingSeconds,
-    remainingMinutes: remaining.remainingMinutes,
+    pausedDurationMs: metrics.pausedMs + metrics.holdMs,
+    pausedDurationLabel: formatDurationFromMs(metrics.pausedMs + metrics.holdMs),
+    activeWorkedMs: metrics.activeWorkedMs,
+    activeWorkedLabel: formatDurationFromMs(metrics.activeWorkedMs),
+    estimatedMinutes: Math.round((metrics.estimatedMs || 0) / 60000),
+    estimatedLabel: metrics.estimatedMs > 0 ? formatDurationFromMs(metrics.estimatedMs) : "No estimate set",
+    remainingMs,
+    remainingSeconds,
+    remainingMinutes,
     remainingState,
     remainingLabel,
-    isOverdue: remainingState === REMAINING_STATE.OVERDUE,
-    isDueSoon,
+    isOverdue: metrics.isOverdue,
+    isDueSoon: metrics.isDueSoon,
     normalizedTimingState: remainingState,
-    shouldTrackDeadline: remaining.shouldTrackDeadline,
+    shouldTrackDeadline,
+    metrics: {
+      ...metrics,
+      effectiveDueAt: metrics.effectiveDueAt || null,
+    },
   };
 }
 

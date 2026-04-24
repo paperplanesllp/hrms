@@ -42,6 +42,7 @@ export default function TaskDashboard({ userId, onFilterChange }) {
 
   const statsByStatus = stats.byStatus || {};
   const statsByPriority = stats.byPriority || {};
+  const metrics = stats.metrics || {};
 
   return (
     <div className="space-y-6">
@@ -138,7 +139,7 @@ export default function TaskDashboard({ userId, onFilterChange }) {
                 Overdue
               </p>
               <p className="text-3xl font-bold text-red-900 dark:text-red-100 mt-1">
-                {stats.overdue || 0}
+                {metrics.overdueOpenTasks ?? stats.overdue ?? 0}
               </p>
             </div>
             <div className="p-2 bg-red-200 dark:bg-red-800/50 rounded-lg">

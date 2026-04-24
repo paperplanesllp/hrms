@@ -26,6 +26,7 @@ export function formatTaskResponse(task, now = new Date()) {
     isOverdue: timing.isOverdue,
     isDueSoon: timing.isDueSoon,
     normalizedTimingState: timing.normalizedTimingState,
+    metrics: timing.metrics,
   };
 }
 
