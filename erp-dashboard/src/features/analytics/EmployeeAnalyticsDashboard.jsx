@@ -54,13 +54,13 @@ function PerformanceMetricCard({ icon, label, value, unit, trend, color }) {
           {trendSymbol} {trendValue}
         </Badge>
       </div>
-      <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-1">
+      <h3 className="mb-1 text-3xl font-bold text-slate-900 dark:text-white">
         {value}
-        <span className="text-sm text-slate-500 dark:text-slate-400 font-normal ml-2">
+        <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
           {unit}
         </span>
       </h3>
-      <p className="text-slate-600 dark:text-slate-400 text-sm">{label}</p>
+      <p className="text-sm text-slate-600 dark:text-slate-400">{label}</p>
     </Card>
   );
 }
@@ -73,7 +73,7 @@ function ChartCard({ title, subtitle, children }) {
           {title}
         </h3>
         {subtitle && (
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {subtitle}
           </p>
         )}
@@ -437,7 +437,7 @@ export default function EmployeeAnalyticsDashboard() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <Spinner />
-          <p className="text-slate-600 dark:text-slate-400 mt-4">
+          <p className="mt-4 text-slate-600 dark:text-slate-400">
             Loading your performance analytics...
           </p>
         </div>
@@ -448,17 +448,17 @@ export default function EmployeeAnalyticsDashboard() {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-6 rounded-3xl border border-blue-100 dark:border-blue-800">
+      <div className="p-6 border border-blue-100 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl dark:border-blue-800">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-500 rounded-2xl">
               <Activity className="w-6 h-6 text-white" />
             </div>
             <div>
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
                 Your Performance
               </h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">
+              <p className="mt-1 text-slate-600 dark:text-slate-400">
                 Real-time insights into your attendance, productivity, and
                 performance
               </p>
@@ -532,7 +532,7 @@ export default function EmployeeAnalyticsDashboard() {
       {leaveBalance && (
         <Card className="p-6" elevated>
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+            <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
               <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
@@ -546,27 +546,27 @@ export default function EmployeeAnalyticsDashboard() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+            <div className="p-4 border border-blue-100 bg-blue-50 dark:bg-blue-900/20 rounded-xl dark:border-blue-800">
+              <p className="mb-1 text-sm text-slate-600 dark:text-slate-400">
                 Total Days
               </p>
               <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                 {leaveBalance.total}
               </p>
             </div>
-            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+            <div className="p-4 border border-green-100 bg-green-50 dark:bg-green-900/20 rounded-xl dark:border-green-800">
+              <p className="mb-1 text-sm text-slate-600 dark:text-slate-400">
                 Remaining
               </p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                 {leaveBalance.remaining}
               </p>
             </div>
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+            <div className="p-4 border border-orange-100 bg-orange-50 dark:bg-orange-900/20 rounded-xl dark:border-orange-800">
+              <p className="mb-1 text-sm text-slate-600 dark:text-slate-400">
                 Used / Pending
               </p>
-              <p className="text-sm text-orange-600 dark:text-orange-400 font-semibold">
+              <p className="text-sm font-semibold text-orange-600 dark:text-orange-400">
                 {leaveBalance.used} Used / {leaveBalance.pending} Pending
               </p>
             </div>
@@ -628,7 +628,7 @@ export default function EmployeeAnalyticsDashboard() {
                     className={`flex items-center justify-between p-4 rounded-xl border ${statusColor}`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl font-bold text-slate-700 dark:text-slate-300 w-12">
+                      <span className="w-12 text-2xl font-bold text-slate-700 dark:text-slate-300">
                         {day.day}
                       </span>
                       <span
@@ -666,13 +666,13 @@ export default function EmployeeAnalyticsDashboard() {
                 );
               })
             ) : (
-              <div className="flex items-center justify-center h-48 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-center h-48 border rounded-lg bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                 <div className="text-center">
-                  <Clock className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
+                  <Clock className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-600" />
                   <p className="text-slate-600 dark:text-slate-400">
                     No weekly data yet
                   </p>
-                  <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">
                     Check in this week to see your attendance
                   </p>
                 </div>
@@ -705,7 +705,7 @@ export default function EmployeeAnalyticsDashboard() {
           </ChartCard>
         ) : (
           <ChartCard title={`Hours Worked (${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)})`} subtitle="No data yet">
-            <div className="h-64 flex items-center justify-center text-slate-500">
+            <div className="flex items-center justify-center h-64 text-slate-500">
               <p>Start checking in to see your working hours</p>
             </div>
           </ChartCard>
@@ -765,13 +765,13 @@ export default function EmployeeAnalyticsDashboard() {
           title="Attendance Trends"
           subtitle="Build your attendance data by checking in regularly"
         >
-          <div className="h-80 flex items-center justify-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-center border rounded-lg h-80 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
             <div className="text-center">
-              <Activity className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
+              <Activity className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-600" />
               <p className="text-slate-600 dark:text-slate-400">
                 No attendance data yet
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-500">
                 Start checking in and checking out to build your attendance record
               </p>
             </div>
@@ -782,7 +782,7 @@ export default function EmployeeAnalyticsDashboard() {
       {/* Performance Summary */}
       <Card className="p-6" elevated>
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+          <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
             <Award className="w-6 h-6 text-purple-600 dark:text-purple-400" />
           </div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -792,24 +792,24 @@ export default function EmployeeAnalyticsDashboard() {
 
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           <div className="text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Overall Score
             </p>
             <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">
               {(personalStats.performanceScore || 0).toFixed(0)}
               <span className="text-xl">/100</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Based on {personalStats.totalTrackedDays} records
             </p>
           </div>
           <div className="text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Status
             </p>
             <Badge
               variant={personalStats.performanceScore > 85 ? "success" : personalStats.performanceScore > 70 ? "warning" : "danger"}
-              className="text-lg p-2 inline-block"
+              className="inline-block p-2 text-lg"
             >
               {personalStats.performanceScore > 85
                 ? "Excellent"
@@ -819,7 +819,7 @@ export default function EmployeeAnalyticsDashboard() {
             </Badge>
           </div>
           <div className="text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Summary
             </p>
             <p className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -828,65 +828,6 @@ export default function EmployeeAnalyticsDashboard() {
               {personalStats.halfDay} Half Day<br/>
               {personalStats.absent} Absent
             </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Tips & Recommendations */}
-      <Card className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-100 dark:border-amber-800" elevated>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center">
-            <Target className="w-6 h-6 text-white" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-            Tips to Improve Your Performance
-          </h3>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg">
-            <span className="text-2xl">⏰</span>
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">
-                Maintain Punctuality
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Arrive on time every day to boost your score
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg">
-            <span className="text-2xl">📅</span>
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">
-                Reduce Absences
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Minimize unplanned absences for better attendance
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg">
-            <span className="text-2xl">⏱️</span>
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">
-                Checkout Properly
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Always checkout to record your working hours
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg">
-            <span className="text-2xl">📊</span>
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">
-                Track Progress
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Review this dashboard regularly
-              </p>
-            </div>
           </div>
         </div>
       </Card>
