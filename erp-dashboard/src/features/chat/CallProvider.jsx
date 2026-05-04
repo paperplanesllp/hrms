@@ -34,6 +34,7 @@ export default function CallProvider({ children }) {
   const durationRef      = useRef(null);  // interval id
   const ringTimeoutRef   = useRef(null);  // auto-miss timeout id
   const iceRestartRef    = useRef(null);  // pending ICE restart debounce
+  const socketReconnectGraceRef = useRef(null);
   const targetUserIdRef  = useRef(null);  // opposite party's userId
   const processedSignalsRef = useRef(new Set());
 
@@ -102,8 +103,10 @@ export default function CallProvider({ children }) {
     stopDurationTimer();
     clearTimeout(ringTimeoutRef.current);
     clearTimeout(iceRestartRef.current);
+    clearTimeout(socketReconnectGraceRef.current);
     ringTimeoutRef.current = null;
     iceRestartRef.current = null;
+    socketReconnectGraceRef.current = null;
     targetUserIdRef.current = null;
     processedSignalsRef.current.clear();
   }, [webrtc, stopDurationTimer, stopRingtone]);
@@ -189,6 +192,8 @@ export default function CallProvider({ children }) {
       });
       if (String(status).toLowerCase() === "ringing") {
         callActions.setCallStatus("ringing");
+      } else if (String(status).toLowerCase() === "reconnecting") {
+        callActions.setCallStatus("reconnecting");
       } else {
         callActions.setCallStatus("trying");
       }
@@ -362,6 +367,7 @@ export default function CallProvider({ children }) {
     // ── webrtc:offer — received by the answering side ────────────────────
     const onWebRTCOffer = async ({ offer, callId, fromUserId }) => {
       if (!rememberSignal("offer", { offer, callId, fromUserId })) return;
+      console.log("[WebRTC] offer received", { callId, fromUserId });
       try {
         const stream = await webrtc.getMediaStream(getCallState().callType);
         webrtc.createPeerConnection((candidate) => {
@@ -384,7 +390,10 @@ export default function CallProvider({ children }) {
         });
         webrtc.addTracks(stream);
         const answer = await webrtc.createAnswer(offer);
+        console.log("[WebRTC] answer created", { callId, targetUserId: fromUserId });
         socket.emit("answer", { targetUserId: fromUserId, answer, callId });
+        socket.emit("answer-call", { targetUserId: fromUserId, answer, callId });
+        console.log("[WebRTC] answer sent", { callId, targetUserId: fromUserId });
         callActions.setCallStatus("connecting");
         startDurationTimer();
       } catch (err) {
@@ -416,6 +425,31 @@ export default function CallProvider({ children }) {
       await webrtc.addIceCandidate(candidate);
     };
 
+    const onCallReconnecting = ({ callId, userId, reason, graceMs }) => {
+      console.log("[CallProvider] Call participant reconnecting", {
+        callId,
+        userId,
+        reason,
+        graceMs,
+        ...getSocketDebugInfo(),
+      });
+      callActions.setCallStatus("reconnecting");
+    };
+
+    const onCallReconnected = ({ callId, userId }) => {
+      console.log("[CallProvider] Call participant reconnected", {
+        callId,
+        userId,
+        ...getSocketDebugInfo(),
+      });
+      clearTimeout(socketReconnectGraceRef.current);
+      socketReconnectGraceRef.current = null;
+      const { callStatus: currentStatus } = getCallState();
+      if (currentStatus === "reconnecting") {
+        callActions.setCallStatus(webrtc.pcRef.current ? "connected" : "connecting");
+      }
+    };
+
     // ── call:error ────────────────────────────────────────────────────────
     const onCallError = ({ code }) => {
       console.log("⚠️ Call error event received", {
@@ -429,13 +463,34 @@ export default function CallProvider({ children }) {
       callActions.resetCall();
     };
 
-    const onSocketDisconnect = () => {
-      console.log("🔌 CallProvider observed socket disconnect", getSocketDebugInfo());
+    const onSocketDisconnect = (reason) => {
+      console.log("CallProvider observed socket disconnect", {
+        reason,
+        ...getSocketDebugInfo(),
+      });
       const { callStatus: currentStatus } = getCallState();
-      if (currentStatus !== "idle") {
+      if (["calling", "ringing", "connecting", "connected", "in_call", "reconnecting"].includes(currentStatus)) {
+        callActions.setCallStatus("reconnecting");
         showCallToast({ title: "Call", code: "SOCKET_DISCONNECTED", type: "info" });
-        cleanup();
-        callActions.resetCall();
+        clearTimeout(socketReconnectGraceRef.current);
+        socketReconnectGraceRef.current = setTimeout(() => {
+          const latest = getCallState();
+          if (latest.callStatus === "reconnecting" && !getSocket()?.connected) {
+            cleanup();
+            callActions.setCallStatus("failed");
+            setTimeout(() => callActions.resetCall(), 700);
+          }
+        }, 10_000);
+      }
+    };
+
+    const onSocketConnect = () => {
+      console.log("[CallProvider] Socket connected/reconnected", getSocketDebugInfo());
+      clearTimeout(socketReconnectGraceRef.current);
+      socketReconnectGraceRef.current = null;
+      const { callStatus: currentStatus } = getCallState();
+      if (currentStatus === "reconnecting") {
+        callActions.setCallStatus(webrtc.pcRef.current ? "connected" : "connecting");
       }
     };
 
@@ -461,14 +516,18 @@ export default function CallProvider({ children }) {
     socket.on("call:missed",          onCallMissed);
     socket.on("call:busy",            onCallBusy);
     socket.on("call:end",             onCallEnded);
+    socket.on("call:reconnecting",    onCallReconnecting);
+    socket.on("call:reconnected",     onCallReconnected);
     socket.on("webrtc:offer",         onWebRTCOffer);
     socket.on("call-offer",           onWebRTCOffer);
     socket.on("webrtc:answer",        onWebRTCAnswer);
     socket.on("answer",               onWebRTCAnswer);
+    socket.on("answer-call",          onWebRTCAnswer);
     socket.on("webrtc:ice-candidate", onIceCandidate);
     socket.on("ice-candidate",        onIceCandidate);
     socket.on("call:error",           onCallError);
     socket.on("disconnect",           onSocketDisconnect);
+    socket.on("connect",              onSocketConnect);
     socket.on("connect_error",        onSocketConnectError);
 
     return () => {
@@ -484,14 +543,18 @@ export default function CallProvider({ children }) {
       socket.off("call:missed",          onCallMissed);
       socket.off("call:busy",            onCallBusy);
       socket.off("call:end",             onCallEnded);
+      socket.off("call:reconnecting",    onCallReconnecting);
+      socket.off("call:reconnected",     onCallReconnected);
       socket.off("webrtc:offer",         onWebRTCOffer);
       socket.off("call-offer",           onWebRTCOffer);
       socket.off("webrtc:answer",        onWebRTCAnswer);
       socket.off("answer",               onWebRTCAnswer);
+      socket.off("answer-call",          onWebRTCAnswer);
       socket.off("webrtc:ice-candidate", onIceCandidate);
       socket.off("ice-candidate",        onIceCandidate);
       socket.off("call:error",           onCallError);
       socket.off("disconnect",           onSocketDisconnect);
+      socket.off("connect",              onSocketConnect);
       socket.off("connect_error",        onSocketConnectError);
     };
     // Intentionally empty deps — handlers use getCallState() for fresh state
@@ -602,7 +665,7 @@ export default function CallProvider({ children }) {
 
   // ── Decide which overlay to display ─────────────────────────────────────
   const showIncomingModal = isIncoming && ["incoming", "ringing"].includes(callStatus);
-  const showCallScreen    = ["trying", "calling", "ringing", "connecting", "connected", "in_call", "ended", "failed", "rejected", "no_answer"].includes(callStatus);
+  const showCallScreen    = ["trying", "calling", "ringing", "reconnecting", "connecting", "connected", "in_call", "ended", "failed", "rejected", "no_answer"].includes(callStatus);
 
   return (
     <>

@@ -65,6 +65,8 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
       ? "Ringing..."
       : callStatus === "connecting"
       ? "Connecting..."
+      : callStatus === "reconnecting"
+      ? "Reconnecting..."
       : callStatus === "rejected"
       ? "Rejected"
       : callStatus === "no_answer"

@@ -9,6 +9,7 @@ const CALL_STATUS = {
   INITIATING: "initiating",
   RINGING: "ringing",
   IN_CALL: "in_call",
+  RECONNECTING: "reconnecting",
   REJECTED: "rejected",
   ENDED: "ended",
   TIMEOUT: "timeout",
@@ -165,7 +166,7 @@ export const getCallState = (callId) => {
   return call ? { ...call } : null;
 };
 
-export const startRinging = ({ callId, callerId, receiverId, callType, conversationId }) => {
+export const startRinging = ({ callId, callerId, receiverId, callType, conversationId, callerName, callerImage }) => {
   const normalizedCallId = toKey(callId);
   const normalizedCallerId = toKey(callerId);
   const normalizedReceiverId = toKey(receiverId);
@@ -193,6 +194,8 @@ export const startRinging = ({ callId, callerId, receiverId, callType, conversat
     receiverId: normalizedReceiverId,
     callType,
     conversationId: conversationId || null,
+    callerName: callerName || null,
+    callerImage: callerImage || null,
     startedAt,
     status: CALL_STATUS.INITIATING,
     delivery: {
@@ -250,13 +253,75 @@ export const markCallDelivery = ({ callId, mode, failureReason = null }) => {
   return { ok: true, call: { ...call } };
 };
 
+export const getPendingIncomingCallsForUser = (userId) => {
+  const normalizedUserId = toKey(userId);
+  const now = Date.now();
+
+  return Array.from(activeCalls.values())
+    .filter((call) => {
+      if (call.receiverId !== normalizedUserId) return false;
+      if (![CALL_STATUS.INITIATING, CALL_STATUS.RINGING].includes(call.status)) return false;
+      if (call.delivery?.mode === "realtime-delivered") return false;
+      if (call.expiresAt && new Date(call.expiresAt).getTime() <= now) return false;
+      return true;
+    })
+    .map((call) => ({ ...call }));
+};
+
+export const markCallReconnecting = (callId, userId) => {
+  const normalizedCallId = toKey(callId);
+  const normalizedUserId = toKey(userId);
+  const call = activeCalls.get(normalizedCallId);
+  if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+  if (![call.callerId, call.receiverId].includes(normalizedUserId)) {
+    return { ok: false, code: "CALL_PARTICIPANT_MISMATCH" };
+  }
+
+  call.previousStatus = call.status;
+  call.status = CALL_STATUS.RECONNECTING;
+  call.reconnectingUserId = normalizedUserId;
+  call.reconnectingAt = new Date();
+
+  const state = ensureUserState(normalizedUserId);
+  if (state) {
+    state.status = USER_STATUS.IN_CALL;
+    state.currentCallId = normalizedCallId;
+    state.updatedAt = new Date();
+  }
+
+  return { ok: true, call: { ...call } };
+};
+
+export const resumeReconnectingCall = (callId, userId) => {
+  const normalizedCallId = toKey(callId);
+  const normalizedUserId = toKey(userId);
+  const call = activeCalls.get(normalizedCallId);
+  if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
+  if (call.status !== CALL_STATUS.RECONNECTING) return { ok: true, call: { ...call } };
+  if (call.reconnectingUserId !== normalizedUserId) return { ok: false, code: "CALL_PARTICIPANT_MISMATCH" };
+
+  call.status = call.previousStatus || CALL_STATUS.IN_CALL;
+  call.reconnectingUserId = null;
+  call.reconnectingAt = null;
+  call.previousStatus = null;
+
+  setInCall(call.callerId, call);
+  setInCall(call.receiverId, call);
+
+  return { ok: true, call: { ...call } };
+};
+
 export const acceptCall = (callId, userId) => {
   const normalizedCallId = toKey(callId);
   const normalizedUserId = toKey(userId);
   const call = activeCalls.get(normalizedCallId);
   if (!call) return { ok: false, code: "CALL_NOT_FOUND" };
 
-  if (call.status !== CALL_STATUS.RINGING && call.status !== CALL_STATUS.INITIATING) {
+  if (
+    call.status !== CALL_STATUS.RINGING &&
+    call.status !== CALL_STATUS.INITIATING &&
+    call.status !== CALL_STATUS.RECONNECTING
+  ) {
     return { ok: false, code: "CALL_NOT_AVAILABLE" };
   }
 
