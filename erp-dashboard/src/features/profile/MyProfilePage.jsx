@@ -721,55 +721,60 @@ export default function MyProfilePage() {
 
       <SecuritySettings />
 
-      <Card>
-        <div className="flex items-center gap-3 mb-4">
+      <div className="grid gap-6 md:grid-cols-2">
 
-          <div className="flex items-center justify-center w-10 h-10 text-green-600 bg-green-100 rounded-xl">
-            <Activity size={18}/>
+        <Card className="border shadow-lg p-7 rounded-2xl">
+
+          <div className="flex items-center gap-3 mb-4">
+
+            <div className="flex items-center justify-center w-10 h-10 text-green-600 bg-green-100 rounded-xl">
+              <Activity size={18}/>
+            </div>
+
+            <h3 className="text-lg font-bold">Recent Activity</h3>
+
           </div>
 
-          <h3 className="text-lg font-bold">Recent Activity</h3>
+          <div className="space-y-3 overflow-y-auto max-h-64">
 
-        </div>
+            {accountActivity && accountActivity.length > 0 ? (
+              accountActivity.map((activity, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
 
-        <div className="space-y-3 overflow-y-auto max-h-64">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">
+                      {activity.action}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {activity.timestamp
+                        ? new Date(activity.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+                        : "N/A"}
+                    </p>
+                  </div>
 
-          {accountActivity && accountActivity.length > 0 ? (
-            accountActivity.map((activity, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div
+                    className={`px-2 py-1 rounded text-xs font-semibold ${
+                      activity.status === "success"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {activity.status}
+                  </div>
 
-                <div>
-                  <p className="text-sm font-semibold text-gray-700">
-                    {activity.action}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {activity.timestamp
-                      ? new Date(activity.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
-                      : "N/A"}
-                  </p>
                 </div>
+              ))
+            ) : (
+              <p className="py-4 text-sm text-center text-gray-500">
+                No recent activity
+              </p>
+            )}
 
-                <div
-                  className={`px-2 py-1 rounded text-xs font-semibold ${
-                    activity.status === "success"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-yellow-100 text-yellow-700"
-                  }`}
-                >
-                  {activity.status}
-                </div>
+          </div>
 
-              </div>
-            ))
-          ) : (
-            <p className="py-4 text-sm text-center text-gray-500">
-              No recent activity
-            </p>
-          )}
+        </Card>
 
-        </div>
-
-      </Card>
+      </div>
 
       {/* CROP MODAL */}
 

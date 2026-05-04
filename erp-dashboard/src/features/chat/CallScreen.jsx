@@ -17,6 +17,7 @@ import { getInitials } from "./chatUtils.js";
 export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
 
   const localStream = useCallStore((s) => s.localStream);
   const remoteStream = useCallStore((s) => s.remoteStream);
@@ -25,7 +26,7 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
   const callDuration = useCallStore((s) => s.callDuration);
 
   const isVideo = callType === "video";
-  const isConnected = callStatus === "in_call";
+  const isConnected = callStatus === "connected" || callStatus === "in_call";
 
   // ── Attach streams to <video> elements ────────────────────────────────────
   useEffect(() => {
@@ -37,6 +38,12 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  useEffect(() => {
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
@@ -72,12 +79,13 @@ export default function CallScreen({ remoteUser, callType, callStatus, onEnd }) 
 
   return (
     <div className="fixed inset-0 z-[9998] flex flex-col bg-slate-900 text-white select-none">
+      <audio ref={remoteAudioRef} autoPlay playsInline />
       {/* ── VIDEO CALL LAYOUT ─────────────────────────────────────────────── */}
       {isVideo ? (
         <>
           {/* Remote video — full screen */}
           <div className="absolute inset-0 bg-black">
-            {remoteStream && !isCameraOff ? (
+            {remoteStream ? (
               <video
                 ref={remoteVideoRef}
                 autoPlay

@@ -70,6 +70,9 @@ export const callActions = {
     if (state.localStream) {
       state.localStream.getTracks().forEach((t) => t.stop());
     }
+    if (state.remoteStream) {
+      state.remoteStream.getTracks().forEach((t) => t.stop());
+    }
     setState({ ...INITIAL_STATE });
   },
 };

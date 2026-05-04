@@ -63,7 +63,7 @@ Scenario: Meeting ended at **1:00 PM**, you resume work
 - Duration calculated: **1 hour paused**
 - You can see: **Paused: 1h 0m** in the display
 
----
+--- 
 
 ### 4. **Multiple Interruptions**
 

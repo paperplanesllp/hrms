@@ -81,6 +81,7 @@ const emitSocketLifecycleEvent = (socket, eventName, payload, callType) => {
 const emitIncomingCallEvents = (io, receiverId, payload) => {
   io.to(`user_${receiverId}`).emit("call:incoming", payload);
   io.to(`user_${receiverId}`).emit("voice-call:incoming", payload);
+  io.to(`user_${receiverId}`).emit("incoming-call", payload);
 };
 
 const getPeerUserId = (call, userId) =>
@@ -475,6 +476,7 @@ export const registerCallHandlers = (io, socket) => {
   // CALL:INITIATE — caller starts a call
   // ───────────────────────────────────────────────
   socket.on("call:initiate", handleCallInitiate);
+  socket.on("call-user", handleCallInitiate);
 
   // ───────────────────────────────────────────────
   // VOICE-CALL:INITIATE — voice call alias for the same signaling flow
@@ -708,6 +710,7 @@ export const registerCallHandlers = (io, socket) => {
   // CALL:END — either party ends the call
   // ───────────────────────────────────────────────
   socket.on("call:end", handleCallEnd);
+  socket.on("end-call", handleCallEnd);
 
   socket.on("voice-call:ended", async ({ callId, targetUserId }) => {
     const activeCall = getCallState(callId);
@@ -727,11 +730,27 @@ export const registerCallHandlers = (io, socket) => {
       emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
       return;
     }
-    io.to(`user_${targetUserId}`).emit("webrtc:offer", {
+    const payload = {
       offer,
       callId,
       fromUserId: socket.userId,
-    });
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:offer", payload);
+    io.to(`user_${targetUserId}`).emit("call-offer", payload);
+  });
+
+  socket.on("call-offer", ({ targetUserId, offer, callId }) => {
+    if (!targetUserId || !offer || !callId) {
+      emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
+      return;
+    }
+    const payload = {
+      offer,
+      callId,
+      fromUserId: socket.userId,
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:offer", payload);
+    io.to(`user_${targetUserId}`).emit("call-offer", payload);
   });
 
   // ───────────────────────────────────────────────
@@ -742,11 +761,27 @@ export const registerCallHandlers = (io, socket) => {
       emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
       return;
     }
-    io.to(`user_${targetUserId}`).emit("webrtc:answer", {
+    const payload = {
       answer,
       callId,
       fromUserId: socket.userId,
-    });
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:answer", payload);
+    io.to(`user_${targetUserId}`).emit("answer", payload);
+  });
+
+  socket.on("answer", ({ targetUserId, answer, callId }) => {
+    if (!targetUserId || !answer || !callId) {
+      emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
+      return;
+    }
+    const payload = {
+      answer,
+      callId,
+      fromUserId: socket.userId,
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:answer", payload);
+    io.to(`user_${targetUserId}`).emit("answer", payload);
   });
 
   // ───────────────────────────────────────────────
@@ -757,11 +792,27 @@ export const registerCallHandlers = (io, socket) => {
       emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
       return;
     }
-    io.to(`user_${targetUserId}`).emit("webrtc:ice-candidate", {
+    const payload = {
       candidate,
       callId,
       fromUserId: socket.userId,
-    });
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:ice-candidate", payload);
+    io.to(`user_${targetUserId}`).emit("ice-candidate", payload);
+  });
+
+  socket.on("ice-candidate", ({ targetUserId, candidate, callId }) => {
+    if (!targetUserId || !candidate || !callId) {
+      emitCallError(socket, CALL_ERROR.INVALID_CALL_PAYLOAD);
+      return;
+    }
+    const payload = {
+      candidate,
+      callId,
+      fromUserId: socket.userId,
+    };
+    io.to(`user_${targetUserId}`).emit("webrtc:ice-candidate", payload);
+    io.to(`user_${targetUserId}`).emit("ice-candidate", payload);
   });
 
   // ───────────────────────────────────────────────

@@ -46,15 +46,15 @@ export function useCallActions() {
 
       if (callType === "voice") {
         console.log("📞 Voice call emit start", {
-          event: "voice-call:initiate",
+          event: "call-user",
           receiverId: payload.receiverId,
           callerId: payload.callerId,
           startedAt: payload.startedAt,
           ...getSocketDebugInfo(),
         });
-        socket.emit("voice-call:initiate", payload);
+        socket.emit("call-user", payload);
       } else {
-        socket.emit("call:initiate", payload);
+        socket.emit("call-user", payload);
       }
 
       callActions.setCallStatus("calling");
