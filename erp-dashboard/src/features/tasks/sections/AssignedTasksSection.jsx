@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CheckCircle, Clock, AlertCircle, FileText, Loader, RefreshCw,
   ChevronDown, ChevronUp, User, Eye, Trash2, Play, Pause, PauseCircle,
-  Timer, Activity, BarChart3, MessageSquare, Calendar,
+  Timer, Activity, BarChart3, MessageSquare, Calendar, Edit2,
 } from 'lucide-react';
 import { taskService } from '../taskService.js';
 import { toast } from '../../../store/toastStore.js';
@@ -12,6 +12,7 @@ import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import ModalBase from '../../../components/ui/Modal.jsx';
 import TaskDetailsModal from '../TaskDetailsModal.jsx';
+import TaskEditModal from '../modals/TaskEditModal.jsx';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 import { useTaskCountdown } from '../hooks/useTaskTimer.js';
 import TimerChip from '../components/TimerChip.jsx';
@@ -27,6 +28,7 @@ export default function AssignedTasksSection() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
   const [extensionRejectModal, setExtensionRejectModal] = useState(null);
   const [extensionRejectionReason, setExtensionRejectionReason] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -243,6 +245,23 @@ export default function AssignedTasksSection() {
     }
   };
 
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+  };
+
+  const handleUpdateTask = async (updatedData) => {
+    try {
+      const updated = await taskService.updateTask(editingTask._id, updatedData);
+      setAssignedTasks(prev => prev.map(t => (t._id === updated._id ? updated : t)));
+      setSelectedTask(prev => prev?._id === updated._id ? updated : prev);
+      setEditingTask(null);
+      toast({ title: 'Task Updated', message: 'Task details updated successfully', type: 'success' });
+      triggerRefresh();
+    } catch (err) {
+      toast({ title: 'Failed to update task', message: err?.response?.data?.message || err.message, type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Filter Buttons and Refresh */}
@@ -308,6 +327,7 @@ export default function AssignedTasksSection() {
               task={task}
               deleting={deleting[task._id]}
               onViewDetails={() => setSelectedTask(task)}
+              onEdit={handleEditTask}
               onDelete={() => setDeleteConfirm(task._id)}
               onApproveExtension={() => handleApproveExtension(task)}
               onOpenRejectExtension={() => handleOpenRejectExtension(task)}
@@ -338,7 +358,14 @@ export default function AssignedTasksSection() {
         />
       )}
 
-      {/* Edit modal removed (UI hidden) */}
+      {/* Edit modal - Assignee can edit their tasks */}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={handleUpdateTask}
+        />
+      )}
 
       {extensionRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -440,6 +467,7 @@ function AssignedTaskCard({
   task,
   deleting,
   onViewDetails,
+  onEdit,
   onDelete,
   onApproveExtension,
   onOpenRejectExtension,
@@ -609,6 +637,16 @@ function AssignedTaskCard({
             <Eye className="w-3.5 h-3.5" />
             View Details
           </button>
+
+          {onEdit && (
+            <button
+              onClick={() => onEdit(task)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 text-sm font-semibold transition-colors"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              Edit
+            </button>
+          )}
 
           <button
             onClick={() => setExpanded(p => !p)}

@@ -91,6 +91,12 @@ export async function signup({ name, email, phone, password, rememberMe = false 
   }
 }
 
+/**
+ * Login function - with 2FA support
+ * 
+ * If 2FA is disabled: Returns access token immediately (normal flow)
+ * If 2FA is enabled: Returns response indicating OTP verification needed
+ */
 export async function login(email, password, rememberMe = false) {
   const user = await User.findOne({ email: email.toLowerCase().trim() });
   if (!user) throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
@@ -107,6 +113,7 @@ export async function login(email, password, rememberMe = false) {
     throw new ApiError(StatusCodes.LOCKED, "Account temporarily locked due to failed login attempts");
   }
 
+  // Verify password
   const ok = await user.comparePassword(password);
   if (!ok) {
     // Increment failed attempts
@@ -121,12 +128,45 @@ export async function login(email, password, rememberMe = false) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
   }
 
-  // Reset failed attempts on successful login
+  // Reset failed attempts on successful password verification
   if (user.failedLoginAttempts > 0) {
     user.failedLoginAttempts = 0;
     user.accountLocked = false;
     user.lockUntil = undefined;
+    await user.save();
   }
+
+  // ===== 2FA FLOW =====
+  // If 2FA is enabled, don't issue tokens yet - require OTP verification
+  if (user.twoFactorEnabled) {
+    console.log(`🔐 2FA enabled for user ${user.email}, requesting OTP...`);
+    
+    // Store user ID in a temporary session-like response
+    // The frontend will use this to identify the user during OTP verification
+    // We use a temporary token that's only valid for OTP verification
+    const tempPayload = { id: String(user._id), email: user.email };
+    const tempToken = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(tempPayload) + Date.now() + Math.random())
+      .digest("hex");
+
+    // Save temp token to identify user during OTP flow (expires in 10 minutes)
+    user.temp2FAToken = tempToken;
+    user.temp2FATokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    return {
+      requiresTwoFactor: true,
+      message: "Please verify with OTP sent to your email",
+      tempToken, // Frontend will send this back with OTP
+      userId: String(user._id),
+      userEmail: user.email,
+      expiresInSeconds: 600, // 10 minutes
+    };
+  }
+
+  // ===== NORMAL LOGIN FLOW (no 2FA) =====
+  console.log(`✅ Password verified, issuing tokens for user ${user.email}`);
 
   // Mark user as active on login
   user.isActive = true;
@@ -153,6 +193,7 @@ export async function login(email, password, rememberMe = false) {
   });
 
   return {
+    requiresTwoFactor: false,
     accessToken,
     refreshToken,
     rememberMe,
@@ -456,6 +497,203 @@ export async function verifyTemporaryOtp(email, otp, rememberMe = false) {
       email: user.email,
       phone: user.phone,
       accountType: user.accountType,
+      profileImageUrl: user.profileImageUrl,
+    },
+  };
+}
+
+/**
+ * Request OTP for 2FA login (after email/password verification)
+ * User must provide valid tempToken from initial login attempt
+ */
+export async function request2FALoginOTP(userId) {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  if (!user.twoFactorEnabled) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "2FA is not enabled for this user");
+  }
+
+  // Check rate limiting - only allow OTP request after 30 seconds
+  if (user.otpLastSentAt && Date.now() - new Date(user.otpLastSentAt).getTime() < 30_000) {
+    const remainingSeconds = Math.ceil(
+      (30_000 - (Date.now() - new Date(user.otpLastSentAt).getTime())) / 1000
+    );
+    throw new ApiError(
+      StatusCodes.TOO_MANY_REQUESTS,
+      `Please wait ${remainingSeconds} seconds before requesting another OTP`
+    );
+  }
+
+  // Generate new OTP
+  const otp = generateOtpCode();
+  const otpHash = hashOtp(otp);
+
+  // Save OTP to database
+  user.otpCodeHash = otpHash;
+  user.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+  user.otpAttempts = 0; // Reset attempts for new OTP
+  user.otpLastSentAt = new Date();
+  await user.save();
+
+  // Send OTP via email
+  await sendTemporaryOtpEmail({
+    toEmail: user.email,
+    otp,
+    name: user.name,
+  });
+
+  // Log the activity
+  await createActivityLog({
+    actorId: user._id,
+    actorName: user.name,
+    actorRole: user.role,
+    actionType: "OTP_SENT",
+    module: "SECURITY",
+    description: `OTP sent to ${user.email} for 2FA login`,
+    metadata: { email: user.email },
+  });
+
+  // Return success response
+  const payload = {
+    message: "OTP sent to your email",
+    expiresInSeconds: 300,
+  };
+
+  if (env.NODE_ENV !== "production") {
+    payload.debugOtp = otp;
+  }
+
+  return payload;
+}
+
+/**
+ * Verify 2FA OTP and issue login tokens
+ * This is called after user enters OTP
+ */
+export async function verify2FALoginOTP(userId, otp, rememberMe = false) {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  }
+
+  if (!user.twoFactorEnabled) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "2FA is not enabled for this user");
+  }
+
+  // Check if OTP exists and hasn't expired
+  if (!user.otpCodeHash || !user.otpExpiresAt) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "No OTP request found. Please request a new OTP");
+  }
+
+  if (user.otpExpiresAt < new Date()) {
+    // Clear expired OTP
+    user.otpCodeHash = "";
+    user.otpExpiresAt = null;
+    user.otpAttempts = 0;
+    await user.save();
+
+    await createActivityLog({
+      actorId: user._id,
+      actorName: user.name,
+      actorRole: user.role,
+      actionType: "OTP_FAILED",
+      module: "SECURITY",
+      description: `OTP verification failed - OTP expired`,
+      metadata: { email: user.email, reason: "expired" },
+    });
+
+    throw new ApiError(StatusCodes.BAD_REQUEST, "OTP has expired. Please request a new OTP");
+  }
+
+  // Check attempt limit (5 attempts max)
+  if ((user.otpAttempts || 0) >= 5) {
+    // Clear OTP after max attempts
+    user.otpCodeHash = "";
+    user.otpExpiresAt = null;
+    user.otpAttempts = 0;
+    await user.save();
+
+    await createActivityLog({
+      actorId: user._id,
+      actorName: user.name,
+      actorRole: user.role,
+      actionType: "OTP_FAILED",
+      module: "SECURITY",
+      description: `OTP verification failed - Too many attempts`,
+      metadata: { email: user.email, reason: "too_many_attempts", attempts: 5 },
+    });
+
+    throw new ApiError(
+      StatusCodes.LOCKED,
+      "Too many invalid OTP attempts. Please request a new OTP"
+    );
+  }
+
+  // Verify OTP
+  const submittedHash = hashOtp(otp);
+  if (submittedHash !== user.otpCodeHash) {
+    // Increment failed attempts
+    user.otpAttempts = (user.otpAttempts || 0) + 1;
+    await user.save();
+
+    await createActivityLog({
+      actorId: user._id,
+      actorName: user.name,
+      actorRole: user.role,
+      actionType: "OTP_FAILED",
+      module: "SECURITY",
+      description: `OTP verification failed - Invalid OTP (Attempt ${user.otpAttempts}/5)`,
+      metadata: { email: user.email, reason: "invalid", attempts: user.otpAttempts },
+    });
+
+    throw new ApiError(
+      StatusCodes.UNAUTHORIZED,
+      `Invalid OTP. ${5 - user.otpAttempts} attempts remaining`
+    );
+  }
+
+  // OTP is valid - clear OTP data and issue login tokens
+  user.otpCodeHash = "";
+  user.otpExpiresAt = null;
+  user.otpAttempts = 0;
+  user.otpLastSentAt = null;
+  user.isActive = true;
+  user.temp2FAToken = undefined; // Clear temp token
+  user.temp2FATokenExpires = undefined;
+  await user.save();
+
+  // Generate tokens
+  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload, rememberMe);
+
+  user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  user.rememberMeEnabled = rememberMe || false;
+  await user.save();
+
+  // Log the activity
+  await createActivityLog({
+    actorId: user._id,
+    actorName: user.name,
+    actorRole: user.role,
+    actionType: "OTP_VERIFIED",
+    module: "SECURITY",
+    description: `${user.name} logged in successfully via 2FA${rememberMe ? ' (Remember Me enabled)' : ''}`,
+    metadata: { email: user.email, method: "2FA_OTP", rememberMe },
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    rememberMe,
+    user: {
+      id: String(user._id),
+      name: user.name,
+      role: user.role,
+      email: user.email,
       profileImageUrl: user.profileImageUrl,
     },
   };

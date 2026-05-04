@@ -107,10 +107,21 @@ const userSchema = new mongoose.Schema(
     failedLoginAttempts: { type: Number, default: 0 },
     accountLocked: { type: Boolean, default: false },
     lockUntil: { type: Date },
-    otpCodeHash: { type: String, default: "" },
-    otpExpiresAt: { type: Date, default: null },
-    otpAttempts: { type: Number, default: 0 },
-    otpLastSentAt: { type: Date, default: null },
+    // Two-Factor Authentication (2FA) fields
+    otpCodeHash: { type: String, default: "" }, // Hash of OTP used for login
+    otpExpiresAt: { type: Date, default: null }, // When login OTP expires
+    otpAttempts: { type: Number, default: 0 }, // Failed OTP attempts counter
+    otpLastSentAt: { type: Date, default: null }, // When OTP was last sent (for rate limiting)
+
+    // Two-Factor Authentication (2FA) Disable fields
+    disable2FAOtpHash: { type: String, default: "" }, // Hash of OTP used to disable 2FA
+    disable2FAOtpExpiresAt: { type: Date, default: null }, // When disable 2FA OTP expires
+    disable2FAOtpAttempts: { type: Number, default: 0 }, // Failed disable 2FA OTP attempts
+    disable2FAOtpLastSentAt: { type: Date, default: null }, // When disable 2FA OTP was last sent
+
+    // Temporary token for 2FA login flow (between password verification and OTP)
+    temp2FAToken: { type: String, default: "" },
+    temp2FATokenExpires: { type: Date, default: null },
 
     // Real-time presence tracking
     isOnline: { type: Boolean, default: false, index: true },

@@ -1,0 +1,446 @@
+/* SecuritySettings Component Styles */
+
+.security-settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.security-settings-card {
+  border-radius: 12px;
+  padding: 24px;
+  background: white;
+  border: 1px solid #e5e7eb;
+}
+
+.security-settings-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 40px 24px;
+}
+
+/* Header */
+.security-header {
+  margin-bottom: 24px;
+}
+
+.security-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.security-header-title h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.security-icon {
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.security-subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Status Badge */
+.security-status {
+  margin-bottom: 20px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 2px solid;
+}
+
+.status-badge.enabled {
+  background-color: #f0fdf4;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.status-badge.disabled {
+  background-color: #fef2f2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.status-badge strong {
+  font-weight: 600;
+}
+
+/* Description */
+.security-description {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.security-description p {
+  margin: 0 0 12px 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.security-description p:last-child {
+  margin-bottom: 0;
+}
+
+.security-benefits {
+  margin: 12px 0 0 0;
+  padding-left: 20px;
+  list-style: none;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.security-benefits li {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+/* Actions */
+.security-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.security-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.security-button.enable {
+  background-color: #667eea;
+  color: white;
+}
+
+.security-button.enable:hover {
+  background-color: #5568d3;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.security-button.danger {
+  background-color: #ef4444;
+  color: white;
+}
+
+.security-button.danger:hover {
+  background-color: #dc2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.security-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tips */
+.security-tips {
+  padding: 16px;
+  background-color: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.tips-title {
+  margin: 0 0 10px 0;
+  font-weight: 600;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.security-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+  color: #b45309;
+  font-size: 13px;
+}
+
+.security-tips li {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-content h4 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.modal-content p {
+  margin: 0 0 20px 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.modal-content.disable-modal {
+  max-width: 500px;
+}
+
+/* Modal Form */
+.modal-form {
+  margin: 20px 0;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  width: 100%;
+  padding: 10px 12px;
+  padding-right: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.password-input-wrapper input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+  color: #667eea;
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: #dc2626;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+/* OTP Input Group */
+.otp-input-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.otp-digit-input {
+  width: 45px;
+  height: 45px;
+  padding: 0;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-family: "Courier New", monospace;
+  transition: all 0.2s ease;
+}
+
+.otp-digit-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.otp-digit-input:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* OTP Actions */
+.otp-actions {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.resend-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: none;
+  border: 1px solid #d1d5db;
+  color: #667eea;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.resend-button:hover:not(:disabled) {
+  border-color: #667eea;
+  background-color: #f0f4ff;
+}
+
+.resend-button:disabled {
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}
+
+/* Modal Actions */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.modal-actions button {
+  padding: 10px 20px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .security-settings-card {
+    padding: 16px;
+  }
+
+  .modal-content {
+    padding: 20px;
+  }
+
+  .security-header-title h3 {
+    font-size: 18px;
+  }
+
+  .modal-content h4 {
+    font-size: 16px;
+  }
+
+  .otp-input-group {
+    gap: 8px;
+  }
+
+  .otp-digit-input {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}

@@ -4,6 +4,7 @@ import PageTitle from "../../components/common/PageTitle.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
+import SecuritySettings from "./SecuritySettings.jsx";
 import api from "../../lib/api.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { toast } from "../../store/toastStore.js";
@@ -718,125 +719,57 @@ export default function MyProfilePage() {
 
       {/* SECURITY & SETTINGS SECTION */}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <SecuritySettings />
 
-        {/* Two-Factor Authentication */}
-        <Card className="border shadow-lg p-7 rounded-2xl">
+      <Card>
+        <div className="flex items-center gap-3 mb-4">
 
-          <div className="flex items-center justify-between">
-
-            <div className="flex items-center gap-3">
-
-              <div className="flex items-center justify-center w-10 h-10 text-purple-600 bg-purple-100 rounded-xl">
-                <Shield size={18}/>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold">Two-Factor Authentication</h3>
-                <p className="text-sm text-gray-500">
-                  Add an extra layer of security
-                </p>
-              </div>
-
-            </div>
-
-            <div className="flex items-center gap-3">
-
-              <div
-                className={`px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1 ${
-                  twoFAEnabled
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}
-              >
-                {twoFAEnabled ? (
-                  <>
-                    <CheckCircle size={14} />
-                    Enabled
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={14} />
-                    Disabled
-                  </>
-                )}
-              </div>
-
-            </div>
-
+          <div className="flex items-center justify-center w-10 h-10 text-green-600 bg-green-100 rounded-xl">
+            <Activity size={18}/>
           </div>
 
-          <Button
-            onClick={handleToggle2FA}
-            disabled={savingTwoFA}
-            className={`w-full mt-4 py-2 rounded-xl font-semibold ${
-              twoFAEnabled
-                ? "bg-red-100 text-red-600 hover:bg-red-200"
-                : "bg-green-100 text-green-600 hover:bg-green-200"
-            }`}
-          >
-            {savingTwoFA
-              ? "Updating..."
-              : twoFAEnabled
-              ? "Disable 2FA"
-              : "Enable 2FA"}
-          </Button>
+          <h3 className="text-lg font-bold">Recent Activity</h3>
 
-        </Card>
+        </div>
 
-        {/* Account Activity */}
-        <Card className="border shadow-lg p-7 rounded-2xl">
+        <div className="space-y-3 overflow-y-auto max-h-64">
 
-          <div className="flex items-center gap-3 mb-4">
+          {accountActivity && accountActivity.length > 0 ? (
+            accountActivity.map((activity, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
 
-            <div className="flex items-center justify-center w-10 h-10 text-green-600 bg-green-100 rounded-xl">
-              <Activity size={18}/>
-            </div>
-
-            <h3 className="text-lg font-bold">Recent Activity</h3>
-
-          </div>
-
-          <div className="space-y-3 overflow-y-auto max-h-64">
-
-            {accountActivity && accountActivity.length > 0 ? (
-              accountActivity.map((activity, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">
-                      {activity.action}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {activity.timestamp
-                        ? new Date(activity.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
-                        : "N/A"}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`px-2 py-1 rounded text-xs font-semibold ${
-                      activity.status === "success"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {activity.status}
-                  </div>
-
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {activity.action}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {activity.timestamp
+                      ? new Date(activity.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+                      : "N/A"}
+                  </p>
                 </div>
-              ))
-            ) : (
-              <p className="py-4 text-sm text-center text-gray-500">
-                No recent activity
-              </p>
-            )}
 
-          </div>
+                <div
+                  className={`px-2 py-1 rounded text-xs font-semibold ${
+                    activity.status === "success"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}
+                >
+                  {activity.status}
+                </div>
 
-        </Card>
+              </div>
+            ))
+          ) : (
+            <p className="py-4 text-sm text-center text-gray-500">
+              No recent activity
+            </p>
+          )}
 
-      </div>
+        </div>
+
+      </Card>
 
       {/* CROP MODAL */}
 

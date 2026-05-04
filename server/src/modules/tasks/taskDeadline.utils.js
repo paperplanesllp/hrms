@@ -724,3 +724,4 @@ export function evaluateEmployeePerformance(metrics) {
     onTimeRate: Number(onTimeRate.toFixed(2)),
   };
 }
+

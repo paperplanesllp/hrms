@@ -69,7 +69,20 @@ export const postLogin = asyncHandler(async (req, res) => {
   const { rememberMe } = req.body;
   const result = await login(data.email, data.password, rememberMe || false);
 
-  // Set refresh token cookie with expiry based on rememberMe preference
+  // Handle 2FA requirement
+  if (result.requiresTwoFactor) {
+    // Don't set refresh token cookie for 2FA flow
+    return res.json({
+      requiresTwoFactor: true,
+      message: result.message,
+      tempToken: result.tempToken,
+      userId: result.userId,
+      userEmail: result.userEmail,
+      expiresInSeconds: result.expiresInSeconds,
+    });
+  }
+
+  // Normal login flow (no 2FA) - set refresh token cookie with expiry based on rememberMe preference
   const cookieMaxAge = rememberMe 
     ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
     : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal login
@@ -79,7 +92,12 @@ export const postLogin = asyncHandler(async (req, res) => {
     maxAge: cookieMaxAge,
   });
 
-  res.json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
+  res.json({ 
+    requiresTwoFactor: false,
+    accessToken: result.accessToken, 
+    user: result.user, 
+    rememberMe: result.rememberMe 
+  });
 });
 
 export const postRefresh = asyncHandler(async (req, res) => {

@@ -5,6 +5,7 @@ import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
 import { isAuthed, setSession } from "../../store/authStore.js";
 import { toast } from "../../store/toastStore.js";
+import OTPVerification from "./OTPVerification.jsx";
 
 // Video Import
 import videoBg from "../../../../assets/Videos/video.mp4";
@@ -43,6 +44,13 @@ export default function LoginPage() {
     }
   });
 
+  // 2FA States
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [tempToken, setTempToken] = useState("");
+  const [twoFAUserId, setTwoFAUserId] = useState("");
+  const [twoFAUserEmail, setTwoFAUserEmail] = useState("");
+  const [twoFAExpiresIn, setTwoFAExpiresIn] = useState(300);
+
   // Save rememberMe preference to localStorage whenever it changes
   useEffect(() => {
     try {
@@ -58,6 +66,23 @@ export default function LoginPage() {
 
     try {
       const res = await api.post("/auth/login", { email, password, rememberMe });
+
+      // Check if 2FA is required
+      if (res.data.requiresTwoFactor) {
+        console.log("🔐 2FA required, showing OTP verification screen...");
+        setRequiresTwoFactor(true);
+        setTempToken(res.data.tempToken);
+        setTwoFAUserId(res.data.userId);
+        setTwoFAUserEmail(res.data.userEmail);
+        setTwoFAExpiresIn(res.data.expiresInSeconds);
+        
+        // Clear sensitive data from form
+        setPassword("");
+        setShowPassword(false);
+        return;
+      }
+
+      // Normal login (no 2FA)
       setSession(res.data);
 
       toast({
@@ -83,6 +108,47 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Handle successful OTP verification
+  const handleOTPVerified = (data) => {
+    setSession(data);
+    setRequiresTwoFactor(false);
+    setTempToken("");
+    setTwoFAUserId("");
+    setTwoFAUserEmail("");
+
+    toast({
+      title: `Welcome back, ${data?.user?.name || "User"}!`,
+      type: "success",
+    });
+
+    navigate("/");
+  };
+
+  // Handle 2FA cancellation - go back to login form
+  const handleCancelOTP = () => {
+    setRequiresTwoFactor(false);
+    setTempToken("");
+    setTwoFAUserId("");
+    setTwoFAUserEmail("");
+    setEmail("");
+    setPassword("");
+    setShowPassword(false);
+  };
+
+  // If 2FA verification is required, show OTP form instead of login form
+  if (requiresTwoFactor && twoFAUserId) {
+    return (
+      <OTPVerification
+        userId={twoFAUserId}
+        tempToken={tempToken}
+        userEmail={twoFAUserEmail}
+        expiresInSeconds={twoFAExpiresIn}
+        onOTPVerified={handleOTPVerified}
+        onCancel={handleCancelOTP}
+      />
+    );
+  }
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
