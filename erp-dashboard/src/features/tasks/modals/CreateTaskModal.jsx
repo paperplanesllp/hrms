@@ -144,14 +144,28 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
     setUploadedFiles(uploadedFiles.filter(f => f.name !== fileName));
   };
 
+  const getEstimateValues = () => {
+    const hours = formData.estimatedHours === '' ? 0 : parseInt(formData.estimatedHours, 10);
+    const minutes = formData.estimatedMinutes === '' ? 0 : parseInt(formData.estimatedMinutes, 10);
+
+    return {
+      hours: Number.isNaN(hours) ? 0 : hours,
+      minutes: Number.isNaN(minutes) ? 0 : minutes
+    };
+  };
+
   const validateForm = () => {
     const newErrors = {};
+    const { hours, minutes } = getEstimateValues();
 
     if (!formData.title.trim()) {
       newErrors.title = 'Task title is required';
     }
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
+    }
+    if (hours <= 0 && minutes <= 0) {
+      newErrors.estimatedTime = 'Required time is mandatory';
     }
     if (!formData.assignedTo) {
       newErrors.assignedTo = 'Please assign the task to someone';
@@ -204,8 +218,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       setIsLoading(true);
       console.log('🚀 [CreateTaskModal] Sending POST request to /tasks');
 
-      const hours = formData.estimatedHours ? parseInt(formData.estimatedHours) : 0;
-      const minutes = formData.estimatedMinutes ? parseInt(formData.estimatedMinutes) : 0;
+      const { hours, minutes } = getEstimateValues();
       const totalMinutes = hours * 60 + minutes;
 
       // Set due date to end of office day (18:00 local time) instead of midnight UTC
@@ -412,7 +425,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Required Time
+                  Required Time <span className="text-red-500">*</span>
                 </label>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -420,9 +433,17 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                       type="number"
                       placeholder="Hours (e.g., 2)"
                       value={formData.estimatedHours}
-                      onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0);
+                        setFormData({ ...formData, estimatedHours: value });
+                      }}
                       min="0"
-                      className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                      aria-invalid={Boolean(errors.estimatedTime)}
+                      className={`w-full px-4 py-2.5 border-2 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                        errors.estimatedTime
+                          ? 'border-red-500 dark:border-red-400'
+                          : 'border-slate-200 dark:border-slate-600'
+                      }`}
                     />
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Hours</p>
                   </div>
@@ -432,18 +453,33 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                       placeholder="Minutes (0-59)"
                       value={formData.estimatedMinutes}
                       onChange={(e) => {
-                        let val = parseInt(e.target.value) || 0;
+                        if (e.target.value === '') {
+                          setFormData({ ...formData, estimatedMinutes: '' });
+                          return;
+                        }
+
+                        let val = parseInt(e.target.value, 10) || 0;
                         if (val > 59) val = 59;
                         if (val < 0) val = 0;
                         setFormData({ ...formData, estimatedMinutes: val })
                       }}
                       min="0"
                       max="59"
-                      className="w-full px-4 py-2.5 border-2 border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                      aria-invalid={Boolean(errors.estimatedTime)}
+                      className={`w-full px-4 py-2.5 border-2 rounded-lg dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                        errors.estimatedTime
+                          ? 'border-red-500 dark:border-red-400'
+                          : 'border-slate-200 dark:border-slate-600'
+                      }`}
                     />
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Minutes</p>
                   </div>
                 </div>
+                {errors.estimatedTime && (
+                  <p className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle size={12} /> {errors.estimatedTime}
+                  </p>
+                )}
                 {formData.estimatedHours || formData.estimatedMinutes ? (
                   <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">
                     ⏱️ Required: {formData.estimatedHours || 0}h {formData.estimatedMinutes || 0}m
