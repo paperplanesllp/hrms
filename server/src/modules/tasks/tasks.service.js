@@ -271,7 +271,7 @@ export const tasksService = {
     const rawEstimatedMinutes = Number(data.estimatedMinutes);
     const estimatedMinutes = Math.max(
       0,
-      Number.isFinite(estimatedTotalMinutes) && estimatedTotalMinutes >= 0
+      Number.isFinite(estimatedTotalMinutes) && estimatedTotalMinutes > 0
         ? Math.round(estimatedTotalMinutes)
         : Number.isFinite(rawEstimatedHours) && rawEstimatedHours > 0 && Number.isFinite(rawEstimatedMinutes) && rawEstimatedMinutes >= 0 && rawEstimatedMinutes < 60
         ? Math.round(rawEstimatedHours * 60 + rawEstimatedMinutes)
@@ -439,6 +439,44 @@ export const tasksService = {
       }
     }
     
+    const hasEstimateUpdate =
+      'estimatedTotalMinutes' in data ||
+      'estimatedHours' in data ||
+      'estimatedMinutes' in data;
+
+    if (hasEstimateUpdate) {
+      const rawTotal = Number(data.estimatedTotalMinutes);
+      const rawHours = Number(data.estimatedHours);
+      const rawMinutes = Number(data.estimatedMinutes);
+      const currentTotal = Number(task.estimatedMinutes) || 0;
+      const currentMinuteRemainder = currentTotal % 60;
+
+      let nextEstimatedMinutes;
+      if (Number.isFinite(rawTotal)) {
+        nextEstimatedMinutes = rawTotal;
+      } else if ('estimatedHours' in data && 'estimatedMinutes' in data) {
+        nextEstimatedMinutes = (Number.isFinite(rawHours) ? rawHours : 0) * 60 +
+          (Number.isFinite(rawMinutes) ? rawMinutes : 0);
+      } else if ('estimatedHours' in data) {
+        nextEstimatedMinutes = (Number.isFinite(rawHours) ? rawHours : 0) * 60 + currentMinuteRemainder;
+      } else {
+        nextEstimatedMinutes = Number.isFinite(rawMinutes) ? rawMinutes : currentTotal;
+      }
+
+      if (!Number.isFinite(nextEstimatedMinutes) || nextEstimatedMinutes < 0) {
+        throw new Error('Estimated time must be a valid non-negative number');
+      }
+
+      const roundedEstimate = Math.round(nextEstimatedMinutes);
+      task.estimatedMinutes = roundedEstimate;
+      task.estimatedHours = Math.floor(roundedEstimate / 60);
+      task.estimatedTotalMinutes = roundedEstimate;
+      task.thirtyMinReminderSent = false;
+      task.fifteenMinReminderSent = false;
+      task.dueNowReminderSent = false;
+      task.overdueReminderSent = false;
+    }
+
     // Update fields
     const allowedFields = ['title', 'description', 'assignedTo', 'department', 'dueDate', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
     allowedFields.forEach(field => {
@@ -454,6 +492,10 @@ export const tasksService = {
       if (data.completionRemarks) {
         task.completionRemarks = data.completionRemarks.trim();
       }
+    }
+
+    if (hasEstimateUpdate) {
+      syncTaskTimingFields(task);
     }
     
     await task.save();

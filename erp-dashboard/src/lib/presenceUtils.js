@@ -134,7 +134,7 @@ export const formatLastActive = (lastActivityDate) => {
  */
 export const formatTimeInIndianTZ = (date) => {
   return new Intl.DateTimeFormat('en-IN', {
-    hour: 'numeric',
+    hour: '2-digit',
     minute: '2-digit',
     hour12: true,
     timeZone: 'Asia/Kolkata'

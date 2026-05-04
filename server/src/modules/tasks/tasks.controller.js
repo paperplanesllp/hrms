@@ -122,7 +122,9 @@ export const tasksController = {
         tags: req.body.tags || [],
         estimatedHours: req.body.estimatedHours ? parseInt(req.body.estimatedHours) : 0,
         estimatedMinutes: req.body.estimatedMinutes ? parseInt(req.body.estimatedMinutes) : 0,
-        estimatedTotalMinutes: req.body.estimatedTotalMinutes || 0,
+        ...(req.body.estimatedTotalMinutes !== undefined && req.body.estimatedTotalMinutes !== ''
+          ? { estimatedTotalMinutes: parseInt(req.body.estimatedTotalMinutes) }
+          : {}),
         attachments: []
       };
       

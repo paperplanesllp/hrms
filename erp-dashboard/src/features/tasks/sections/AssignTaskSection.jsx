@@ -234,7 +234,9 @@ export default function AssignTaskSection({ onTaskCreated }) {
         
         // Calculate total estimated minutes and send
         const totalMinutes = parseInt(formData.estimatedHours || 0) * 60 + parseInt(formData.estimatedMinutes || 0);
+        submitFormData.append('estimatedHours', parseInt(formData.estimatedHours || 0));
         submitFormData.append('estimatedMinutes', totalMinutes);
+        submitFormData.append('estimatedTotalMinutes', totalMinutes);
         
         // Add optional due date and time if provided
         if (formData.dueDate) {
