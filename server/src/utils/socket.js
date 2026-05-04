@@ -10,8 +10,9 @@ let io;
 
 const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
-  if (!raw) return "/socket.io";
-  return raw.startsWith("/") ? raw : `/${raw}`;
+  if (!raw) return "/socket.io/";
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 };
 
 export const initializeSocket = (server) => {
@@ -19,17 +20,46 @@ export const initializeSocket = (server) => {
     return io;
   }
 
+  const socketPath = normalizeSocketPath(env.SOCKET_IO_PATH);
+
   io = new Server(server, {
     cors: {
       origin: corsOptions.origin,
       credentials: true,
-      methods: ["GET", "POST", "OPTIONS"]
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
     },
-    transports: ['websocket', 'polling'],
-    allowEIO3: true,
+    transports: ["websocket"],
+    allowEIO3: false,
     pingInterval: 25000,
     pingTimeout: 60000,
-    path: normalizeSocketPath(env.SOCKET_IO_PATH)
+    path: socketPath,
+  });
+
+  console.log("[Socket.IO] Server initialized", {
+    path: socketPath,
+    transports: ["websocket"],
+  });
+
+  io.engine.on("connection_error", (err) => {
+    console.error("[Socket.IO] Engine connection error", {
+      code: err.code,
+      message: err.message,
+      context: err.context,
+      requestUrl: err.req?.url,
+      origin: err.req?.headers?.origin,
+      upgrade: err.req?.headers?.upgrade,
+      transport: err.req?._query?.transport,
+    });
+  });
+
+  io.engine.on("headers", (headers, req) => {
+    console.log("[Socket.IO] Engine handshake headers", {
+      requestUrl: req.url,
+      origin: req.headers.origin,
+      upgrade: req.headers.upgrade,
+      transport: req._query?.transport,
+    });
   });
 
   // Socket authentication middleware
@@ -37,6 +67,13 @@ export const initializeSocket = (server) => {
     try {
       const token = socket.handshake.auth.token;
       const origin = socket.handshake.headers.origin;
+      console.log("[Socket.IO] Auth attempt", {
+        socketId: socket.id,
+        origin,
+        transport: socket.conn?.transport?.name,
+        path: socketPath,
+        hasToken: Boolean(token),
+      });
       
       if (!token) {
         console.error("❌ Socket auth failed: Missing token", {
@@ -77,11 +114,12 @@ export const initializeSocket = (server) => {
       socket.userEmail = user.email;
       socket.userImage = user.profileImageUrl;
       
-      console.log(`✅ Socket auth succeeded`, {
+      console.log("[Socket.IO] Auth succeeded", {
         userName: user.name,
         userRole: user.role,
         userId: user._id,
-        origin
+        origin,
+        socketId: socket.id,
       });
       next();
     } catch (err) {
@@ -98,7 +136,20 @@ export const initializeSocket = (server) => {
   presenceManager.setIO(io);
 
   io.on("connection", async (socket) => {
-    console.log(`🔗 User ${socket.userName} connecting...`);
+    console.log("[Socket.IO] User connected", {
+      userId: socket.userId,
+      userName: socket.userName,
+      socketId: socket.id,
+      transport: socket.conn?.transport?.name,
+    });
+
+    socket.conn.on("upgrade", (transport) => {
+      console.log("[Socket.IO] Transport upgraded", {
+        userId: socket.userId,
+        socketId: socket.id,
+        transport: transport.name,
+      });
+    });
     
     try {
       // Add connection to presence manager
@@ -313,13 +364,28 @@ export const initializeSocket = (server) => {
         io.emit("news_deleted", newsId);
       });
 
-      socket.on("disconnect", async () => {
+      socket.on("error", (err) => {
+        console.error("[Socket.IO] Socket error", {
+          userId: socket.userId,
+          socketId: socket.id,
+          message: err?.message,
+          transport: socket.conn?.transport?.name,
+        });
+      });
+
+      socket.on("disconnect", async (reason) => {
         const userId = socket.userId;
         const userName = socket.userName;
 
         if (!userId) return;
 
-        console.log(`🔌 Socket disconnected for user ${userName}: ${socket.id}`);
+        console.log("[Socket.IO] Socket disconnected", {
+          userId,
+          userName,
+          socketId: socket.id,
+          reason,
+          transport: socket.conn?.transport?.name,
+        });
 
         unregisterUserSocket(userId, socket.id);
         console.log("[SocketMap] Unregistered socket", {

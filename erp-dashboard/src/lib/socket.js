@@ -28,21 +28,10 @@ const getResolvedSocketPath = () => normalizeSocketPath(import.meta.env.VITE_SOC
  * Get production-safe socket URL - NEVER hardcode localhost for production
  */
 const getProductionSafeSocketUrl = () => {
-  const envUrl = import.meta.env.VITE_SOCKET_URL;
-  if (envUrl && envUrl.trim()) {
-    return envUrl.trim().replace(/\/$/, "");
+  if (SOCKET_BASE_URL) {
+    return SOCKET_BASE_URL;
   }
-  
-  const serverUrl = import.meta.env.VITE_SERVER_URL;
-  if (serverUrl && serverUrl.trim()) {
-    return serverUrl.trim().replace(/\/$/, "");
-  }
-  
-  const apiUrl = import.meta.env.VITE_API_BASE_URL;
-  if (apiUrl && apiUrl.trim()) {
-    return apiUrl.replace(/\/api\/?$/, "");
-  }
-  
+
   // In production, use window.location.origin for same-domain socket connection
   if (import.meta.env.PROD) {
     return window.location.origin;
@@ -53,7 +42,8 @@ const getProductionSafeSocketUrl = () => {
 };
 
 export const getSocketDebugInfo = () => ({
-  socketBaseUrl: SOCKET_BASE_URL,
+  socketBaseUrl: getProductionSafeSocketUrl(),
+  configuredSocketBaseUrl: SOCKET_BASE_URL,
   socketPath: getResolvedSocketPath(),
   apiBaseUrl: API_BASE_URL,
   serverBaseUrl: SERVER_BASE_URL,
@@ -125,7 +115,8 @@ export const initializeSocket = () => {
       token: auth.accessToken
     },
     autoConnect: true,
-    transports: ['websocket', 'polling'],
+    transports: ["websocket"],
+    upgrade: false,
     reconnection: true,
     reconnectionDelay: 1500,
     reconnectionDelayMax: 10000,
@@ -135,10 +126,22 @@ export const initializeSocket = () => {
     withCredentials: true,
     // For HTTPS domains, use secure websocket
     secure: import.meta.env.PROD && window.location.protocol === 'https:',
-    rejectUnauthorized: false
   });
 
   socketStatus = "connecting";
+  window.__HRMS_SOCKET_DEBUG__ = () => ({
+    ...getSocketDebugInfo(),
+    id: socket?.id || null,
+    active: Boolean(socket?.active),
+    transport: socket?.io?.engine?.transport?.name || null,
+    engineReadyState: socket?.io?.engine?.readyState || null,
+  });
+  window.__HRMS_SOCKET_RECONNECT__ = () => {
+    if (!socket) return "Socket has not been initialized";
+    socket.disconnect();
+    socket.connect();
+    return window.__HRMS_SOCKET_DEBUG__();
+  };
 
   // Connection established
   socket.on("connect", () => {
@@ -146,6 +149,7 @@ export const initializeSocket = () => {
       socketId: socket.id,
       socketBaseUrl,
       socketPath,
+      transport: socket.io?.engine?.transport?.name,
     });
     connectionAttempts = 0;
     socketStatus = "connected";
@@ -155,11 +159,13 @@ export const initializeSocket = () => {
   });
 
   // Connection lost
-  socket.on("disconnect", (reason) => {
+  socket.on("disconnect", (reason, details) => {
     console.log("🔌 Socket disconnected", {
       reason,
+      details,
       socketBaseUrl,
       socketPath,
+      transport: socket.io?.engine?.transport?.name,
     });
     stopHeartbeat();
     socketStatus = "disconnected";
@@ -188,10 +194,12 @@ export const initializeSocket = () => {
       console.error("❌ Socket connection error", {
         attempt: connectionAttempts,
         message: error.message,
+        data: error.data,
         description: error.description,
         context: error.context,
         socketBaseUrl,
         socketPath,
+        transport: socket?.io?.engine?.transport?.name || "websocket",
         isAuthError,
         hasToken: !!auth?.accessToken,
         tokenExpired: auth?.accessToken ? isTokenExpired(auth.accessToken) : 'N/A',
@@ -221,21 +229,31 @@ export const initializeSocket = () => {
   });
 
   // Reconnect attempt
-  socket.on("reconnect_attempt", (attemptNumber) => {
+  socket.io.on("reconnect_attempt", (attemptNumber) => {
     socketStatus = "connecting";
     console.log("🔄 Socket reconnection attempt", {
       attempt: attemptNumber,
       socketBaseUrl,
       socketPath,
+      transport: socket.io?.engine?.transport?.name || "websocket",
     });
   });
 
   // Max reconnect attempts reached
-  socket.on("reconnect_failed", () => {
+  socket.io.on("reconnect_failed", () => {
     socketStatus = "error";
     console.error("❌ Max socket reconnection attempts reached", {
       socketBaseUrl,
       socketPath,
+    });
+  });
+
+  socket.io.on("error", (error) => {
+    console.error("❌ Socket manager error", {
+      message: error?.message,
+      socketBaseUrl,
+      socketPath,
+      transport: socket.io?.engine?.transport?.name || "websocket",
     });
   });
 
