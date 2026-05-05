@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Loader } from 'lucide-react';
@@ -70,6 +71,7 @@ function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel })
 }
 
 export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) {
+  const navigate = useNavigate();
   const { refreshKey } = useTaskRefresh();
   const user = useAuthStore(s => s.user);
   const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
@@ -394,7 +396,10 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
                 <Activity className="w-5 h-5 text-brand-accent" />
                 Recent Activity
               </h3>
-              <button className="flex items-center gap-1 text-sm font-semibold transition-colors text-brand-accent hover:text-brand-accent/80">
+              <button 
+                onClick={() => navigate('/tasks/daily-updates')}
+                className="flex items-center gap-1 text-sm font-semibold transition-colors text-brand-accent hover:text-brand-accent/80"
+              >
                 View All <ChevronRight className="w-4 h-4" />
               </button>
             </div>

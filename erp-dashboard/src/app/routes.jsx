@@ -31,6 +31,7 @@ import DocumentsPage from "../features/documents/DocumentsPage.jsx";
 import TasksPage from "../features/tasks/TasksPage.jsx";
 import MyTasksPage from "../features/tasks/MyTasksPage.jsx";
 import TasksManagePage from "../features/tasks/TasksManagePage.jsx";
+import DailyTaskUpdatesPage from "../features/tasks/DailyTaskUpdatesPage.jsx";
 
 import UsersPage from "../features/users/UsersPage.jsx";
 import HrPage from "../features/users/HrPage.jsx";
@@ -86,6 +87,7 @@ export default function AppRoutes() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="tasks/my-tasks" element={<MyTasksPage />} />
         <Route path="tasks/manage" element={<TasksManagePage />} />
+        <Route path="tasks/daily-updates" element={<DailyTaskUpdatesPage />} />
 <Route path="complaints" element={<StaffComplaintsDashboard />} />
         <Route
           path="news-studio"

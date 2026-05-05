@@ -13,6 +13,7 @@ import { requestGeolocation } from "../../lib/geolocation.js";
 import { getSocket } from "../../lib/socket.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import QuickAttendanceMarking from "./QuickAttendanceMarking.jsx";
+import { taskService } from "../tasks/taskService.js";
 import { Users, TrendingUp, Clock, AlertCircle, CheckCircle, XCircle, Eye, LogIn, LogOut, Timer, Home, Calendar, DollarSign, AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -46,10 +47,8 @@ export default function DashboardPage() {
   // Additional data for realistic dashboard
   const [leaveBalance, setLeaveBalance] = useState({ total: 0, used: 0, pending: 0, remaining: 0, byType: [] });
   const [payrollInfo, setPayrollInfo] = useState({ nextPayDate: "2026-03-25", status: "On Track", lastPaid: "2026-03-10" });
-  const [pendingTasks, setPendingTasks] = useState([
-    { id: 1, title: "Complete Q1 Performance Review", dueDate: "2026-03-20", priority: "high" },
-    { id: 2, title: "Submit Monthly Report", dueDate: "2026-03-22", priority: "medium" },
-  ]);
+  const [pendingTasks, setPendingTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
   
   // Attendance check-in/check-out state
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
@@ -202,6 +201,44 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadAttendanceStatus();
+  }, []);
+
+  // Load pending tasks from API
+  const loadPendingTasks = async () => {
+    try {
+      setTasksLoading(true);
+      const tasks = await taskService.getDashboardTasks(3);
+      setPendingTasks(tasks || []);
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      setPendingTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
+  // Load tasks on mount
+  useEffect(() => {
+    loadPendingTasks();
+  }, []);
+
+  // Set up real-time task updates via Socket.io
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Listen for task updates
+    socket.on("task_created", loadPendingTasks);
+    socket.on("task_updated", loadPendingTasks);
+    socket.on("task_completed", loadPendingTasks);
+    socket.on("task_deleted", loadPendingTasks);
+
+    return () => {
+      socket.off("task_created", loadPendingTasks);
+      socket.off("task_updated", loadPendingTasks);
+      socket.off("task_completed", loadPendingTasks);
+      socket.off("task_deleted", loadPendingTasks);
+    };
   }, []);
 
   useEffect(() => {
@@ -661,26 +698,38 @@ export default function DashboardPage() {
                   
                   <div className="flex-1 flex flex-col gap-3">
                     <div className="space-y-3">
-                      {pendingTasks.slice(0, 3).map((task) => (
-                        <div key={task.id} className="p-3 bg-white border rounded-lg dark:bg-slate-800 border-violet-200 dark:border-violet-800/50">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-[#0A1931] dark:text-white">{task.title}</p>
-                              <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
-                            </div>
-                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                              task.priority === 'high' 
-                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                            }`}>
-                              {task.priority}
-                            </span>
-                          </div>
+                      {tasksLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Spinner />
                         </div>
-                      ))}
+                      ) : pendingTasks.length > 0 ? (
+                        pendingTasks.slice(0, 3).map((task) => (
+                          <div key={task._id || task.id} className="p-3 bg-white border rounded-lg dark:bg-slate-800 border-violet-200 dark:border-violet-800/50">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-[#0A1931] dark:text-white">{task.title}</p>
+                                <p className="text-xs text-[#4A7FA7] dark:text-slate-400 mt-1">Due: {new Date(task.dueDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
+                              </div>
+                              <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                                task.priority === 'high' 
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              }`}>
+                                {task.priority}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-6 text-center">
+                          <p className="text-xs text-[#4A7FA7] dark:text-slate-400">No pending tasks yet. Great job! 🎉</p>
+                        </div>
+                      )}
                     </div>
 
-                    <button className="w-full px-3 py-2 mt-auto text-sm font-semibold transition-colors rounded-lg text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/30">
+                    <button 
+                      onClick={() => navigate('/tasks/my-tasks')}
+                      className="w-full px-3 py-2 mt-auto text-sm font-semibold transition-colors rounded-lg text-violet-600 hover:bg-violet-100 dark:hover:bg-violet-900/30">
                       View All Tasks → 
                     </button>
                   </div>
