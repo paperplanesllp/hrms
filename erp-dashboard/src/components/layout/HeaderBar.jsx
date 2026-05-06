@@ -21,15 +21,23 @@ export default function HeaderBar({ onMenu }) {
     (user?.role === ROLES.ADMIN || user?.role === ROLES.USER);
 
   const onLogout = () => {
-    // Clear session
-    logout();
-    toast({ title: "Logged out", type: "success" });
+    const currentRole = user?.role;
+    const redirectTo = currentRole === ROLES.SUPERADMIN ? "/superadmin" : "/login";
 
-    // Call logout API in background (non-blocking)
+    sessionStorage.removeItem("logoutRedirect");
+
+    // background logout API
     api.post("/auth/logout").catch((e) => console.error(e));
 
-    // Client-side redirect to avoid full page reload blink
-    navigate("/login", { replace: true });
+    logout();
+
+    toast({
+      title: "Logged out",
+      type: "success",
+    });
+
+    // Force a hard redirect so no other guards can override it.
+    window.location.replace(redirectTo);
   };
   return (
     <header className="sticky top-0 z-30 transition-all duration-300 bg-white border-b ease-smooth border-slate-200 dark:border-slate-700 dark:bg-slate-800 shadow-elevation-1 backdrop-blur-md">    

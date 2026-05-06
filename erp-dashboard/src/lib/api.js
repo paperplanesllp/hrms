@@ -3,8 +3,9 @@ import { getAuth } from "./auth.js";
 import { setSession, logout } from "../store/authStore.js";
 import { API_BASE_URL } from "./url.js";
 const PUBLIC_AUTH_ROUTES = new Set([
-  "/auth/login",
-  "/auth/superadmin/login",
+  "/login",
+  "/superadmin/login",
+  "/auth/logout",
   "/auth/refresh",
   "/auth/forgot-password",
   "/auth/reset-password",
@@ -140,7 +141,7 @@ api.interceptors.response.use(
       } catch {
         const currentRole = getAuth()?.user?.role;
         logout();
-        window.location.href = currentRole === "SUPERADMIN" ? "/superadmin" : "/auth/login";
+        window.location.href = currentRole === "SUPERADMIN" ? "/superadmin" : "/login";
       }
     }
 

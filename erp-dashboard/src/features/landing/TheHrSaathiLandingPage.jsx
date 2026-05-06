@@ -4,8 +4,8 @@
  * Aesthetic: Minimalist Luxury / Glassmorphism / Earth Organic
  */
 
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   ArrowUpRight, 
   Fingerprint, 
@@ -49,6 +49,16 @@ const ARCHITECTURE_MODULES = [
 ];
 
 export default function HrSaathiEnterprise() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const logoutRedirect = sessionStorage.getItem("logoutRedirect");
+    if (logoutRedirect) {
+      sessionStorage.removeItem("logoutRedirect");
+      navigate(logoutRedirect, { replace: true });
+    }
+  }, [navigate]);
+
   return (
     <div className="min-h-screen bg-[#0A0F1C] text-[#F5F6F3] selection:bg-[#E7E2DE] selection:text-[#0A0F1C]">
       <style>{`

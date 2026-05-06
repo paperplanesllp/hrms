@@ -64,8 +64,8 @@ export default function AppRoutes() {
   return (
     <Routes>
       {/* ✅ Public routes */}
-      <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/login" element={<TheHrSaathiLandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/superadmin" element={<SuperAdminLoginPage />} />
       <Route
