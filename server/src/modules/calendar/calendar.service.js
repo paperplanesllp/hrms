@@ -7,6 +7,15 @@ import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 
 /**
+ * Helper: Get all user IDs in a company
+ */
+async function getCompanyUserIds(companyId) {
+  if (!companyId) return [];
+  const users = await User.find({ companyId }).select("_id").lean();
+  return users.map((u) => u._id);
+}
+
+/**
  * Indian Public Holidays 2025
  */
 const INDIAN_HOLIDAYS = [
@@ -66,20 +75,20 @@ function isShortHours(record) {
  * Returns array of day numbers [0-6] that are working days
  * Defaults to [1,2,3,4,5] (Monday-Friday)
  */
-async function getCompanyWorkingDays() {
+async function getCompanyWorkingDays(companyId, adminId = null) {
   try {
-    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-    
-    if (!company) {
-      const firstAdmin = await User.findOne({ role: ROLES.ADMIN });
-      if (!firstAdmin) return [1, 2, 3, 4, 5]; // Default Monday-Friday
-      return firstAdmin.workingDays || [1, 2, 3, 4, 5];
-    }
-    
-    return company.workingDays || [1, 2, 3, 4, 5];
+    // Prefer adminId (current admin) if provided
+    let admin = adminId ? await User.findOne({ _id: adminId, role: ROLES.ADMIN }) : null;
+    if (!companyId && admin) return admin.workingDays || [1, 2, 3, 4, 5];
+    if (!companyId) return [1, 2, 3, 4, 5];
+    // Fallback: find admin by companyId
+    if (!admin) admin = await User.findOne({ role: ROLES.ADMIN, companyId });
+    // Fallback: the admin IS the user with this companyId (legacy setup)
+    if (!admin) admin = await User.findOne({ _id: companyId, role: ROLES.ADMIN });
+    return admin?.workingDays || [1, 2, 3, 4, 5];
   } catch (error) {
     console.error("Error fetching working days config:", error);
-    return [1, 2, 3, 4, 5]; // Default fallback
+    return [1, 2, 3, 4, 5];
   }
 }
 
@@ -101,21 +110,19 @@ async function getCompanyWorkingDays() {
  * PRESENT if:
  * - User checked in completely
  */
-export async function getMonthlyAttendanceStatus(userId, year, month) {
+export async function getMonthlyAttendanceStatus(userId, year, month, companyId, adminId = null) {
   const monthStart = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const monthEnd = `${year}-${String(month + 1).padStart(2, "0")}-${new Date(year, month + 1, 0).getDate()}`;
+  const todayStr = new Date().toISOString().split("T")[0];
 
   try {
-    // Get working days configuration
-    const workingDays = await getCompanyWorkingDays();
+    const workingDays = await getCompanyWorkingDays(companyId, adminId);
 
-    // Get all attendance records for the month
     const attendanceRecords = await Attendance.find({
       userId,
       date: { $gte: monthStart, $lte: monthEnd }
     });
 
-    // Get all APPROVED leaves for the month
     const approvedLeaves = await Leave.find({
       userId,
       status: "APPROVED",
@@ -123,41 +130,51 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       toDate: { $gte: monthStart }
     });
 
-    // Get public holidays created from calendar event table.
-    const publicHolidayEvents = await Event.find({
+    const holidayQuery = {
       purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
       visibility: EVENT_VISIBILITY.PUBLIC,
       status: { $ne: "CANCELLED" },
       date: { $gte: monthStart, $lte: monthEnd }
-    }).select("date title");
+    };
+    if (companyId) holidayQuery.companyId = companyId;
+
+    const publicHolidayEvents = await Event.find(holidayQuery).select("date title");
 
     // Build a map of dates -> {status, eventName}
     const statusMap = {};
 
-    // Mark non-working days as "WEEKEND"
+    // Initialize ALL days in the month - mark working days, then override with special cases
     const [startDate, endDate] = [new Date(monthStart), new Date(monthEnd)];
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split("T")[0];
       const dayOfWeek = d.getDay();
-      
-      if (!workingDays.includes(dayOfWeek)) {
-        statusMap[dateStr] = { status: "WEEKEND", isWeekend: true };
-      }
+      const isWorkingDay = workingDays.includes(dayOfWeek);
+
+      // Mark all days initially - working days have no status, non-working days are WEEKEND
+      statusMap[dateStr] = {
+        status: isWorkingDay ? null : "WEEKEND",
+        isWeekend: !isWorkingDay,
+        isWorkingDay
+      };
     }
 
-    // Mark public holidays as ABSENT with holiday name
-    INDIAN_HOLIDAYS.forEach((holiday) => {
-      if (holiday.date >= monthStart && holiday.date <= monthEnd) {
-        statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name, isHoliday: true };
-      }
-    });
+    // Mark public holidays as ABSENT with holiday name (only for non-company scoped calendars)
+    if (!companyId) {
+      INDIAN_HOLIDAYS.forEach((holiday) => {
+        if (holiday.date >= monthStart && holiday.date <= monthEnd) {
+          statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name, isHoliday: true, isWeekend: statusMap[holiday.date]?.isWeekend, isWorkingDay: statusMap[holiday.date]?.isWorkingDay };
+        }
+      });
+    }
 
     // Mark public holidays from event table (overrides default list when same day exists)
     publicHolidayEvents.forEach((event) => {
       statusMap[event.date] = {
         status: "ABSENT",
         eventName: event.title,
-        isHoliday: true
+        isHoliday: true,
+        isWeekend: statusMap[event.date]?.isWeekend,
+        isWorkingDay: statusMap[event.date]?.isWorkingDay
       };
     });
 
@@ -172,7 +189,12 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split("T")[0];
         if (!statusMap[dateStr]?.eventName) {
-          statusMap[dateStr] = { status: "ABSENT", isLeave: true };
+          statusMap[dateStr] = {
+            status: "ABSENT",
+            isLeave: true,
+            isWeekend: statusMap[dateStr]?.isWeekend,
+            isWorkingDay: statusMap[dateStr]?.isWorkingDay
+          };
         }
       }
     });
@@ -188,23 +210,38 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
 
       // Use the actual status from the record
       if (record.status === "ABSENT") {
-        statusMap[record.date] = { status: "ABSENT", checkIn: null };
+        statusMap[record.date] = { status: "ABSENT", checkIn: null, isWeekend: false, isWorkingDay: true };
       } else if (record.status === "SHORT_HOURS") {
-        statusMap[record.date] = { status: "SHORT_HOURS", checkIn: record.checkIn };
+        statusMap[record.date] = { status: "SHORT_HOURS", checkIn: record.checkIn, isWeekend: false, isWorkingDay: true };
       } else if (record.status === "HALF_DAY") {
-        statusMap[record.date] = { status: "HALF_DAY", checkIn: record.checkIn };
+        statusMap[record.date] = { status: "HALF_DAY", checkIn: record.checkIn, isWeekend: false, isWorkingDay: true };
       } else if (record.status === "PRESENT") {
-        statusMap[record.date] = { status: "PRESENT", checkIn: record.checkIn };
+        statusMap[record.date] = { status: "PRESENT", checkIn: record.checkIn, isWeekend: false, isWorkingDay: true };
       }
     });
 
-    // Convert to array format for frontend
+    // Mark past working days with no record as ABSENT
+    Object.keys(statusMap).forEach((dateStr) => {
+      const entry = statusMap[dateStr];
+      if (!entry) return;
+      if (dateStr >= todayStr) return;
+      if (entry.isWeekend || entry.isHoliday || entry.isLeave) return;
+      if (entry.status) return;
+
+      statusMap[dateStr] = {
+        ...entry,
+        status: "ABSENT"
+      };
+    });
+
+    // Convert to array format for frontend (include all initialized days)
     const result = Object.entries(statusMap).map(([date, data]) => ({
       date,
-      status: data.status,
+      status: data.status || null,
       ...(data.eventName && { eventName: data.eventName }),
       ...(data.checkIn && { checkIn: data.checkIn }),
-      ...(data.isWeekend && { isWeekend: true }),
+      isWeekend: Boolean(data.isWeekend),
+      isWorkingDay: Boolean(data.isWorkingDay),
       ...(data.isHoliday && { isHoliday: true }),
       ...(data.isLeave && { isLeave: true })
     }));
@@ -219,10 +256,18 @@ export async function getMonthlyAttendanceStatus(userId, year, month) {
 /**
  * Legacy calendar functions (kept for backward compatibility)
  */
-export async function listCalendar(from, to) {
-  return Attendance.find({
+export async function listCalendar(from, to, companyId) {
+  let query = {
     date: { $gte: from, $lte: to }
-  }).sort({ date: 1 });
+  };
+  
+  // Filter by company users if companyId provided
+  if (companyId) {
+    const companyUserIds = await getCompanyUserIds(companyId);
+    query.userId = { $in: companyUserIds };
+  }
+  
+  return Attendance.find(query).sort({ date: 1 });
 }
 
 export async function upsertCalendar(data) {
@@ -233,11 +278,18 @@ export async function upsertCalendar(data) {
   );
 }
 
-async function syncPublicHolidayAttendance(date, holidayName) {
-  const staffUsers = await User.find({
+async function syncPublicHolidayAttendance(date, holidayName, companyId) {
+  let query = {
     role: { $ne: ROLES.ADMIN },
     isActive: true
-  }).select("_id");
+  };
+  
+  // Filter by company if provided
+  if (companyId) {
+    query.companyId = companyId;
+  }
+  
+  const staffUsers = await User.find(query).select("_id");
 
   if (!staffUsers.length) return;
 
@@ -296,7 +348,7 @@ export async function createEvent(eventData) {
     await event.save();
 
     if (event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY && event.status !== "CANCELLED") {
-      await syncPublicHolidayAttendance(event.date, event.title);
+      await syncPublicHolidayAttendance(event.date, event.title, event.companyId);
     }
 
     return event;
@@ -309,19 +361,35 @@ export async function createEvent(eventData) {
 /**
  * Get user events for a specific date range
  */
-export async function getUserEvents(userId, startDate, endDate) {
+export async function getUserEvents(userId, startDate, endDate, companyId) {
   try {
-    const events = await Event.find({
-      $or: [
+    let query = {
+      date: { $gte: startDate, $lte: endDate },
+      status: { $ne: "CANCELLED" }
+    };
+    
+    // If companyId provided, filter by company
+    if (companyId) {
+      query.companyId = companyId;
+      query.$or = [
+        { userId }, // User's own events
+        {
+          purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
+          visibility: EVENT_VISIBILITY.PUBLIC
+        }
+      ];
+    } else {
+      // Fallback for backward compatibility - show user's events and public holidays
+      query.$or = [
         { userId },
         {
           purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
           visibility: EVENT_VISIBILITY.PUBLIC
         }
-      ],
-      date: { $gte: startDate, $lte: endDate },
-      status: { $ne: "CANCELLED" }
-    }).sort({ date: 1, startTime: 1 });
+      ];
+    }
+
+    const events = await Event.find(query).sort({ date: 1, startTime: 1 });
 
     return events;
   } catch (error) {
@@ -370,7 +438,7 @@ export async function updateEvent(eventId, userId, userRole, updateData) {
     await event.save();
 
     if (event.purpose === EVENT_PURPOSE.PUBLIC_HOLIDAY && event.status !== "CANCELLED") {
-      await syncPublicHolidayAttendance(event.date, event.title);
+      await syncPublicHolidayAttendance(event.date, event.title, event.companyId);
     }
 
     return event;

@@ -19,6 +19,11 @@ const eventSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true
+    },
     title: {
       type: String,
       required: true,
@@ -66,6 +71,7 @@ const eventSchema = new mongoose.Schema(
 // Index for efficient querying by user and date
 eventSchema.index({ userId: 1, date: 1 });
 eventSchema.index({ userId: 1, startTime: 1 });
-eventSchema.index({ purpose: 1, visibility: 1, date: 1 });
+eventSchema.index({ companyId: 1, purpose: 1, visibility: 1, date: 1 });
+eventSchema.index({ companyId: 1, date: 1 });
 
 export const Event = mongoose.model("Event", eventSchema);

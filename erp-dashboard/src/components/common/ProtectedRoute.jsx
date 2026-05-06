@@ -8,7 +8,12 @@ export default function ProtectedRoute({ roles, children }) {
   const token = useAuthStore((s) => s.accessToken);
 
   if (!token) return <Navigate to="/login" replace />;
-  if (roles && !hasRole(user, roles)) return <Navigate to="/" replace />;
+  if (roles && !hasRole(user, roles)) {
+    if (user?.role === "SUPERADMIN") {
+      return <Navigate to="/superadmin/dashboard" replace />;
+    }
+    return <Navigate to="/" replace />;
+  }
 
   return children;
 }

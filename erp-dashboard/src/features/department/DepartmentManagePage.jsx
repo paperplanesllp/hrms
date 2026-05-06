@@ -80,7 +80,7 @@ export default function DepartmentManagePage() {
         : "Failed to load departments.";
       toast({ title: message, type: "error" });
       if (err.response?.status === 401) {
-        setTimeout(() => window.location.href = "/login", 2000);
+        setTimeout(() => window.location.href = "/auth/login", 2000);
       }
     } finally {
       setLoading(false);

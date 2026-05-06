@@ -15,7 +15,7 @@ export const createComplaint = asyncHandler(async (req, res) => {
   try {
     const data = createComplaintSchema.parse(req.body);
     const userId = req.user._id || req.user.id;
-    const complaint = await complaintService.createComplaint(userId, data);
+    const complaint = await complaintService.createComplaint(userId, data, req.user.companyId || null);
     
     // Send confirmation email asynchronously (non-blocking)
     // Extract user email from populated userId
@@ -147,12 +147,12 @@ export const getAllComplaints = asyncHandler(async (req, res) => {
 
   Object.keys(filters).forEach(key => filters[key] === undefined && delete filters[key]);
 
-  const complaints = await complaintService.getAllComplaints(filters);
+  const complaints = await complaintService.getAllComplaints(filters, req.user.companyId || null);
   res.json(complaints);
 });
 
 export const getComplaintsStats = asyncHandler(async (req, res) => {
-  const stats = await complaintService.getComplaintsStats();
+  const stats = await complaintService.getComplaintsStats(req.user.companyId || null);
   res.json(stats);
 });
 
@@ -166,7 +166,7 @@ export const searchComplaints = asyncHandler(async (req, res) => {
   const complaints = await complaintService.searchComplaints(q, {
     status,
     priority
-  });
+  }, req.user.companyId || null);
 
   res.json(complaints);
 });

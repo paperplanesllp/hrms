@@ -5,6 +5,12 @@ import { Department } from "../department/Department.model.js";
 import { Payroll } from "../payroll/Payroll.model.js";
 import { LeaveType } from "../leaveType/LeaveType.model.js";
 
+async function getCompanyUserIds(companyId) {
+  if (!companyId) return [];
+  const users = await User.find({ companyId }).select("_id").lean();
+  return users.map((u) => u._id);
+}
+
 // Calculate leave balance for a user - supports multiple leave types
 export async function getLeaveBalance(userId) {
   // Get all active leave types
@@ -72,44 +78,51 @@ export async function getLeaveBalance(userId) {
   };
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(companyId) {
+  const companyUserIds = await getCompanyUserIds(companyId);
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const todayDate = new Date(today);
 
   // Count attended today (includes full day, short hours, and half day)
-  const presentToday = await Attendance.countDocuments({ 
-    date: today, 
-    status: { $in: ["PRESENT", "SHORT_HOURS", "HALF_DAY"] }
+  const presentToday = await Attendance.countDocuments({
+    date: today,
+    status: { $in: ["PRESENT", "SHORT_HOURS", "HALF_DAY"] },
+    userId: { $in: companyUserIds }
   });
 
   // Count short hours today (late check-ins)
-  const shortHoursToday = await Attendance.countDocuments({ 
-    date: today, 
-    status: "SHORT_HOURS" 
+  const shortHoursToday = await Attendance.countDocuments({
+    date: today,
+    status: "SHORT_HOURS",
+    userId: { $in: companyUserIds }
   });
 
   // Count half-day today
   const halfDayToday = await Attendance.countDocuments({
     date: today,
-    status: "HALF_DAY"
+    status: "HALF_DAY",
+    userId: { $in: companyUserIds }
   });
 
   // Count absent today - employees with no check-in and no approved leave
   // Get all employees (role !== "ADMIN" to exclude admins from attendance)
-  const totalEmployees = await User.countDocuments({ 
+  const totalEmployees = await User.countDocuments({
+    companyId,
     role: { $in: ["HR", "USER"] }
   });
 
   // Get employees who have attendance records today (any status)
-  const employeesWithAttendanceToday = await Attendance.distinct('userId', { 
-    date: today 
+  const employeesWithAttendanceToday = await Attendance.distinct('userId', {
+    date: today,
+    userId: { $in: companyUserIds }
   });
 
   // Get employees with approved leave for today
   const employeesWithLeaveToday = await Leave.find({
     status: "APPROVED",
     fromDate: { $lte: todayDate },
-    toDate: { $gte: todayDate }
+    toDate: { $gte: todayDate },
+    userId: { $in: companyUserIds }
   }).distinct('userId');
 
   // Merge both arrays and get unique count
@@ -122,8 +135,9 @@ export async function getDashboardStats() {
   const absentToday = totalEmployees - usersWithActivityToday.size;
 
   // Count pending leaves
-  const leavePending = await Leave.countDocuments({ 
-    status: "PENDING" 
+  const leavePending = await Leave.countDocuments({
+    status: "PENDING",
+    userId: { $in: companyUserIds }
   });
 
   // Payroll pending - placeholder
@@ -142,7 +156,8 @@ export async function getDashboardStats() {
 
 // Get list of absent employees (not checked in and no approved leave)
 // rolesFilter: optional array of roles to limit results (e.g. ["USER"] for HR dashboard)
-export async function getAbsentEmployees(rolesFilter) {
+export async function getAbsentEmployees(rolesFilter, companyId) {
+  const companyUserIds = await getCompanyUserIds(companyId);
   const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   const todayDate = new Date(today);
 
@@ -152,20 +167,23 @@ export async function getAbsentEmployees(rolesFilter) {
     : ["HR", "USER"];
 
   // Get employees matching the role filter (exclude ADMIN always)
-  const allEmployees = await User.find({ 
+  const allEmployees = await User.find({
+    companyId,
     role: { $in: rolesToQuery }
   }).lean();
 
   // Get employees who have attendance records today
-  const employeesWithAttendanceToday = await Attendance.distinct('userId', { 
-    date: today 
+  const employeesWithAttendanceToday = await Attendance.distinct('userId', {
+    date: today,
+    userId: { $in: companyUserIds }
   });
 
   // Get employees with approved leave for today
   const employeesWithLeaveToday = await Leave.find({
     status: "APPROVED",
     fromDate: { $lte: todayDate },
-    toDate: { $gte: todayDate }
+    toDate: { $gte: todayDate },
+    userId: { $in: companyUserIds }
   }).distinct('userId');
 
   // Create set of IDs who have activity
@@ -287,17 +305,19 @@ function generateDatePoints(startDate, endDate, range) {
   return points;
 }
 
-export async function getAnalyticsData(range = "month") {
+export async function getAnalyticsData(range = "month", companyId) {
+  const companyUserIds = await getCompanyUserIds(companyId);
   const { startDate, endDate } = getDateRange(range);
   const datePoints = generateDatePoints(startDate, endDate, range);
 
   // Get all attendance records for the period
   const attendanceRecords = await Attendance.find({
-    date: { $gte: startDate, $lte: endDate }
+    date: { $gte: startDate, $lte: endDate },
+    userId: { $in: companyUserIds }
   }).lean();
 
   // Get total employees
-  const totalEmployees = await User.countDocuments({ role: "USER" });
+  const totalEmployees = await User.countDocuments({ companyId, role: "USER" });
 
   // Calculate KPIs
   const totalPresent = attendanceRecords.filter(a => a.status === "PRESENT").length;
@@ -315,7 +335,8 @@ export async function getAnalyticsData(range = "month") {
 
   // Get leave requests
   const leaveRecords = await Leave.find({
-    createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) }
+    createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) },
+    userId: { $in: companyUserIds }
   }).lean();
 
   const leavePending = leaveRecords.filter(l => l.status === "PENDING").length;
@@ -340,11 +361,11 @@ export async function getAnalyticsData(range = "month") {
   });
 
   // Department comparison - REAL DATA
-  const departments = await Department.find({ isActive: true }).lean();
+  const departments = await Department.find({ isActive: true, companyId }).lean();
   
   const departmentData = await Promise.all(
     departments.map(async (dept) => {
-      const deptEmployees = await User.find({ department: dept._id }).lean();
+      const deptEmployees = await User.find({ departmentId: dept._id, companyId }).lean();
       const deptEmployeeIds = deptEmployees.map(e => e._id.toString());
       
       if (deptEmployeeIds.length === 0) {
@@ -395,7 +416,8 @@ export async function getAnalyticsData(range = "month") {
 
   // Payroll distribution - REAL DATA
   const payrollRecords = await Payroll.find({
-    createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) }
+    createdAt: { $gte: new Date(startDate), $lte: new Date(endDate) },
+    userId: { $in: companyUserIds }
   }).lean();
   
   const processedPayroll = payrollRecords.filter(p => p.status === "PROCESSED").length;

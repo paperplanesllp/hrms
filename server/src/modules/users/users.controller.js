@@ -26,8 +26,15 @@ import { sendWelcomeEmail } from "../../utils/emailService.js";
 import { unlink } from "fs/promises";
 import { isCloudinaryConfigured, uploadProfileImageToCloudinary } from "../../utils/cloudinary.js";
 
+function requireCompanyId(req) {
+  if (!req.user?.companyId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Company is required");
+  }
+}
+
 export const createUserByAdmin = asyncHandler(async (req, res) => {
   const data = createUserSchema.parse(req.body);
+  requireCompanyId(req);
   
   // HR can only create EMPLOYEE users
   if (req.user.role === ROLES.HR && data.role && data.role !== ROLES.USER) {
@@ -43,7 +50,7 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
   const temporaryPassword = data.password;
   const creatorName = req.user.name;
   
-  const user = await createUser(data);
+  const user = await createUser({ ...data, companyId: req.user.companyId });
   
   // Send welcome email to the newly created user
   const emailSent = await sendWelcomeEmail(
@@ -84,17 +91,20 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
 });
 
 export const getAllUsers = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
   const { department } = req.query;
-  const users = await listUsers(req.user.role, req.user.id, department);
+  const users = await listUsers(req.user.role, req.user.id, department, req.user.companyId);
   res.json(users);
 });
 
 export const getPendingTemporaryUsers = asyncHandler(async (req, res) => {
-  const users = await listPendingTemporaryUsers();
+  requireCompanyId(req);
+  const users = await listPendingTemporaryUsers(req.user.companyId);
   res.json(users);
 });
 
 export const approveTemporaryRegistration = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
   const note = String(req.body?.note || "").trim();
   const officeLatitude = Number(req.body?.officeLatitude);
   const officeLongitude = Number(req.body?.officeLongitude);
@@ -111,7 +121,8 @@ export const approveTemporaryRegistration = asyncHandler(async (req, res) => {
     req.user.id,
     note,
     officeLatitude,
-    officeLongitude
+    officeLongitude,
+    req.user.companyId
   );
 
   try {
@@ -139,8 +150,9 @@ export const approveTemporaryRegistration = asyncHandler(async (req, res) => {
 });
 
 export const rejectTemporaryRegistration = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
   const note = String(req.body?.note || "").trim();
-  const user = await rejectTemporaryUser(req.params.id, req.user.id, note);
+  const user = await rejectTemporaryUser(req.params.id, req.user.id, note, req.user.companyId);
 
   try {
     await createActivityLog({
@@ -162,9 +174,10 @@ export const rejectTemporaryRegistration = asyncHandler(async (req, res) => {
 });
 
 export const convertTemporaryUserToPermanent = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
   const data = convertTemporaryToPermanentSchema.parse(req.body);
 
-  const user = await convertTemporaryToPermanent(req.params.id, req.user.id, data);
+  const user = await convertTemporaryToPermanent(req.params.id, req.user.id, data, req.user.companyId);
 
   try {
     await createActivityLog({
@@ -204,12 +217,12 @@ export const changeUserPassword = asyncHandler(async (req, res) => {
 });
 
 export const getMe = asyncHandler(async (req, res) => {
-  const user = await getUserById(req.user.id);
+  const user = await getUserById(req.user.id, req.user.companyId || null);
   res.json({ user });
 });
 
 export const get2FAStatus = asyncHandler(async (req, res) => {
-  const user = await getUserById(req.user.id);
+  const user = await getUserById(req.user.id, req.user.companyId || null);
   res.json({ enabled: Boolean(user.twoFactorEnabled) });
 });
 
@@ -235,12 +248,14 @@ export const getActivityLog = asyncHandler(async (req, res) => {
 });
 
 export const getUser = asyncHandler(async (req, res) => {
-  const user = await getUserById(req.params.id);
+  requireCompanyId(req);
+  const user = await getUserById(req.params.id, req.user.companyId);
   res.json({ user });
 });
 
 export const patchUser = asyncHandler(async (req, res) => {
-  const targetUser = await getUserById(req.params.id);
+  requireCompanyId(req);
+  const targetUser = await getUserById(req.params.id, req.user.companyId);
 
   // HR can only edit employee (USER role) accounts
   if (req.user.role === ROLES.HR && targetUser.role !== ROLES.USER) {
@@ -352,6 +367,11 @@ export const updateUserLocation = asyncHandler(async (req, res) => {
     throw new ApiError(StatusCodes.FORBIDDEN, "You can only update your own location");
   }
 
+  if (req.user.id !== id) {
+    requireCompanyId(req);
+    await getUserById(id, req.user.companyId);
+  }
+
   const user = await updateUser(id, {
     officeLatitude,
     officeLongitude,
@@ -402,7 +422,8 @@ export const updateCurrentLocation = asyncHandler(async (req, res) => {
 });
 
 export const deleteUser = asyncHandler(async (req, res) => {
-  const targetUser = await getUserById(req.params.id);
+  requireCompanyId(req);
+  const targetUser = await getUserById(req.params.id, req.user.companyId);
 
   // Nobody can delete themselves
   if (req.user.id === String(targetUser._id)) {
@@ -442,6 +463,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
 
 // Get active employees' real-time locations (HR & Admin only)
 export const getActiveLocations = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
   // Only HR and Admin can view employee locations
   if (req.user.role !== ROLES.ADMIN && req.user.role !== ROLES.HR) {
     throw new ApiError(StatusCodes.FORBIDDEN, "Only HR and Admin can view employee locations");
@@ -449,6 +471,7 @@ export const getActiveLocations = asyncHandler(async (req, res) => {
 
   // Get all employees with active location data
   const employees = await User.find({
+    ...(req.user.companyId ? { companyId: req.user.companyId } : {}),
     role: ROLES.USER,
     isActive: true,
     currentLatitude: { $ne: null },

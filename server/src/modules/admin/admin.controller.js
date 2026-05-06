@@ -9,10 +9,7 @@ import { StatusCodes } from "http-status-codes";
  */
 export const getUsers = asyncHandler(async (req, res) => {
   const { role } = req.query;
-  console.log("🔍 [ADMIN] GET /admin/users called with role filter:", role);
-  const users = await adminService.getAllUsers(req.user.role, role);
-  console.log("🔍 [ADMIN] Returning", users.length, "users with role filter:", role);
-  console.log("🔍 [ADMIN] Users data:", users.map(u => ({ id: u._id, name: u.name, email: u.email, role: u.role })));
+  const users = await adminService.getAllUsers(req.user.role, role, req.user.companyId);
   res.json(users);
 });
 
@@ -36,7 +33,7 @@ export const terminateUser = asyncHandler(async (req, res) => {
  * GET /admin/hr-leaves - Get all HR leave requests
  */
 export const getHRLeaves = asyncHandler(async (req, res) => {
-  const leaves = await adminService.getHRLeaveRequests();
+  const leaves = await adminService.getHRLeaveRequests(req.user.companyId);
   res.json(leaves);
 });
 
@@ -60,7 +57,7 @@ export const getAttendance = asyncHandler(async (req, res) => {
     status: req.query.status,
     userId: req.query.userId
   };
-  const records = await adminService.getAllAttendance(filters);
+  const records = await adminService.getAllAttendance(filters, req.user.companyId);
   res.json(records);
 });
 
@@ -69,7 +66,7 @@ export const getAttendance = asyncHandler(async (req, res) => {
  */
 export const getLateArrivals = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
-  const records = await adminService.getLateArrivals(startDate, endDate);
+  const records = await adminService.getLateArrivals(startDate, endDate, req.user.companyId);
   res.json(records);
 });
 
@@ -77,7 +74,7 @@ export const getLateArrivals = asyncHandler(async (req, res) => {
  * GET /admin/payroll - Get all payroll records
  */
 export const getPayroll = asyncHandler(async (req, res) => {
-  const records = await adminService.getAllPayroll(req.user.role);
+  const records = await adminService.getAllPayroll(req.user.role, req.user.companyId);
   res.json(records);
 });
 
@@ -85,7 +82,7 @@ export const getPayroll = asyncHandler(async (req, res) => {
  * GET /admin/worksheets - Get all worksheets
  */
 export const getWorksheets = asyncHandler(async (req, res) => {
-  const records = await adminService.getAllWorksheets();
+  const records = await adminService.getAllWorksheets(req.user.companyId);
   res.json(records);
 });
 
@@ -93,7 +90,7 @@ export const getWorksheets = asyncHandler(async (req, res) => {
  * GET /admin/stats - Get system statistics
  */
 export const getStats = asyncHandler(async (req, res) => {
-  const stats = await adminService.getSystemStats();
+  const stats = await adminService.getSystemStats(req.user.companyId);
   res.json(stats);
 });
 
@@ -101,7 +98,7 @@ export const getStats = asyncHandler(async (req, res) => {
  * GET /admin/hr-team - Get all HR team members
  */
 export const getHRTeam = asyncHandler(async (req, res) => {
-  const hrTeam = await adminService.getHRTeam();
+  const hrTeam = await adminService.getHRTeam(req.user.companyId);
   res.json(hrTeam);
 });
 
@@ -167,23 +164,15 @@ export const addHRDiscussionReply = asyncHandler(async (req, res) => {
  */
 export const setCompanyLocation = asyncHandler(async (req, res) => {
   const { latitude, longitude } = req.body;
-  
   if (typeof latitude !== "number" || typeof longitude !== "number") {
     throw new Error("Invalid latitude or longitude");
   }
-  
-  const company = await adminService.setCompanyLocation(latitude, longitude);
-  res.json({ 
-    message: "Company location updated",
-    location: company 
-  });
+  const company = await adminService.setCompanyLocation(latitude, longitude, req.user.companyId, req.user.id);
+  res.json({ message: "Company location updated", location: company });
 });
 
-/**
- * GET /admin/company-location - Get company/office location
- */
 export const getCompanyLocation = asyncHandler(async (req, res) => {
-  const company = await adminService.getCompanyLocation();
+  const company = await adminService.getCompanyLocation(req.user.companyId, req.user.id);
   res.json(company);
 });
 
@@ -194,23 +183,13 @@ export const getCompanyLocation = asyncHandler(async (req, res) => {
  */
 export const setWorkingDays = asyncHandler(async (req, res) => {
   const { workingDays } = req.body;
-  
-  if (!Array.isArray(workingDays)) {
-    throw new Error("workingDays must be an array");
-  }
-  
-  const result = await adminService.setWorkingDays(workingDays);
-  res.json({ 
-    message: "Working days configuration updated",
-    data: result 
-  });
+  if (!Array.isArray(workingDays)) throw new Error("workingDays must be an array");
+  const result = await adminService.setWorkingDays(workingDays, req.user.companyId, req.user.id);
+  res.json({ message: "Working days configuration updated", data: result });
 });
 
-/**
- * GET /admin/working-days - Get company working days configuration
- */
 export const getWorkingDays = asyncHandler(async (req, res) => {
-  const result = await adminService.getWorkingDays();
+  const result = await adminService.getWorkingDays(req.user.companyId, req.user.id);
   res.json(result);
 });
 
@@ -221,22 +200,14 @@ export const getWorkingDays = asyncHandler(async (req, res) => {
  */
 export const setCompanyTiming = asyncHandler(async (req, res) => {
   const { shiftStart, shiftEnd } = req.body;
-
   if (!shiftStart || !shiftEnd) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "shiftStart and shiftEnd are required");
   }
-
-  const result = await adminService.setCompanyTiming(shiftStart, shiftEnd);
-  res.json({
-    message: "Company timing updated",
-    data: result
-  });
+  const result = await adminService.setCompanyTiming(shiftStart, shiftEnd, req.user.companyId, req.user.id);
+  res.json({ message: "Company timing updated", data: result });
 });
 
-/**
- * GET /admin/company-timing - Get company shift timing
- */
 export const getCompanyTiming = asyncHandler(async (req, res) => {
-  const result = await adminService.getCompanyTiming();
+  const result = await adminService.getCompanyTiming(req.user.companyId, req.user.id);
   res.json(result);
 });

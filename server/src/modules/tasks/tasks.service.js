@@ -6,6 +6,11 @@ import { TASK_TIMING_STATE, calculateTaskMetrics, evaluateEmployeePerformance, s
 import { ROLES } from '../../middleware/roles.js';
 
 export const tasksService = {
+  async getCompanyUserIds(companyId) {
+    if (!companyId) return [];
+    const users = await User.find({ companyId }).select('_id').lean();
+    return users.map((u) => u._id);
+  },
   // Get my tasks (assigned to current user)
   async getMyTasks(userId, filters = {}) {
     try {
@@ -95,8 +100,15 @@ export const tasksService = {
   },
 
   // Get all tasks (admin/HR only)
-  async getAllTasks(filters = {}) {
+  async getAllTasks(filters = {}, companyId) {
     const query = { isDeleted: false };
+    const companyUserIds = await this.getCompanyUserIds(companyId);
+    if (companyUserIds.length > 0) {
+      query.$or = [
+        { assignedBy: { $in: companyUserIds } },
+        { assignedTo: { $in: companyUserIds } }
+      ];
+    }
     
     // Status filter
     if (filters.status) query.status = filters.status;
@@ -141,7 +153,7 @@ export const tasksService = {
   },
 
   // Get tasks assigned BY current user (tasks they created and assigned to OTHERS, excluding self-assigned)
-  async getAssignedByUser(userId, filters = {}) {
+  async getAssignedByUser(userId, filters = {}, companyId) {
     try {
       console.log('🔍 [getAssignedByUser] Fetching tasks assigned by userId:', userId);
       
@@ -173,6 +185,11 @@ export const tasksService = {
       
       console.log('📋 [getAssignedByUser] Query object:', JSON.stringify(query, null, 2));
       
+      if (companyId) {
+        const companyUserIds = await this.getCompanyUserIds(companyId);
+        query.assignedTo = { $in: companyUserIds };
+      }
+
       const tasks = await Task.find(query)
         .populate('assignedTo', 'name email avatar')
         .populate('assignedBy', 'name email avatar')
@@ -661,7 +678,7 @@ export const tasksService = {
   },
 
   // Get all tasks analytics (admin/HR only)
-  async getAllTasksAnalytics(opts = {}) {
+  async getAllTasksAnalytics(opts = {}, companyId) {
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
 
@@ -694,9 +711,13 @@ export const tasksService = {
       toDate = now;
     }
 
+    const companyUserIds = await this.getCompanyUserIds(companyId);
     const query = {
       isDeleted: false,
-      createdAt: { $gte: fromDate, $lte: toDate }
+      createdAt: { $gte: fromDate, $lte: toDate },
+      ...(companyUserIds.length > 0
+        ? { $or: [{ assignedBy: { $in: companyUserIds } }, { assignedTo: { $in: companyUserIds } }] }
+        : {})
     };
 
     const allTasks = await Task.find(query).select('status priority assignedBy assignedTo extensionRequests estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
@@ -807,7 +828,7 @@ export const tasksService = {
   },
 
   // Get team performance analytics (admin/HR only)
-  async getTeamPerformanceAnalytics(opts = {}) {
+  async getTeamPerformanceAnalytics(opts = {}, companyId) {
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
     const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
@@ -843,7 +864,8 @@ export const tasksService = {
 
     // Get all users with tasks
     const teamMembers = await User.find({
-      role: { $in: [ROLES.USER, ROLES.HR] }
+      role: { $in: [ROLES.USER, ROLES.HR] },
+      companyId
     }).select('_id name userName email');
     
     const performance = await Promise.all(

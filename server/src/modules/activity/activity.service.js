@@ -1,4 +1,11 @@
 import { ActivityLog } from "./ActivityLog.model.js";
+import { User } from "../users/User.model.js";
+
+async function getCompanyUserIds(companyId) {
+  if (!companyId) return [];
+  const users = await User.find({ companyId }).select("_id").lean();
+  return users.map((u) => u._id);
+}
 
 /**
  * Create an activity log entry
@@ -59,6 +66,7 @@ export async function getActivityLogs(options = {}) {
     endDate,
     visibility = "PUBLIC",
     targetUserId,
+    companyId,
   } = options;
 
   const query = {};
@@ -78,6 +86,14 @@ export async function getActivityLogs(options = {}) {
     query.createdAt = {};
     if (startDate) query.createdAt.$gte = new Date(startDate);
     if (endDate) query.createdAt.$lte = new Date(endDate);
+  }
+
+  if (companyId) {
+    const companyUserIds = await getCompanyUserIds(companyId);
+    query.$or = [
+      { actorId: { $in: companyUserIds } },
+      { targetUserId: { $in: companyUserIds } }
+    ];
   }
 
   const logs = await ActivityLog.find(query)
@@ -102,8 +118,13 @@ export async function getActivityLogs(options = {}) {
 /**
  * Get recent activities for a user
  */
-export async function getUserActivities(userId, limit = 20) {
-  return ActivityLog.find({ actorId: userId })
+export async function getUserActivities(userId, limit = 20, companyId) {
+  const query = { actorId: userId };
+  if (companyId) {
+    const companyUserIds = await getCompanyUserIds(companyId);
+    query.actorId = { $in: companyUserIds, $eq: userId };
+  }
+  return ActivityLog.find(query)
     .populate("actorId", "name email role profileImageUrl")
     .populate("targetUserId", "name email role profileImageUrl")
     .sort({ createdAt: -1 })
@@ -116,6 +137,7 @@ export async function getUserActivities(userId, limit = 20) {
  */
 export async function getHRTimeline(options = {}) {
   const { limit = 50, skip = 0, startDate, endDate } = options;
+  const { companyId } = options;
 
   const query = {
     $or: [
@@ -133,6 +155,11 @@ export async function getHRTimeline(options = {}) {
     query.createdAt = {};
     if (startDate) query.createdAt.$gte = new Date(startDate);
     if (endDate) query.createdAt.$lte = new Date(endDate);
+  }
+
+  if (companyId) {
+    const companyUserIds = await getCompanyUserIds(companyId);
+    query.actorId = { $in: companyUserIds };
   }
 
   const logs = await ActivityLog.find(query)
@@ -160,6 +187,7 @@ export async function getHRTimeline(options = {}) {
  */
 export async function getAdminTimeline(options = {}) {
   const { limit = 50, skip = 0, startDate, endDate } = options;
+  const { companyId } = options;
 
   const query = {
     $or: [
@@ -181,6 +209,11 @@ export async function getAdminTimeline(options = {}) {
     query.createdAt = {};
     if (startDate) query.createdAt.$gte = new Date(startDate);
     if (endDate) query.createdAt.$lte = new Date(endDate);
+  }
+
+  if (companyId) {
+    const companyUserIds = await getCompanyUserIds(companyId);
+    query.actorId = { $in: companyUserIds };
   }
 
   const logs = await ActivityLog.find(query)

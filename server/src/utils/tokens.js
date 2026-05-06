@@ -8,8 +8,7 @@ export function signAccessToken(payload) {
 
 export function signRefreshToken(payload, rememberMe = false) {
   if (!env.REFRESH_TOKEN_SECRET) throw new Error("REFRESH_TOKEN_SECRET missing");
-  // ✅ Extend expiry to 90 days if rememberMe is enabled
-  const expiresIn = rememberMe ? "90d" : env.REFRESH_TOKEN_EXPIRES;
+  const expiresIn = "90d";
   return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, { expiresIn });
 }
 

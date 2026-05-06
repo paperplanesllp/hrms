@@ -29,7 +29,7 @@ function hashOtp(code) {
   return crypto.createHash("sha256").update(code).digest("hex");
 }
 
-export async function signup({ name, email, phone, password, rememberMe = false }) {
+export async function signup({ name, email, phone, password, rememberMe = true }) {
   console.log("🔄 SIGNUP SERVICE STARTED with:", { name, email, phone });
   
   const normalizedEmail = email.toLowerCase().trim();
@@ -60,7 +60,12 @@ export async function signup({ name, email, phone, password, rememberMe = false 
     });
     console.log("✅ User created:", user._id);
 
-    const payload = { id: String(user._id), role: user.role, name: user.name };
+    const payload = {
+      id: String(user._id),
+      role: user.role,
+      name: user.name,
+      companyId: user.companyId ? String(user.companyId) : null,
+    };
 
     console.log("🔑 Generating tokens...");
     const accessToken = signAccessToken(payload);
@@ -68,7 +73,7 @@ export async function signup({ name, email, phone, password, rememberMe = false 
     console.log("✅ Tokens generated");
 
     user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    user.rememberMeEnabled = rememberMe || false;
+    user.rememberMeEnabled = true;
     await user.save();
     console.log("✅ Refresh token hash saved");
 
@@ -83,6 +88,7 @@ export async function signup({ name, email, phone, password, rememberMe = false 
         role: user.role,
         email: user.email,
         profileImageUrl: user.profileImageUrl,
+        companyId: user.companyId ? String(user.companyId) : null,
       },
     };
   } catch (error) {
@@ -97,9 +103,13 @@ export async function signup({ name, email, phone, password, rememberMe = false 
  * If 2FA is disabled: Returns access token immediately (normal flow)
  * If 2FA is enabled: Returns response indicating OTP verification needed
  */
-export async function login(email, password, rememberMe = false) {
+export async function login(email, password, rememberMe = true) {
   const user = await User.findOne({ email: email.toLowerCase().trim() });
   if (!user) throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
+
+  if (user.role === ROLES.SUPERADMIN) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "Use the superadmin login");
+  }
 
   if (user.accountType === "TEMPORARY") {
     throw new ApiError(
@@ -170,15 +180,23 @@ export async function login(email, password, rememberMe = false) {
 
   // Mark user as active on login
   user.isActive = true;
+  user.failedLoginAttempts = 0;
+  user.accountLocked = false;
+  user.lockUntil = undefined;
   await user.save();
 
-  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const payload = {
+    id: String(user._id),
+    role: user.role,
+    name: user.name,
+    companyId: user.companyId ? String(user.companyId) : null,
+  };
 
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload, rememberMe);
 
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
-  user.rememberMeEnabled = rememberMe || false;
+  user.rememberMeEnabled = true;
   await user.save();
 
   // Log the login activity
@@ -203,6 +221,7 @@ export async function login(email, password, rememberMe = false) {
       role: user.role,
       email: user.email,
       profileImageUrl: user.profileImageUrl,
+      companyId: user.companyId ? String(user.companyId) : null,
     },
   };
 }
@@ -222,19 +241,32 @@ export async function refresh(refreshToken) {
   const match = await bcrypt.compare(refreshToken, user.refreshTokenHash);
   if (!match) throw new ApiError(StatusCodes.UNAUTHORIZED, "Session expired");
 
-  const newPayload = { id: String(user._id), role: user.role, name: user.name };
+  const newPayload = {
+    id: String(user._id),
+    role: user.role,
+    name: user.name,
+    companyId: user.companyId ? String(user.companyId) : null,
+  };
   const newAccess = signAccessToken(newPayload);
   
   // ✅ REFRESH TOKEN ROTATION: Generate new refresh token on each refresh
   const newRefreshToken = signRefreshToken(newPayload, user.rememberMeEnabled);
   user.refreshTokenHash = await bcrypt.hash(newRefreshToken, 12);
+  user.rememberMeEnabled = true;
   await user.save();
 
   return { 
     accessToken: newAccess,
     refreshToken: newRefreshToken,
     rememberMe: user.rememberMeEnabled,
-    user: { id: user._id, name: user.name, email: user.email, role: user.role }
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      profileImageUrl: user.profileImageUrl,
+      companyId: user.companyId ? String(user.companyId) : null,
+    }
   };
 }
 
@@ -432,7 +464,7 @@ export async function requestTemporaryOtp(email) {
   return payload;
 }
 
-export async function verifyTemporaryOtp(email, otp, rememberMe = false) {
+export async function verifyTemporaryOtp(email, otp, rememberMe = true) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const user = await User.findOne({
     email: normalizedEmail,
@@ -468,12 +500,17 @@ export async function verifyTemporaryOtp(email, otp, rememberMe = false) {
   user.otpAttempts = 0;
   user.isActive = true;
 
-  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const payload = {
+    id: String(user._id),
+    role: user.role,
+    name: user.name,
+    companyId: user.companyId ? String(user.companyId) : null,
+  };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload, rememberMe);
 
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
-  user.rememberMeEnabled = rememberMe || false;
+  user.rememberMeEnabled = true;
   await user.save();
 
   await createActivityLog({
@@ -498,6 +535,7 @@ export async function verifyTemporaryOtp(email, otp, rememberMe = false) {
       phone: user.phone,
       accountType: user.accountType,
       profileImageUrl: user.profileImageUrl,
+      companyId: user.companyId ? String(user.companyId) : null,
     },
   };
 }
@@ -573,7 +611,7 @@ export async function request2FALoginOTP(userId) {
  * Verify 2FA OTP and issue login tokens
  * This is called after user enters OTP
  */
-export async function verify2FALoginOTP(userId, otp, rememberMe = false) {
+export async function verify2FALoginOTP(userId, otp, rememberMe = true) {
   const user = await User.findById(userId);
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
@@ -671,7 +709,7 @@ export async function verify2FALoginOTP(userId, otp, rememberMe = false) {
   const refreshToken = signRefreshToken(payload, rememberMe);
 
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
-  user.rememberMeEnabled = rememberMe || false;
+  user.rememberMeEnabled = true;
   await user.save();
 
   // Log the activity
@@ -686,6 +724,101 @@ export async function verify2FALoginOTP(userId, otp, rememberMe = false) {
   });
 
   return {
+    accessToken,
+    refreshToken,
+    rememberMe,
+    user: {
+      id: String(user._id),
+      name: user.name,
+      role: user.role,
+      email: user.email,
+      profileImageUrl: user.profileImageUrl,
+    },
+  };
+}
+
+export async function superadminLogin(email, password, rememberMe = true) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const superEmail = String(env.SUPERADMIN_EMAIL || "").trim().toLowerCase();
+  const superPassword = String(env.SUPERADMIN_PASSWORD || "");
+
+  if (!superEmail || !superPassword) {
+    throw new ApiError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Superadmin credentials are not configured"
+    );
+  }
+
+  let user = await User.findOne({ email: normalizedEmail });
+
+  if (user?.accountLocked && user.lockUntil && user.lockUntil > new Date()) {
+    throw new ApiError(StatusCodes.LOCKED, "Account temporarily locked due to failed login attempts");
+  }
+
+  if (normalizedEmail !== superEmail || password !== superPassword) {
+    if (user) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.accountLocked = true;
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+      }
+      await user.save();
+    }
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
+  }
+
+  if (user && user.role !== ROLES.SUPERADMIN) {
+    throw new ApiError(
+      StatusCodes.CONFLICT,
+      "Email is already in use by a non-superadmin account"
+    );
+  }
+
+  if (!user) {
+    const passwordHash = await bcrypt.hash(superPassword, 12);
+    user = await User.create({
+      name: "Super Admin",
+      email: normalizedEmail,
+      phone: "",
+      passwordHash,
+      role: ROLES.SUPERADMIN,
+      accountType: "EMPLOYEE",
+      approvalStatus: "APPROVED",
+    });
+  } else {
+    user.role = ROLES.SUPERADMIN;
+    user.passwordHash = await bcrypt.hash(superPassword, 12);
+    user.accountType = "EMPLOYEE";
+    user.approvalStatus = "APPROVED";
+    user.failedLoginAttempts = 0;
+    user.accountLocked = false;
+    user.lockUntil = undefined;
+    await user.save();
+  }
+
+  user.isActive = true;
+  await user.save();
+
+  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload, rememberMe);
+
+  user.refreshTokenHash = await bcrypt.hash(refreshToken, 12);
+  user.rememberMeEnabled = true;
+  await user.save();
+
+  await createActivityLog({
+    actorId: user._id,
+    actorName: user.name,
+    actorRole: user.role,
+    actionType: "LOGIN",
+    module: "AUTH",
+    description: "Superadmin logged in",
+    metadata: { email: user.email, rememberMe },
+  });
+
+  return {
+    requiresTwoFactor: false,
     accessToken,
     refreshToken,
     rememberMe,

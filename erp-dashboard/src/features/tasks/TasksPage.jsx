@@ -46,7 +46,7 @@ function TasksPageInner() {
     if (!accessToken || !user) {
       console.error('❌ [TasksPage] Not authenticated, redirecting to login');
       toast({ title: 'Authentication Required', message: 'Please log in to access tasks', type: 'error' });
-      navigate('/login', { replace: true });
+      navigate('/auth/login', { replace: true });
     } else {
       console.log('✅ [TasksPage] User is authenticated');
       console.log('👤 [TasksPage] User ID:', user?.id);

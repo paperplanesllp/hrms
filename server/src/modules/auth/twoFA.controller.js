@@ -80,7 +80,8 @@ export const request2FALoginOtpHandler = asyncHandler(async (req, res) => {
  * Body: { userId: "...", otp: "123456", rememberMe: true }
  */
 export const verify2FALoginOtpHandler = asyncHandler(async (req, res) => {
-  const { userId, otp, rememberMe } = req.body;
+  const { userId, otp } = req.body;
+  const rememberMe = true;
 
   if (!userId || typeof userId !== "string") {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User ID is required");
@@ -90,7 +91,7 @@ export const verify2FALoginOtpHandler = asyncHandler(async (req, res) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "OTP is required");
   }
 
-  const result = await verify2FALoginOTP(userId, otp, rememberMe || false);
+  const result = await verify2FALoginOTP(userId, otp, rememberMe);
 
   // Set refresh token cookie
   const cookieBase = {
@@ -100,9 +101,7 @@ export const verify2FALoginOtpHandler = asyncHandler(async (req, res) => {
     path: "/",
   };
 
-  const cookieMaxAge = rememberMe
-    ? 90 * 24 * 60 * 60 * 1000 // 90 days for "Stay logged in"
-    : 7 * 24 * 60 * 60 * 1000; // 7 days for normal login
+  const cookieMaxAge = 90 * 24 * 60 * 60 * 1000;
 
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,

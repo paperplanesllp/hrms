@@ -37,7 +37,7 @@ export const getAllPayroll = asyncHandler(async (req, res) => {
     });
   }
   
-  const rows = await listPayrollAll(req.user.role, req.user.id, filters);
+  const rows = await listPayrollAll(req.user.role, req.user.id, filters, req.user.companyId);
   res.json(rows);
 });
 
@@ -115,6 +115,6 @@ export const getPayrollStatsHandler = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "year parameter is required" });
   }
   
-  const stats = await getPayrollStats(req.user.role, req.user.id, parseInt(year), month);
+  const stats = await getPayrollStats(req.user.role, req.user.id, parseInt(year), month, req.user.companyId);
   res.json(stats);
 });

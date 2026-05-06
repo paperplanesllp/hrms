@@ -6,7 +6,7 @@ import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
 import SecuritySettings from "./SecuritySettings.jsx";
 import api from "../../lib/api.js";
-import { useAuthStore } from "../../store/authStore.js";
+import { setSession, useAuthStore } from "../../store/authStore.js";
 import { toast } from "../../store/toastStore.js";
 
 import {
@@ -377,16 +377,18 @@ export default function MyProfilePage() {
       });
 
       // Update auth store with new user data
-      if (res.data && res.data.user) {
-        const raw = localStorage.getItem("erp_auth");
-        const auth = raw ? JSON.parse(raw) : {};
-        auth.user = res.data.user;
+      const raw = localStorage.getItem("erp_auth");
+      const auth = raw ? JSON.parse(raw) : {};
+      const nextUser = res.data?.user || res.data || auth.user;
+
+      if (nextUser) {
+        auth.user = nextUser;
         localStorage.setItem("erp_auth", JSON.stringify(auth));
-      } else if (res.data) {
-        const raw = localStorage.getItem("erp_auth");
-        const auth = raw ? JSON.parse(raw) : {};
-        auth.user = res.data;
-        localStorage.setItem("erp_auth", JSON.stringify(auth));
+        setSession({
+          accessToken: auth.accessToken,
+          user: nextUser,
+          rememberMe: auth.rememberMe,
+        });
       }
 
       toast({
@@ -395,10 +397,6 @@ export default function MyProfilePage() {
         type: "success",
       });
 
-      // Reload after short delay to show success message
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
 
     } catch (e) {
 

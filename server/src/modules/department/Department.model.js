@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const departmentSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true, unique: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    name: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
     headName: { type: String, default: "" },
     email: { type: String, default: "" },
@@ -12,5 +13,7 @@ const departmentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+departmentSchema.index({ companyId: 1, name: 1 }, { unique: true });
 
 export const Department = mongoose.models.Department || mongoose.model("Department", departmentSchema);

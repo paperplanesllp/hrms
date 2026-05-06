@@ -2,10 +2,16 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import ProtectedRoute from "../components/common/ProtectedRoute.jsx";
+import SuperAdminProtectedRoute from "../components/common/SuperAdminProtectedRoute.jsx";
 import AppLayout from "../components/layout/AppLayout.jsx";
 
 import LoginPage from "../features/auth/LoginPage.jsx";
+import TheHrSaathiLandingPage from "../features/landing/TheHrSaathiLandingPage.jsx";
 import ResetPasswordPage from "../features/auth/ResetPasswordPage.jsx";
+import SuperAdminLoginPage from "../features/superadmin/SuperAdminLoginPage.jsx";
+import SuperAdminDashboardPage from "../features/superadmin/SuperAdminDashboardPage.jsx";
+import SuperAdminCompaniesPage from "../features/superadmin/SuperAdminCompaniesPage.jsx";
+import SuperAdminAdminsPage from "../features/superadmin/SuperAdminAdminsPage.jsx";
 
 import DashboardPage from "../features/dashboard/DashboardPage.jsx";
 import MyProfilePage from "../features/profile/MyProfilePage.jsx";
@@ -59,13 +65,39 @@ export default function AppRoutes() {
     <Routes>
       {/* ✅ Public routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/login" element={<TheHrSaathiLandingPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/superadmin" element={<SuperAdminLoginPage />} />
+      <Route
+        path="/superadmin/dashboard"
+        element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminDashboardPage />
+          </SuperAdminProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/companies"
+        element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminCompaniesPage />
+          </SuperAdminProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/admins"
+        element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminAdminsPage />
+          </SuperAdminProtectedRoute>
+        }
+      />
 
       {/* ✅ Protected app routes */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={[ROLES.ADMIN, ROLES.HR, ROLES.USER]}>
             <AppLayout />
           </ProtectedRoute>
         }

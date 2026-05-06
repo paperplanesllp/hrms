@@ -56,7 +56,7 @@ export default function SignupPage() {
         message: "Your account is ready. Please sign in.",
         type: "success",
       });
-      window.location.href = "/login";
+      window.location.href = "/auth/login";
     } catch (err) {
       if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
         toast({
@@ -178,7 +178,7 @@ export default function SignupPage() {
           <div className="mt-8 pt-6 border-t border-[#B3CFE5] text-center">
             <p className="text-sm text-[#4A7FA7]">
               Already have an account?{" "}
-              <Link to="/login" className="text-[#1A3D63] font-semibold hover:underline">
+              <Link to="/auth/login" className="text-[#1A3D63] font-semibold hover:underline">
                 Sign in
               </Link>
             </p>

@@ -69,7 +69,7 @@ export default function PayrollManagePage() {
           setPayrollLoadError(msg);
           if (err.response?.status === 401) {
             toast({ title: "Session expired. Please log in again.", type: "error" });
-            setTimeout(() => window.location.href = "/login", 2000);
+            setTimeout(() => window.location.href = "/auth/login", 2000);
           }
           return { data: [] };
         }),

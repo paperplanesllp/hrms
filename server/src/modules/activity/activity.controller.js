@@ -18,7 +18,7 @@ export const getMyActivities = asyncHandler(async (req, res) => {
   }
 
   const { limit = 20 } = req.query;
-  const activities = await getUserActivities(req.user.id, parseInt(limit));
+  const activities = await getUserActivities(req.user.id, parseInt(limit), req.user.companyId);
 
   res.json({
     data: activities,
@@ -47,6 +47,7 @@ export const getHRTimelineController = asyncHandler(async (req, res) => {
     skip: parseInt(skip),
     startDate,
     endDate,
+    companyId: req.user.companyId,
   });
 
   res.json({
@@ -80,6 +81,7 @@ export const getAdminTimelineController = asyncHandler(async (req, res) => {
     skip: parseInt(skip),
     startDate,
     endDate,
+    companyId: req.user.companyId,
   });
 
   res.json({
@@ -125,6 +127,7 @@ export const getAllActivities = asyncHandler(async (req, res) => {
     startDate,
     endDate,
     visibility: "ADMIN_ONLY",
+    companyId: req.user.companyId,
   });
 
   res.json({

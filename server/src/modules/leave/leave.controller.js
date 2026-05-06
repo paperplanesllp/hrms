@@ -60,19 +60,19 @@ export const getMyLeaves = asyncHandler(async (req, res) => {
 
 export const getAllLeaves = asyncHandler(async (req, res) => {
   const { search = '', department = '' } = req.query;
-  const rows = await listAllLeaves(req.user.role, req.user.id, search, department);
+  const rows = await listAllLeaves(req.user.role, req.user.id, search, department, req.user.companyId);
   res.json(rows);
 });
 
 export const getHRLeaves = asyncHandler(async (req, res) => {
   // Admin only - get all HR staff leaves for approval
-  const rows = await listHRLeaves();
+  const rows = await listHRLeaves(req.user.companyId);
   res.json(rows);
 });
 
 export const getUserLeaves = asyncHandler(async (req, res) => {
   // HR only - get all user leaves for approval
-  const rows = await listUserLeaves();
+  const rows = await listUserLeaves(req.user.companyId);
   res.json(rows);
 });
 

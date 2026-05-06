@@ -10,6 +10,7 @@ import {
 } from "./auth.schemas.js";
 import {
   login,
+  superadminLogin,
   refresh,
   logout,
   signup,
@@ -29,13 +30,14 @@ const cookieBase = {
   sameSite: "lax",
   path: "/",
 };
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const postSignup = asyncHandler(async (req, res) => {
   console.log("📝 SIGNUP REQUEST RECEIVED:", req.body);
   
   try {
     const data = signupSchema.parse(req.body);
-    const { rememberMe } = req.body;
+    const rememberMe = true;
     console.log("✅ VALIDATION PASSED:", data);
 
     const result = await signup({
@@ -48,13 +50,9 @@ export const postSignup = asyncHandler(async (req, res) => {
 
     console.log("✅ USER CREATED SUCCESSFULLY:", result.user);
 
-    const cookieMaxAge = rememberMe 
-      ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
-      : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal signup
-
     res.cookie("refreshToken", result.refreshToken, {
       ...cookieBase,
-      maxAge: cookieMaxAge,
+      maxAge: NINETY_DAYS_MS,
     });
 
     res.status(201).json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
@@ -66,8 +64,8 @@ export const postSignup = asyncHandler(async (req, res) => {
 
 export const postLogin = asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
-  const { rememberMe } = req.body;
-  const result = await login(data.email, data.password, rememberMe || false);
+  const rememberMe = true;
+  const result = await login(data.email, data.password, rememberMe);
 
   // Handle 2FA requirement
   if (result.requiresTwoFactor) {
@@ -83,13 +81,9 @@ export const postLogin = asyncHandler(async (req, res) => {
   }
 
   // Normal login flow (no 2FA) - set refresh token cookie with expiry based on rememberMe preference
-  const cookieMaxAge = rememberMe 
-    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
-    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal login
-
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,
-    maxAge: cookieMaxAge,
+    maxAge: NINETY_DAYS_MS,
   });
 
   res.json({ 
@@ -110,13 +104,9 @@ export const postRefresh = asyncHandler(async (req, res) => {
   console.log("✅ Refresh successful for user:", result.user.id);
   
   // ✅ REFRESH TOKEN ROTATION: Set the new refresh token in cookie
-  const cookieMaxAge = result.rememberMe 
-    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
-    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal session
-
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,
-    maxAge: cookieMaxAge,
+    maxAge: NINETY_DAYS_MS,
   });
 
   res.json({ 
@@ -158,17 +148,31 @@ export const postTemporaryRequestOtp = asyncHandler(async (req, res) => {
 
 export const postTemporaryVerifyOtp = asyncHandler(async (req, res) => {
   const data = temporaryOtpVerifySchema.parse(req.body);
-  const { rememberMe } = req.body;
-  const result = await verifyTemporaryOtp(data.email, data.otp, rememberMe || false);
-
-  const cookieMaxAge = rememberMe 
-    ? 90 * 24 * 60 * 60 * 1000  // 90 days for "Stay logged in"
-    : 7 * 24 * 60 * 60 * 1000;  // 7 days for normal session
+  const rememberMe = true;
+  const result = await verifyTemporaryOtp(data.email, data.otp, rememberMe);
 
   res.cookie("refreshToken", result.refreshToken, {
     ...cookieBase,
-    maxAge: cookieMaxAge,
+    maxAge: NINETY_DAYS_MS,
   });
 
   res.json({ accessToken: result.accessToken, user: result.user, rememberMe: result.rememberMe });
+});
+
+export const postSuperadminLogin = asyncHandler(async (req, res) => {
+  const data = loginSchema.parse(req.body);
+  const rememberMe = true;
+  const result = await superadminLogin(data.email, data.password, rememberMe);
+
+  res.cookie("refreshToken", result.refreshToken, {
+    ...cookieBase,
+    maxAge: NINETY_DAYS_MS,
+  });
+
+  res.json({
+    requiresTwoFactor: false,
+    accessToken: result.accessToken,
+    user: result.user,
+    rememberMe: result.rememberMe,
+  });
 });

@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Menu, LogOut, Sun, Moon } from "lucide-react";
 import NotificationCenter from "../ui/NotificationCenter.jsx";
 import DigitalClock from "../ui/DigitalClock.jsx";
@@ -13,21 +13,23 @@ import { ROLES } from "../../app/constants.js";
 
 export default function HeaderBar({ onMenu }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { isDark, toggleTheme } = useTheme();
   const showDashboardWeather =
     location.pathname === "/" &&
     (user?.role === ROLES.ADMIN || user?.role === ROLES.USER);
 
-  const onLogout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } catch (e) {
-      console.error(e);
-    }
+  const onLogout = () => {
+    // Clear session
     logout();
     toast({ title: "Logged out", type: "success" });
-    window.location.href = "/login";
+
+    // Call logout API in background (non-blocking)
+    api.post("/auth/logout").catch((e) => console.error(e));
+
+    // Client-side redirect to avoid full page reload blink
+    navigate("/login", { replace: true });
   };
   return (
     <header className="sticky top-0 z-30 transition-all duration-300 bg-white border-b ease-smooth border-slate-200 dark:border-slate-700 dark:bg-slate-800 shadow-elevation-1 backdrop-blur-md">    

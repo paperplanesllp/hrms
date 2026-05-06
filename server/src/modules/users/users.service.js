@@ -8,20 +8,25 @@ export async function createUser(data) {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
 
+  if (!data.companyId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Company is required");
+  }
+
   const passwordHash = await bcrypt.hash(data.password, 10);
   const user = await User.create({
     name: data.name,
     email: data.email,
+    companyId: data.companyId,
     phone: data.phone || "",
     role: data.role,
     passwordHash,
     profileImageUrl: data.profileImageUrl || "",
-    gender: data.gender || "",
+    gender: data.gender || null,
     dateOfBirth: data.dateOfBirth || null,
     emergencyContact: data.emergencyContact || "",
-    maritalStatus: data.maritalStatus || "",
+    maritalStatus: data.maritalStatus || null,
     nationality: data.nationality || "",
-    bloodGroup: data.bloodGroup || "",
+    bloodGroup: data.bloodGroup || null,
     departmentId: data.departmentId || null,
     designationId: data.designationId || null,
     officeLatitude: data.officeLatitude || 0,
@@ -31,11 +36,17 @@ export async function createUser(data) {
   return user;
 }
 
-export async function listUsers(requestingUserRole = null, currentUserId = null, departmentId = null) {
+export async function listUsers(
+  requestingUserRole = null,
+  currentUserId = null,
+  departmentId = null,
+  companyId = null
+) {
   // Exclude terminated users from shared lists.
   // Everyone can assign tasks to ADMIN users as well.
   // HR can see all active staff (USER + HR + ADMIN) so they can assign tasks to themselves, peers, and admins.
   const query = {
+    ...(companyId ? { companyId } : {}),
     role: { $nin: ["TERMINATED"] },
     $or: [
       { accountType: { $ne: "TEMPORARY" } },
@@ -53,12 +64,15 @@ export async function listUsers(requestingUserRole = null, currentUserId = null,
     .sort({ createdAt: -1 });
 }
 
-export async function getUserById(id) {
+export async function getUserById(id, companyId = null) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid user ID");
   }
 
-  const user = await User.findById(id).select("-passwordHash -refreshTokenHash");
+  const user = await User.findOne({
+    _id: id,
+    ...(companyId ? { companyId } : {}),
+  }).select("-passwordHash -refreshTokenHash");
   if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
   return user;
 }
@@ -85,8 +99,9 @@ export async function changePassword(userId, currentPassword, newPassword) {
   await user.save();
 }
 
-export async function listPendingTemporaryUsers() {
+export async function listPendingTemporaryUsers(companyId = null) {
   return User.find({
+    ...(companyId ? { companyId } : {}),
     accountType: "TEMPORARY",
     approvalStatus: "PENDING",
   })
@@ -99,9 +114,14 @@ export async function approveTemporaryUser(
   approverId,
   approvalNote = "",
   officeLatitude = null,
-  officeLongitude = null
+  officeLongitude = null,
+  companyId = null
 ) {
-  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+  const user = await User.findOne({
+    _id: userId,
+    accountType: "TEMPORARY",
+    ...(companyId ? { companyId } : {}),
+  });
   if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
 
   user.approvalStatus = "APPROVED";
@@ -118,8 +138,12 @@ export async function approveTemporaryUser(
   return user;
 }
 
-export async function rejectTemporaryUser(userId, approverId, approvalNote = "") {
-  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+export async function rejectTemporaryUser(userId, approverId, approvalNote = "", companyId = null) {
+  const user = await User.findOne({
+    _id: userId,
+    accountType: "TEMPORARY",
+    ...(companyId ? { companyId } : {}),
+  });
   if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
 
   user.approvalStatus = "REJECTED";
@@ -130,8 +154,12 @@ export async function rejectTemporaryUser(userId, approverId, approvalNote = "")
   return user;
 }
 
-export async function convertTemporaryToPermanent(userId, converterId, payload) {
-  const user = await User.findOne({ _id: userId, accountType: "TEMPORARY" });
+export async function convertTemporaryToPermanent(userId, converterId, payload, companyId = null) {
+  const user = await User.findOne({
+    _id: userId,
+    accountType: "TEMPORARY",
+    ...(companyId ? { companyId } : {}),
+  });
   if (!user) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Temporary user not found");
   }

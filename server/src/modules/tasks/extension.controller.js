@@ -22,18 +22,6 @@ export const extensionController = {
       const isAssignedUser = task.assignedTo?.some(u => u._id.toString() === req.user.id);
       if (!isAssignedUser) return sendError(res, 'You are not assigned to this task', 403);
 
-      // Check if task is completed - completed tasks cannot request extension
-      if (task.status === 'completed') {
-        return sendError(res, 'Completed tasks cannot request extension', 400);
-      }
-
-      // Check if task is self-assigned - self-assigned tasks CANNOT request extension
-      const isSelfAssigned = task.assignedBy?._id.toString() === req.user.id ||
-        task.assignedBy?.toString() === req.user.id;
-      if (isSelfAssigned) {
-        return sendError(res, 'Self-assigned tasks cannot request extension. Please contact your manager if you need more time.', 403);
-      }
-
       const existingPending = await ExtensionRequest.findOne({ taskId, status: 'pending' });
       if (existingPending) return sendError(res, 'An extension request is already pending for this task', 400);
 
@@ -59,13 +47,13 @@ export const extensionController = {
 
       await extensionRequest.populate(['taskId', 'requestedBy', 'requestedFrom']);
 
-      // Notify only the assigner (not HR/Admin)
+      // Notify the assigner (HR/manager)
       await createTaskNotification({
         userId: task.assignedBy._id,
-        taskId: task._id,
+        taskId,
         eventType: 'system',
-        title: '⏳ Extension Request',
-        message: `${req.user.name || 'Employee'} requested +${additionalTotalMinutes} min for "${task.title}". Reason: ${reason.trim()}`,
+        title: `⏳ Extension Requested: ${task.title}`,
+        message: `${req.user.name || 'Employee'} has requested +${additionalHours || 0}h ${additionalMinutes || 0}m extension for "${task.title}". Reason: ${reason.trim()}`,
         triggeredBy: req.user.id
       }).catch(() => {});
 
@@ -89,8 +77,14 @@ export const extensionController = {
         .populate('requestedBy', '_id name email');
       if (!extensionRequest) return sendError(res, 'Extension request not found', 404);
       if (extensionRequest.status !== 'pending') return sendError(res, `Extension request is already ${extensionRequest.status}`, 400);
-      if (extensionRequest.requestedFrom.toString() !== req.user.id) {
-        return sendError(res, 'You are not authorized to approve this request', 403);
+      
+      // Allow: 1) The person who is the requestedFrom (task assigner), 2) HR/ADMIN users
+      const userRole = (req.user.role || '').toUpperCase();
+      const isTaskAssigner = extensionRequest.requestedFrom?.toString() === req.user.id;
+      const isHROrAdmin = userRole === 'HR' || userRole === 'ADMIN';
+      
+      if (!isTaskAssigner && !isHROrAdmin) {
+        return sendError(res, 'Only task assigner or HR/Admin can approve extension requests', 403);
       }
 
       extensionRequest.status = 'approved';
@@ -99,11 +93,14 @@ export const extensionController = {
       extensionRequest.approvedAt = new Date();
       await extensionRequest.save();
 
-      // Update task: extend effective due time only (never estimated time)
+      // Update task: extend time + reset status to in-progress
       const task = await Task.findById(extensionRequest.taskId._id || extensionRequest.taskId);
       if (task) {
         const additionalMinutes = extensionRequest.additionalHoursRequested * 60 + extensionRequest.additionalMinutesRequested;
-        // Extend effective due timestamps; preserve estimate baseline.
+        task.estimatedTotalMinutes = (task.estimatedTotalMinutes || 0) + additionalMinutes;
+        task.estimatedHours = Math.floor(task.estimatedTotalMinutes / 60);
+        task.estimatedMinutes = task.estimatedTotalMinutes % 60;
+        // Extend dueDate
         const currentDue = new Date(task.dueDate);
         task.dueDate = new Date(currentDue.getTime() + additionalMinutes * 60000);
         if (task.dueAt) task.dueAt = new Date(new Date(task.dueAt).getTime() + additionalMinutes * 60000);
@@ -146,8 +143,14 @@ export const extensionController = {
         .populate('requestedBy', '_id name email');
       if (!extensionRequest) return sendError(res, 'Extension request not found', 404);
       if (extensionRequest.status !== 'pending') return sendError(res, `Extension request is already ${extensionRequest.status}`, 400);
-      if (extensionRequest.requestedFrom.toString() !== req.user.id) {
-        return sendError(res, 'You are not authorized to reject this request', 403);
+      
+      // Allow: 1) The person who is the requestedFrom (task assigner), 2) HR/ADMIN users
+      const userRole = (req.user.role || '').toUpperCase();
+      const isTaskAssigner = extensionRequest.requestedFrom?.toString() === req.user.id;
+      const isHROrAdmin = userRole === 'HR' || userRole === 'ADMIN';
+      
+      if (!isTaskAssigner && !isHROrAdmin) {
+        return sendError(res, 'Only task assigner or HR/Admin can reject extension requests', 403);
       }
 
       extensionRequest.status = 'rejected';

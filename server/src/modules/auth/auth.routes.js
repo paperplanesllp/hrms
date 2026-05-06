@@ -1,9 +1,11 @@
 import express from "express";
 import { authLimiter } from "../../middleware/rateLimit.js";
+import { requireSuperadminSecurity } from "../../middleware/superadminGuard.js";
 import { requireAuth } from "../../middleware/auth.js";
 import {
   postSignup,
   postLogin,
+  postSuperadminLogin,
   postRefresh,
   postLogout,
   postForgotPassword,
@@ -28,6 +30,7 @@ const router = express.Router();
 // ✅ Public
 router.post("/signup", authLimiter, postSignup);
 router.post("/login", authLimiter, postLogin);
+router.post("/superadmin/login", authLimiter, requireSuperadminSecurity, postSuperadminLogin);
 router.post("/refresh", postRefresh);
 router.post("/forgot-password", authLimiter, postForgotPassword);
 router.post("/reset-password", authLimiter, postResetPassword);

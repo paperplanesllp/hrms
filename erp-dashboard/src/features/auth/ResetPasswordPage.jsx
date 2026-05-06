@@ -16,7 +16,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     if (!token) {
       toast({ title: "Invalid reset link", type: "error" });
-      navigate("/login");
+      navigate("/auth/login");
     }
   }, [token, navigate]);
 
@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
         message: "You can now login with your new password",
         type: "success",
       });
-      navigate("/login");
+      navigate("/auth/login");
     } catch (err) {
       toast({
         title: err?.response?.data?.message || "Failed to reset password",
@@ -94,7 +94,7 @@ export default function ResetPasswordPage() {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/auth/login")}
               className="text-[#4A7FA7] hover:text-[#1A3D63] transition-colors"
             >
               Back to Login

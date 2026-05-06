@@ -126,44 +126,42 @@ function calculateAttendanceStatus({ date, checkIn, checkOut, shiftStart, shiftE
   return "PRESENT";
 }
 
-async function getShiftForDate(date) {
+async function getShiftForDate(date, companyId = null) {
   try {
     const day = await Calendar.findOne({ date });
-
     if (day?.shiftStart && day?.shiftEnd) {
-      return {
-        shiftStart: day.shiftStart,
-        shiftEnd: day.shiftEnd
-      };
+      return { shiftStart: day.shiftStart, shiftEnd: day.shiftEnd };
     }
 
-    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true }).select("companyShiftStart companyShiftEnd");
-    const firstAdmin = company || await User.findOne({ role: ROLES.ADMIN }).select("companyShiftStart companyShiftEnd");
+    if (!companyId) {
+      return { shiftStart: env.DEFAULT_SHIFT_START, shiftEnd: env.DEFAULT_SHIFT_END };
+    }
 
+    const admin = await User.findOne({ role: ROLES.ADMIN, companyId }).select("companyShiftStart companyShiftEnd");
     return {
-      shiftStart: firstAdmin?.companyShiftStart || env.DEFAULT_SHIFT_START,
-      shiftEnd: firstAdmin?.companyShiftEnd || env.DEFAULT_SHIFT_END
+      shiftStart: admin?.companyShiftStart || env.DEFAULT_SHIFT_START,
+      shiftEnd: admin?.companyShiftEnd || env.DEFAULT_SHIFT_END
     };
   } catch (error) {
     console.error("Error fetching shift:", error);
-    return {
-      shiftStart: env.DEFAULT_SHIFT_START,
-      shiftEnd: env.DEFAULT_SHIFT_END
-    };
+    return { shiftStart: env.DEFAULT_SHIFT_START, shiftEnd: env.DEFAULT_SHIFT_END };
   }
 }
 
-async function getPublicHolidayMap(fromDate, toDate) {
+async function getPublicHolidayMap(fromDate, toDate, companyId = null) {
   if (!fromDate || !toDate) {
     return new Map();
   }
 
-  const holidays = await Event.find({
+  const filter = {
     purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
     visibility: EVENT_VISIBILITY.PUBLIC,
     status: { $ne: "CANCELLED" },
     date: { $gte: fromDate, $lte: toDate }
-  }).select("date title");
+  };
+  if (companyId) filter.companyId = companyId;
+
+  const holidays = await Event.find(filter).select("date title");
 
   const holidayMap = new Map();
   holidays.forEach((holiday) => {
@@ -175,15 +173,18 @@ async function getPublicHolidayMap(fromDate, toDate) {
   return holidayMap;
 }
 
-async function getPublicHolidayNameForDate(date) {
+async function getPublicHolidayNameForDate(date, companyId = null) {
   if (!date) return null;
 
-  const holiday = await Event.findOne({
+  const filter = {
     purpose: EVENT_PURPOSE.PUBLIC_HOLIDAY,
     visibility: EVENT_VISIBILITY.PUBLIC,
     status: { $ne: "CANCELLED" },
     date
-  }).select("title");
+  };
+  if (companyId) filter.companyId = companyId;
+
+  const holiday = await Event.findOne(filter).select("title");
 
   return holiday?.title || null;
 }
@@ -617,6 +618,12 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
   }
 }
 
+async function getCompanyUserIds(companyId) {
+  if (!companyId) return [];
+  const users = await User.find({ companyId }).select("_id").lean();
+  return users.map((u) => u._id);
+}
+
 export async function getMyAttendance(userId, from, to) {
   const records = await Attendance.find({ userId, date: { $gte: from, $lte: to } }).sort({ date: 1 });
   const effectiveFrom = from || records[0]?.date;
@@ -640,9 +647,8 @@ export async function getMyAttendance(userId, from, to) {
   }));
 }
 
-export async function getAllAttendance(from, to, userRole, userId = null) {
+export async function getAllAttendance(from, to, userRole, userId = null, companyId) {
   try {
-    // Default to last 30 days if not specified
     let fromDate = from;
     let toDate = to;
     
@@ -653,12 +659,19 @@ export async function getAllAttendance(from, to, userRole, userId = null) {
       fromDate = thirtyDaysAgo.toISOString().split("T")[0];
     }
     
-    // Build query - filter by date and optionally by userId
     const query = { date: { $gte: fromDate, $lte: toDate } };
-    
-    // If userId is provided, filter by that specific user
+
+    // Always scope to company first
+    const companyUserIds = companyId ? await getCompanyUserIds(companyId) : null;
+
     if (userId && userId !== "" && userId !== "null") {
+      // Ensure the requested userId belongs to this company
+      if (companyUserIds && !companyUserIds.some(id => String(id) === String(userId))) {
+        return [];
+      }
       query.userId = userId;
+    } else if (companyUserIds) {
+      query.userId = { $in: companyUserIds };
     }
     
     // Get attendance records with user details
@@ -989,14 +1002,14 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
  * 
  * @returns {Object} - { total: count, marked: count, errors: count }
  */
-export async function autoMarkAbsentees() {
+export async function autoMarkAbsentees(companyId = null) {
   try {
     const today = getCurrentDateIST();
 
-    const staffUsers = await User.find({
-      role: { $ne: ROLES.ADMIN },
-      isActive: true
-    }).select("_id name email");
+    const staffQuery = { role: { $ne: ROLES.ADMIN }, isActive: true };
+    if (companyId) staffQuery.companyId = companyId;
+
+    const staffUsers = await User.find(staffQuery).select("_id name email");
 
     const result = await autoMarkAbsenteesForDate(today, staffUsers, { forceFinalize: false });
 
@@ -1013,14 +1026,14 @@ export async function autoMarkAbsentees() {
   }
 }
 
-export async function markPublicHolidayForAllEmployees(date, holidayName) {
+export async function markPublicHolidayForAllEmployees(date, holidayName, companyId = null) {
   try {
     console.log(`🎉 Marking public holiday: ${date} (${holidayName})`);
     
-    const staffUsers = await User.find({
-      role: { $ne: ROLES.ADMIN },
-      isActive: true
-    }).select("_id name email");
+    const staffQuery = { role: { $ne: ROLES.ADMIN }, isActive: true };
+    if (companyId) staffQuery.companyId = companyId;
+
+    const staffUsers = await User.find(staffQuery).select("_id name email");
 
     const { shiftStart, shiftEnd } = await getShiftForDate(date);
     let markedCount = 0;
@@ -1087,12 +1100,20 @@ export async function markPublicHolidayForAllEmployees(date, holidayName) {
  * Generate daily attendance summary report
  * Shows: Total staff, Present, Half Day, Absent, Short Hours, Not marked
  */
-export async function getAttendanceSummaryForToday() {
+export async function getAttendanceSummaryForToday(companyId) {
   try {
     const today = getCurrentDateIST();
 
+    // Build match stage with date and optional company filter
+    const matchStage = { $match: { date: today } };
+    
+    if (companyId) {
+      const companyUserIds = await getCompanyUserIds(companyId);
+      matchStage.$match.userId = { $in: companyUserIds };
+    }
+
     const summary = await Attendance.aggregate([
-      { $match: { date: today } },
+      matchStage,
       {
         $group: {
           _id: "$status",
@@ -1101,11 +1122,13 @@ export async function getAttendanceSummaryForToday() {
       }
     ]);
 
-    // Get total staff
-    const totalStaff = await User.countDocuments({
-      role: { $ne: ROLES.ADMIN },
-      isActive: true
-    });
+    // Get total staff for the company
+    let totalStaffQuery = { role: { $ne: ROLES.ADMIN }, isActive: true };
+    if (companyId) {
+      totalStaffQuery.companyId = companyId;
+    }
+    
+    const totalStaff = await User.countDocuments(totalStaffQuery);
 
     const result = {
       date: today,

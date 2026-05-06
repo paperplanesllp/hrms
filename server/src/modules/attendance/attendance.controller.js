@@ -265,7 +265,7 @@ export const getAll = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
   const userId = String(req.query.userId || "");
-  const rows = await getAllAttendance(from, to, req.user.role, userId);
+  const rows = await getAllAttendance(from, to, req.user.role, userId, req.user.companyId);
   res.json(rows);
 });
 
@@ -311,8 +311,8 @@ export const patchShiftAdmin = asyncHandler(async (req, res) => {
 export const triggerAutoMarkAbsentees = asyncHandler(async (req, res) => {
   console.log('🔄 [ADMIN REQUEST] Triggering auto-mark absent job...');
   
-  const result = await autoMarkAbsentees();
-  const summary = await getAttendanceSummaryForToday();
+  const result = await autoMarkAbsentees(req.user.companyId);
+  const summary = await getAttendanceSummaryForToday(req.user.companyId);
 
   res.json({
     message: "Auto-mark attendance completed",
@@ -322,7 +322,7 @@ export const triggerAutoMarkAbsentees = asyncHandler(async (req, res) => {
 });
 
 export const getAttendanceSummary = asyncHandler(async (req, res) => {
-  const summary = await getAttendanceSummaryForToday();
+  const summary = await getAttendanceSummaryForToday(req.user.companyId);
   res.json(summary);
 });
 

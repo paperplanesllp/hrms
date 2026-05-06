@@ -58,6 +58,7 @@ export default function CalendarPage() {
   const [loadingWorksheet, setLoadingWorksheet] = useState(false);
 
   const [events, setEvents] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [heatmapData, setHeatmapData] = useState([]);
 
   const [eventForm, setEventForm] = useState({
@@ -108,11 +109,11 @@ export default function CalendarPage() {
         api.get("/calendar/heatmap", { params: { startDate: monthStart, endDate: monthEnd } })
       ]);
 
-      // Filter out past events - only show events from today onwards
-      const today = new Date().toISOString().split("T")[0]; // Get today's date in YYYY-MM-DD format
-      const upcomingEvents = (evRes.data.events || []).filter(event => event.date >= today);
+      const today = new Date().toISOString().split("T")[0];
+      const allEvents = evRes.data.events || [];
 
-      setEvents(upcomingEvents);
+      setEvents(allEvents);
+      setUpcomingEvents(allEvents.filter((event) => event.date >= today));
       setHeatmapData(heatRes.data.heatmap || []);
     } catch (err) {
       console.error("Error loading events/heatmap:", err);
@@ -187,6 +188,9 @@ export default function CalendarPage() {
       setLoadingWorksheet(false);
     }
   };
+
+  const selectedMeta = selectedDate ? statusMap[selectedDate] : null;
+  const selectedEvents = selectedDate ? events.filter((event) => event.date === selectedDate) : [];
 
   const handleCreateEvent = async () => {
     if (!eventForm.title.trim()) {
@@ -284,7 +288,8 @@ export default function CalendarPage() {
                 const status = getDateStatus(day);
                 const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                 const dayOfWeek = new Date(year, month, day).getDay();
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                // First check backend's isWeekend flag, then fallback to hardcoded Sun/Sat only if no status
+                const isWeekend = status?.isWeekend ?? (dayOfWeek === 0 || dayOfWeek === 6);
                 const dayEvents = events.filter((e) => e.date === dateStr);
 
                 const weekendBgClass = isWeekend ? "bg-slate-50 dark:bg-slate-800/50 opacity-60" : "bg-white dark:bg-slate-800";
@@ -416,15 +421,15 @@ export default function CalendarPage() {
         </div>
       </Card>
 
-      {events.length > 0 && (
+      {upcomingEvents.length > 0 && (
         <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
           <div className="mb-6">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upcoming Events</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{events.length} events this month</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{upcomingEvents.length} upcoming events</p>
           </div>
 
           <div className="space-y-3">
-            {events.slice(0, 8).map((event) => (
+            {upcomingEvents.slice(0, 8).map((event) => (
               <div key={event._id} className="flex items-start gap-3 p-3 transition border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/50">
                 <div className={`w-3 h-3 rounded-full mt-1 bg-${event.color || "blue"}-500`} />
                 <div className="flex-1 min-w-0">
@@ -653,11 +658,53 @@ export default function CalendarPage() {
                   )}
                 </>
               ) : (
-                <div className="py-12 text-center">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className="py-10 space-y-4">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto rounded-full bg-slate-100 dark:bg-slate-800">
                     <Calendar size={32} className="text-slate-400 dark:text-slate-500" />
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No data found for this date</p>
+
+                  <div className="text-center space-y-1">
+                    {selectedMeta?.eventName ? (
+                      <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {selectedMeta.eventName}
+                      </div>
+                    ) : null}
+
+                    {selectedMeta?.status ? (
+                      <div className={`text-sm font-semibold ${statusTone(selectedMeta.status)}`}>
+                        {selectedMeta.status}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-500 dark:text-slate-400">No worksheet or attendance record</div>
+                    )}
+
+                    {selectedMeta?.isWeekend ? (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Week Off</div>
+                    ) : null}
+
+                    {selectedMeta?.isHoliday ? (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Public Holiday</div>
+                    ) : null}
+                  </div>
+
+                  {selectedEvents.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <div className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">Events</div>
+                      {selectedEvents.map((event) => (
+                        <div key={event._id} className="flex items-center justify-between gap-2 p-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate text-slate-900 dark:text-white">{event.title}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {event.startTime} - {event.endTime}
+                            </div>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${purposeTone(event.purpose)}`}>
+                            {purposeLabel(event.purpose)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

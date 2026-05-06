@@ -2,6 +2,7 @@ import { ApiError } from "../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 
 export const ROLES = {
+  SUPERADMIN: "SUPERADMIN",
   ADMIN: "ADMIN",
   HR: "HR",
   USER: "USER",

@@ -1,9 +1,10 @@
 import { Complaint } from "./Complaint.model.js";
+import { User } from "../users/User.model.js";
 import { calculateDeadline, isDeadlineExpired, getDeadlineStatus } from "../../utils/workingDays.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 
-export async function createComplaint(userId, data) {
+export async function createComplaint(userId, data, companyId = null) {
   if (!userId) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, "User ID is required");
   }
@@ -11,6 +12,7 @@ export async function createComplaint(userId, data) {
   const deadlineDate = calculateDeadline(new Date());
 
   const complaint = await Complaint.create({
+    companyId: companyId || null,
     userId,
     subject: data.subject,
     message: data.message,
@@ -26,15 +28,41 @@ export async function createComplaint(userId, data) {
   });
 }
 
-export async function getAllComplaints(filters = {}) {
+async function getCompanyUserIds(companyId) {
+  if (!companyId) return [];
+  const users = await User.find({ companyId }).select("_id").lean();
+  return users.map((user) => user._id);
+}
+
+async function buildCompanyScope(companyId) {
+  if (!companyId) return {};
+
+  const companyUserIds = await getCompanyUserIds(companyId);
+
+  return {
+    $or: [
+      { companyId },
+      ...(companyUserIds.length
+        ? [
+            { companyId: { $exists: false }, userId: { $in: companyUserIds } },
+            { companyId: null, userId: { $in: companyUserIds } }
+          ]
+        : [])
+    ]
+  };
+}
+
+export async function getAllComplaints(filters = {}, companyId = null) {
   const query = {};
 
   if (filters.status) query.status = filters.status;
   if (filters.priority) query.priority = filters.priority;
   if (filters.category) query.category = filters.category;
 
-  const complaints = await Complaint.find(query)
-    .populate({ path: "userId", select: "name email role" })
+  const companyScope = await buildCompanyScope(companyId);
+
+  const complaints = await Complaint.find({ ...query, ...companyScope })
+    .populate({ path: "userId", select: "name email role companyId" })
     .populate({ path: "repliedBy", select: "name email" })
     .sort({ createdAt: -1 });
 
@@ -46,6 +74,7 @@ export async function getAllComplaints(filters = {}) {
 
 export async function getUserComplaints(userId) {
   const complaints = await Complaint.find({ userId })
+    .populate({ path: "userId", select: "name email phone role companyId" })
     .populate({ path: "repliedBy", select: "name email" })
     .sort({ createdAt: -1 });
 
@@ -57,7 +86,7 @@ export async function getUserComplaints(userId) {
 
 export async function getComplaintById(complaintId) {
   const complaint = await Complaint.findById(complaintId)
-    .populate({ path: "userId", select: "name email phone role" })
+    .populate({ path: "userId", select: "name email phone role companyId" })
     .populate({ path: "repliedBy", select: "name email" });
 
   if (!complaint) {
@@ -135,12 +164,13 @@ export async function submitSatisfaction(complaintId, userId, data) {
   return complaint;
 }
 
-export async function getComplaintsStats() {
+export async function getComplaintsStats(companyId = null) {
+  const companyScope = await buildCompanyScope(companyId);
   const [total, open, resolved, overDeadline] = await Promise.all([
-    Complaint.countDocuments(),
-    Complaint.countDocuments({ status: "OPEN" }),
-    Complaint.countDocuments({ status: "RESOLVED" }),
-    Complaint.countDocuments({ isDeadlinePassed: true, status: { $ne: "CLOSED" } })
+    Complaint.countDocuments({ ...companyScope }),
+    Complaint.countDocuments({ ...companyScope, status: "OPEN" }),
+    Complaint.countDocuments({ ...companyScope, status: "RESOLVED" }),
+    Complaint.countDocuments({ ...companyScope, isDeadlinePassed: true, status: { $ne: "CLOSED" } })
   ]);
 
   return {
@@ -152,7 +182,7 @@ export async function getComplaintsStats() {
   };
 }
 
-export async function searchComplaints(searchTerm, filters = {}) {
+export async function searchComplaints(searchTerm, filters = {}, companyId = null) {
   const query = {
     $or: [
       { subject: { $regex: searchTerm, $options: "i" } },
@@ -163,8 +193,10 @@ export async function searchComplaints(searchTerm, filters = {}) {
   if (filters.status) query.status = filters.status;
   if (filters.priority) query.priority = filters.priority;
 
-  return await Complaint.find(query)
-    .populate({ path: "userId", select: "name email" })
+  const companyScope = await buildCompanyScope(companyId);
+
+  return await Complaint.find({ ...query, ...companyScope })
+    .populate({ path: "userId", select: "name email companyId" })
     .populate({ path: "repliedBy", select: "name email" })
     .sort({ createdAt: -1 });
 }

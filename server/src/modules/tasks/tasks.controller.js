@@ -70,7 +70,7 @@ export const tasksController = {
         limit: parseInt(req.query.limit) || 100
       };
       
-      const tasks = await tasksService.getAllTasks(filters);
+      const tasks = await tasksService.getAllTasks(filters, req.user.companyId);
       sendSuccess(res, formatTaskCollection(tasks), 'All tasks fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -98,7 +98,7 @@ export const tasksController = {
         limit: parseInt(req.query.limit) || 500
       };
       
-      const tasks = await tasksService.getAssignedByUser(userId, filters);
+      const tasks = await tasksService.getAssignedByUser(userId, filters, req.user.companyId);
       console.log('📦 [Controller] Returning', tasks.length, 'assigned tasks');
       sendSuccess(res, formatTaskCollection(tasks), 'Assigned tasks fetched successfully');
     } catch (error) {
@@ -373,7 +373,7 @@ export const tasksController = {
       const dateRange = req.query.dateRange || 'month';
       const from = req.query.from;
       const to = req.query.to;
-      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to });
+      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to }, req.user.companyId);
       sendSuccess(res, analytics, 'Analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -386,7 +386,7 @@ export const tasksController = {
       const dateRange = req.query.dateRange || 'month';
       const from = req.query.from;
       const to = req.query.to;
-      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to });
+      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to }, req.user.companyId);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);

@@ -34,6 +34,7 @@ import activityRoutes from "./modules/activity/activity.routes.js";
 import tasksRoutes from "./modules/tasks/tasks.routes.js";
 import extensionRoutes from "./modules/tasks/extension.routes.js";
 import callsRoutes from "./modules/calls/call.routes.js";
+import companiesRoutes from "./modules/companies/companies.routes.js";
 
 export function createApp() {
   const app = express();
@@ -119,6 +120,7 @@ export function createApp() {
   app.use("/api/tasks", tasksRoutes);
   app.use("/api/extensions", extensionRoutes);
   app.use("/api/calls", callsRoutes);
+  app.use("/api/companies", companiesRoutes);
 
   app.use(notFound);
   app.use(authErrorLogger);  // ✅ Log auth errors before global error handler

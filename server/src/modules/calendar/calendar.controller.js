@@ -11,18 +11,10 @@ export const getMonthlyAttendance = asyncHandler(async (req, res) => {
   const month = parseInt(req.query.month) || new Date().getMonth();
   const userId = req.user.id;
 
-  console.log(`📅 GET Monthly Attendance for user ${userId}: ${year}-${month + 1}`);
+  // Pass adminId so working days/shift are read from the correct admin document
+  const attendanceData = await getMonthlyAttendanceStatus(userId, year, month, req.user.companyId, req.user.id);
 
-  const attendanceData = await getMonthlyAttendanceStatus(userId, year, month);
-
-  console.log(`✅ Retrieved ${attendanceData.length} attendance records`);
-
-  res.json({
-    year,
-    month,
-    userId,
-    data: attendanceData
-  });
+  res.json({ year, month, userId, data: attendanceData });
 });
 
 /**
@@ -31,7 +23,7 @@ export const getMonthlyAttendance = asyncHandler(async (req, res) => {
 export const getCalendar = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
-  const rows = await listCalendar(from, to);
+  const rows = await listCalendar(from, to, req.user.companyId);
   res.json(rows);
 });
 
@@ -52,6 +44,7 @@ export const createEventHandler = asyncHandler(async (req, res) => {
   const { title, description, date, startTime, endTime, color, purpose } = req.body;
   const userId = req.user.id;
   const userRole = req.user.role;
+  const companyId = req.user.companyId;
 
   if (!title || !date) {
     return res.status(400).json({
@@ -63,6 +56,7 @@ export const createEventHandler = asyncHandler(async (req, res) => {
 
   const event = await createEvent({
     userId,
+    companyId,
     userRole,
     title,
     description: description || "",
@@ -98,7 +92,7 @@ export const getEventsHandler = asyncHandler(async (req, res) => {
 
   console.log(`📅 Fetching events for user ${userId}: ${startDate} to ${endDate}`);
 
-  const events = await getUserEvents(userId, startDate, endDate);
+  const events = await getUserEvents(userId, startDate, endDate, req.user.companyId);
 
   console.log(`✅ Retrieved ${events.length} events`);
 

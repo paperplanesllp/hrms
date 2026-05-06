@@ -4,6 +4,7 @@ import { setSession, logout } from "../store/authStore.js";
 import { API_BASE_URL } from "./url.js";
 const PUBLIC_AUTH_ROUTES = new Set([
   "/auth/login",
+  "/auth/superadmin/login",
   "/auth/refresh",
   "/auth/forgot-password",
   "/auth/reset-password",
@@ -73,7 +74,10 @@ async function refreshAccessToken() {
       const next = {
         ...existing,
         accessToken,
-        user: response.data?.user || existing.user,
+        user: {
+          ...(existing.user || {}),
+          ...(response.data?.user || {}),
+        },
         rememberMe: response.data?.rememberMe || existing.rememberMe,
       };
 
@@ -134,8 +138,9 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${accessToken}`;
         return api(original);
       } catch {
+        const currentRole = getAuth()?.user?.role;
         logout();
-        window.location.href = "/login";
+        window.location.href = currentRole === "SUPERADMIN" ? "/superadmin" : "/auth/login";
       }
     }
 

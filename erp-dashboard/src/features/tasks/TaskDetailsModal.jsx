@@ -9,14 +9,17 @@ import { getAuth } from '../../lib/auth.js';
 import { useAuthStore } from '../../store/authStore.js';
 import TimerChip from './components/TimerChip.jsx';
 import ActivityTimeline from './components/ActivityTimeline.jsx';
+import EstimatedTimeTimer from './components/EstimatedTimeTimer.jsx';
 import { useTaskCountdown } from './hooks/useTaskTimer.js';
-import { calculateRemainingTime, formatDurationMs, formatToIST, getTaskDueDisplay } from './utils/taskDeadlineUtils.js';
+import { useEstimatedTimeCountdown } from './hooks/useEstimatedTimeCountdown.js';
+import { calculateRemainingTime, formatToIST } from './utils/taskDeadlineUtils.js';
 import { formatMilliseconds } from './utils/taskTimerUtils.js';
 import {
   getPriorityStyles,
   getStatusStyles,
   getPriorityLabel,
   getStatusLabel,
+  isTaskOverdue,
   getDaysUntilDue
 } from './taskUtils.js';
 import RequestExtensionModal from './modals/RequestExtensionModal.jsx';
@@ -75,8 +78,8 @@ export default function TaskDetailsModal({
   ];
 
   const countdown = useTaskCountdown(task || {});
+  const estimatedCountdown = useEstimatedTimeCountdown(task || {});
   const remaining = calculateRemainingTime(task || {});
-  const metrics = task?.metrics || {};
 
   // Fetch users when reassign modal opens
   useEffect(() => {
@@ -131,19 +134,10 @@ export default function TaskDetailsModal({
     return false;
   };
 
-  const effectiveDueAt = metrics?.effectiveDueAt || null;
+  const effectiveDueAt = remaining.effectiveDueAt || task.dueAt || task.dueDate;
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
-  const isOverdue = Boolean(metrics?.isOverdue);
-  const dueDisplay = getTaskDueDisplay(task);
-  const isOnHold = task.status === 'on-hold' || task.isOnHold;
-
-  const getDaysOnlyLabel = (remainingMs) => {
-    if (typeof remainingMs !== 'number' || Number.isNaN(remainingMs)) return 'On Hold';
-    const days = Math.max(0, Math.ceil(Math.abs(remainingMs) / (24 * 60 * 60 * 1000)));
-    if (remainingMs < 0) return `Overdue by ${days} day${days === 1 ? '' : 's'}`;
-    return `${days} day${days === 1 ? '' : 's'} remaining`;
-  };
+  const isOverdue = countdown.shouldTrack ? countdown.isOverdue : isTaskOverdue(task.dueDate, task.status);
 
   // Helper function to get file type
   const getFileType = (fileName) => {
@@ -423,14 +417,11 @@ export default function TaskDetailsModal({
       );
     }
 
-    // Show Request Extension button if task is overdue and user is assigned (but NOT self-assigned)
+    // Show Request Extension button if task is overdue and user is assigned
     const isUserAssigned = task.assignedTo && task.assignedTo.some(u => u._id === currentUserId || u.id === currentUserId);
-    const isSelfAssigned = task.assignedBy?._id === currentUserId || 
-                          task.assignedBy?.id === currentUserId ||
-                          task.assignedBy === currentUserId;
-    const canRequestExtension = isOverdue && task.status !== 'completed' && isUserAssigned && !isSelfAssigned;
+    const taskIsOverdue = isOverdue && task.status !== 'completed' && isUserAssigned;
     
-    if (canRequestExtension) {
+    if (taskIsOverdue) {
       buttons.push(
         <Button
           key="extension"
@@ -493,19 +484,16 @@ export default function TaskDetailsModal({
                 </span>
               )}
             </div>
-                <div className="mt-3">
-                  {isOnHold ? (
-                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                      On Hold
-                    </span>
-                  ) : (
-                    <TimerChip
-                      countdown={countdown}
-                      isPaused={task.isPaused}
-                      dueTooltip={`Due: ${effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}`}
-                    />
-                  )}
-                </div>
+            <div className="mt-3">
+              <TimerChip
+                countdown={countdown}
+                isPaused={task.isPaused}
+                dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`}
+              />
+            </div>
+            <div className="mt-2">
+              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -613,11 +601,11 @@ export default function TaskDetailsModal({
                 {isOverdue ? 'OVERDUE' : 'Due Date & Time'}
               </p>
               <p className={`text-sm font-medium ${isOverdue ? 'text-red-900 dark:text-red-100' : 'text-slate-900 dark:text-white'}`}>
-                {effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}
+                {formatToIST(effectiveDueAt)}
               </p>
               {isOverdue && (
                 <p className="text-xs font-semibold text-red-600 dark:text-red-300 mt-1">
-                  {getDaysOnlyLabel(metrics.deadlineRemainingMs ?? remaining.remainingMs)}
+                  {countdown.shouldTrack ? countdown.display : `Overdue for ${Math.abs(getDaysUntilDue(task.dueDate))} days`}
                 </p>
               )}
             </div>
@@ -714,74 +702,21 @@ export default function TaskDetailsModal({
           </div>
 
           {/* Remarks */}
-          {(() => {
-            const lastPauseReason =
-              Array.isArray(task.pauseEntries) && task.pauseEntries.length > 0
-                ? task.pauseEntries[task.pauseEntries.length - 1]?.reason
-                : null;
-
-            const lastExtensionRemark =
-              Array.isArray(task.extensionRequests) && task.extensionRequests.length > 0
-                ? task.extensionRequests[task.extensionRequests.length - 1]?.requestRemarks
-                : task.requestRemarks || null;
-
-            const infoRows = [
-              task.status === 'completed' && task.completionRemarks && canViewCompletionRemarks()
-                ? { label: 'Completion Summary', value: task.completionRemarks }
-                : null,
-              task.holdReason
-                ? { label: 'Hold Reason', value: task.holdReason }
-                : null,
-              lastPauseReason
-                ? { label: 'Latest Pause Reason', value: lastPauseReason }
-                : null,
-              lastExtensionRemark
-                ? { label: 'Extension Remark', value: lastExtensionRemark }
-                : null,
-            ].filter(Boolean);
-
-            const hasTags = Array.isArray(task.tags) && task.tags.length > 0;
-            const hasAnyRemarks = infoRows.length > 0 || hasTags;
-
-            if (!hasAnyRemarks) return null;
-
-            return (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
-
-                {infoRows.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {infoRows.map((row) => (
-                      <div
-                        key={row.label}
-                        className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700"
-                      >
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          {row.label}
-                        </p>
-                        <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
-                          {row.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {hasTags && (
-                  <div className="flex flex-wrap gap-2">
-                    {task.tags.map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-medium"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+          {task.tags && task.tags.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
+              <div className="flex flex-wrap gap-2">
+                {task.tags.map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 text-sm font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
           {/* Workflow Actions */}
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
@@ -1126,37 +1061,36 @@ export default function TaskDetailsModal({
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Lifecycle Duration</p>
                         <p className="text-sm text-slate-900 dark:text-white font-medium">
-                          {task.startedAt ? formatDurationMs((task.completedAt ? new Date(task.completedAt) : new Date()) - new Date(task.startedAt)) : 'Not started'}
+                          {task.startedAt ? (() => {
+                            const start = new Date(task.startedAt);
+                            const end = task.completedAt ? new Date(task.completedAt) : new Date();
+                            const totalMs = end - start;
+                            const totalMinutes = Math.floor(totalMs / (1000 * 60));
+                            const hours = Math.floor(totalMinutes / 60);
+                            const minutes = totalMinutes % 60;
+                            return `${hours}h ${minutes}m`;
+                          })() : 'Not started'}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Estimated Time</p>
                         <p className="text-sm text-slate-900 dark:text-white">
-                          {remaining.estimatedLabel || 'No estimate set'}
+                          {task.estimatedMinutes && task.estimatedMinutes > 0 
+                            ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`
+                            : 'No estimate set'
+                          }
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Active Worked Time</p>
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Worked Time</p>
                         <p className="text-sm text-slate-900 dark:text-white font-medium">
-                          {remaining.activeWorkedLabel || '0m'}
+                          {task.totalActiveTimeInSeconds ? `${Math.floor(task.totalActiveTimeInSeconds / 3600)}h ${Math.floor((task.totalActiveTimeInSeconds % 3600) / 60)}m` : '0m'}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Paused Time</p>
                         <p className="text-sm text-slate-900 dark:text-white">
-                          {remaining.pausedDurationLabel || '0m'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Remaining Time</p>
-                        <p className="text-sm text-slate-900 dark:text-white">
-                          {remaining.remainingLabel || 'Not started'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Due At</p>
-                        <p className="text-sm text-slate-900 dark:text-white">
-                          {effectiveDueAt ? formatToIST(effectiveDueAt) : dueDisplay}
+                          {task.totalPausedTimeInSeconds ? `${Math.floor(task.totalPausedTimeInSeconds / 60)}m` : '0m'}
                         </p>
                       </div>
                     </div>
@@ -1258,6 +1192,42 @@ export default function TaskDetailsModal({
                 // Optionally refresh task data here
               }}
             />
+          )}
+        </div>
+
+        {/* Footer with Edit/Delete Buttons */}
+        <div className="border-t border-slate-200 dark:border-slate-700 px-6 py-4 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+          {onEdit && (
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                onEdit(task);
+                onClose();
+              }}
+              disabled={isLoading}
+            >
+              ✏️ Edit Task
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (confirm('Are you sure you want to delete this task?')) {
+                  onDelete(task._id);
+                  onClose();
+                }
+              }}
+              disabled={isLoading}
+            >
+              🗑️ Delete
+            </Button>
           )}
         </div>
       </Card>

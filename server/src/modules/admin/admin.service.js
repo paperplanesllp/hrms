@@ -8,220 +8,286 @@ import { env } from "../../config/env.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 
-/**
- * Get all users (Admin oversight)
- * HR can see all users except Admin
- * Optionally filter by role
- */
-export async function getAllUsers(requestingUserRole, roleFilter = null) {
-  let query = requestingUserRole === ROLES.HR 
-    ? { role: { $ne: ROLES.ADMIN } } // HR cannot see Admin
-    : {}; // Admin sees everyone
-  
-  // Apply role filter if provided
-  if (roleFilter) {
-    query.role = roleFilter.toUpperCase();
-    console.log("🔍 [SERVICE] Role filter applied. Searching for role:", roleFilter.toUpperCase());
+// ─── Shared helper ────────────────────────────────────────────────────────────
+
+async function getCompanyAdminUser(companyId, adminId = null) {
+  if (adminId) {
+    const admin = await User.findOne({ _id: adminId, role: ROLES.ADMIN });
+    if (admin) return admin;
   }
-  
-  console.log("🔍 [SERVICE] MongoDB query:", JSON.stringify(query));
-  const result = User.find(query).select("-passwordHash -refreshTokenHash").sort({ createdAt: -1 });
-  const users = await result;
-  console.log("🔍 [SERVICE] Found", users.length, "users matching query");
-  return users;
+  if (companyId) {
+    const admin = await User.findOne({ role: ROLES.ADMIN, companyId });
+    if (admin) return admin;
+  }
+  throw new ApiError(StatusCodes.NOT_FOUND, "No admin user found for this company");
 }
 
-/**
- * Get single user by ID
- */
+function isValidTimeFormat(time) {
+  return typeof time === "string" && /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+export async function getAllUsers(requestingUserRole, roleFilter = null, companyId = null) {
+  let query = requestingUserRole === ROLES.HR ? { role: { $ne: ROLES.ADMIN } } : {};
+  if (roleFilter) query.role = roleFilter.toUpperCase();
+  if (companyId) query.companyId = companyId;
+  return User.find(query).select("-passwordHash -refreshTokenHash").sort({ createdAt: -1 });
+}
+
 export async function getUserById(userId) {
   return User.findById(userId).select("-passwordHash -refreshTokenHash");
 }
 
-/**
- * Terminate user (soft delete - preserve data)
- */
 export async function terminateUser(userId) {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
   if (user.role === ROLES.ADMIN) throw new Error("Cannot terminate admin");
-  
   user.role = "TERMINATED";
   await user.save();
   return user;
 }
 
-/**
- * Get all HR leave requests for Admin approval
- */
-export async function getHRLeaveRequests() {
-  const hrUsers = await User.find({ role: ROLES.HR }).select("_id");
-  const hrIds = hrUsers.map(u => u._id);
-  
-  return Leave.find({ userId: { $in: hrIds } })
+// ─── Leaves ───────────────────────────────────────────────────────────────────
+
+export async function getHRLeaveRequests(companyId = null) {
+  const query = { role: ROLES.HR };
+  if (companyId) query.companyId = companyId;
+  const hrUsers = await User.find(query).select("_id");
+  return Leave.find({ userId: { $in: hrUsers.map(u => u._id) } })
     .populate("userId", "name email role")
     .sort({ createdAt: -1 });
 }
 
-/**
- * Approve/Reject HR leave (Admin only)
- */
 export async function updateHRLeaveStatus(leaveId, status) {
   const leave = await Leave.findById(leaveId).populate("userId", "role");
   if (!leave) throw new Error("Leave request not found");
   if (leave.userId.role !== ROLES.HR) throw new Error("Not an HR leave request");
-  
   leave.status = status;
   await leave.save();
   return leave;
 }
 
-/**
- * Get all attendance records with late arrivals flagged
- */
-export async function getAllAttendance(filters = {}) {
+// ─── Attendance ───────────────────────────────────────────────────────────────
+
+export async function getAllAttendance(filters = {}, companyId = null) {
   const query = {};
-  
-  // Filter by date
+
   if (filters.date) query.date = filters.date;
-  
-  // Filter by date range
   if (filters.startDate && filters.endDate) {
     query.date = { $gte: filters.startDate, $lte: filters.endDate };
   }
-  
-  // Filter by status
   if (filters.status) query.status = filters.status;
-  
-  // Filter by user
-  if (filters.userId) query.userId = filters.userId;
-  
-  return Attendance.find(query)
+
+  if (filters.userId) {
+    if (companyId) {
+      const userExists = await User.exists({ _id: filters.userId, companyId });
+      if (!userExists) return [];
+    }
+    query.userId = filters.userId;
+  } else if (companyId) {
+    const companyUsers = await User.find({ companyId }).select("_id").lean();
+    query.userId = { $in: companyUsers.map(u => u._id) };
+  }
+
+  const records = await Attendance.find(query)
     .populate("userId", "name email employeeId")
     .sort({ date: -1 });
+  return records.filter(r => r.userId !== null);
 }
 
-/**
- * Get late arrivals for disciplinary tracking
- */
-export async function getLateArrivals(startDate, endDate) {
+export async function getLateArrivals(startDate, endDate, companyId = null) {
   const query = { status: "LATE" };
-  if (startDate && endDate) {
-    query.date = { $gte: startDate, $lte: endDate };
+  if (startDate && endDate) query.date = { $gte: startDate, $lte: endDate };
+  if (companyId) {
+    const companyUsers = await User.find({ companyId }).select("_id").lean();
+    query.userId = { $in: companyUsers.map(u => u._id) };
   }
-  
   return Attendance.find(query)
     .populate("userId", "name email employeeId")
     .sort({ date: -1 });
 }
 
-/**
- * Get all payroll records
- * HR can see all payroll except Admin's
- */
-export async function getAllPayroll(requestingUserRole) {
+// ─── Payroll ──────────────────────────────────────────────────────────────────
+
+export async function getAllPayroll(requestingUserRole, companyId = null) {
   let query = {};
-  
-  if (requestingUserRole === ROLES.HR) {
-    // HR cannot see Admin payroll - filter by userId
-    const adminUsers = await User.find({ role: ROLES.ADMIN }).select("_id");
-    const adminIds = adminUsers.map(u => u._id);
-    query.userId = { $nin: adminIds };
+
+  if (companyId) {
+    const companyUsers = await User.find({ companyId }).select("_id").lean();
+    query.userId = { $in: companyUsers.map(u => u._id) };
   }
-  
+
+  if (requestingUserRole === ROLES.HR) {
+    const adminUsers = await User.find({ role: ROLES.ADMIN }).select("_id").lean();
+    const adminIds = adminUsers.map(u => String(u._id));
+    const existing = query.userId?.$in?.map(String) || null;
+    query.userId = existing
+      ? { $in: existing.filter(id => !adminIds.includes(id)) }
+      : { $nin: adminUsers.map(u => u._id) };
+  }
+
   return Payroll.find(query)
     .populate("userId", "name email employeeId")
     .sort({ month: -1 });
 }
 
-/**
- * Get all worksheets
- */
-export async function getAllWorksheets() {
-  return Worksheet.find()
+// ─── Worksheets ───────────────────────────────────────────────────────────────
+
+export async function getAllWorksheets(companyId = null) {
+  const query = {};
+  if (companyId) {
+    const companyUsers = await User.find({ companyId }).select("_id").lean();
+    query.userId = { $in: companyUsers.map(u => u._id) };
+  }
+  return Worksheet.find(query)
     .populate("userId", "name email employeeId")
     .sort({ date: -1 });
 }
 
-/**
- * Get system-wide statistics
- */
-export async function getSystemStats() {
-  const totalUsers = await User.countDocuments({ role: { $ne: "TERMINATED" } });
-  const totalHR = await User.countDocuments({ role: ROLES.HR });
-  const pendingLeaves = await Leave.countDocuments({ status: "PENDING" });
-  const hrPendingLeaves = await Leave.countDocuments({ 
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export async function getSystemStats(companyId = null) {
+  const baseQuery = companyId ? { companyId } : {};
+  const companyUsers = companyId
+    ? (await User.find({ companyId }).select("_id").lean()).map(u => u._id)
+    : null;
+
+  const totalUsers = await User.countDocuments({ ...baseQuery, role: { $ne: "TERMINATED" } });
+  const totalHR = await User.countDocuments({ ...baseQuery, role: ROLES.HR });
+
+  const leaveQuery = companyUsers
+    ? { status: "PENDING", userId: { $in: companyUsers } }
+    : { status: "PENDING" };
+  const pendingLeaves = await Leave.countDocuments(leaveQuery);
+
+  const hrUsers = await User.find({ ...baseQuery, role: ROLES.HR }).select("_id").lean();
+  const hrPendingLeaves = await Leave.countDocuments({
     status: "PENDING",
-    userId: { $in: await User.find({ role: ROLES.HR }).select("_id") }
+    userId: { $in: hrUsers.map(u => u._id) }
   });
-  
+
   const today = new Date().toISOString().split("T")[0];
-  const todayAttendance = await Attendance.countDocuments({ date: today });
-  const todayLate = await Attendance.countDocuments({ date: today, status: "LATE" });
-  
+  const attendanceQuery = companyUsers
+    ? { date: today, userId: { $in: companyUsers } }
+    : { date: today };
+  const todayAttendance = await Attendance.countDocuments(attendanceQuery);
+  const todayLate = await Attendance.countDocuments({ ...attendanceQuery, status: "LATE" });
+
+  return { totalUsers, totalHR, pendingLeaves, hrPendingLeaves, todayAttendance, todayLate };
+}
+
+// ─── Company Settings (all scoped by companyId) ───────────────────────────────
+
+export async function setCompanyLocation(latitude, longitude, companyId, adminId) {
+  const company = await getCompanyAdminUser(companyId, adminId);
+  company.officeLatitude = latitude;
+  company.officeLongitude = longitude;
+  company.isCompanyLocation = true;
+  await company.save();
   return {
-    totalUsers,
-    totalHR,
-    pendingLeaves,
-    hrPendingLeaves,
-    todayAttendance,
-    todayLate
+    latitude: company.officeLatitude,
+    longitude: company.officeLongitude,
+    adminId: company._id,
+    adminEmail: company.email
   };
 }
 
-/**
- * HR Team Premium Features
- */
+export async function getCompanyLocation(companyId, adminId) {
+  const company = await getCompanyAdminUser(companyId, adminId);
+  return {
+    latitude: company.officeLatitude || 0,
+    longitude: company.officeLongitude || 0,
+    adminId: company._id,
+    adminEmail: company.email,
+    isSet: !!company.officeLatitude && !!company.officeLongitude
+  };
+}
 
-// In-memory storage for HR team features (can be extended with MongoDB)
+export async function setWorkingDays(workingDays, companyId, adminId) {
+  if (!Array.isArray(workingDays) || workingDays.length === 0) {
+    throw new Error("Working days must be a non-empty array");
+  }
+  if (!workingDays.every(day => Number.isInteger(day) && day >= 0 && day <= 6)) {
+    throw new Error("Working days must contain integers between 0-6");
+  }
+  const company = await getCompanyAdminUser(companyId, adminId);
+  company.workingDays = workingDays.sort((a, b) => a - b);
+  await company.save();
+  return { workingDays: company.workingDays, adminId: company._id, adminEmail: company.email };
+}
+
+export async function getWorkingDays(companyId, adminId) {
+  const company = await getCompanyAdminUser(companyId, adminId);
+  return {
+    workingDays: company.workingDays || [1, 2, 3, 4, 5],
+    adminId: company._id,
+    adminEmail: company.email
+  };
+}
+
+export async function setCompanyTiming(shiftStart, shiftEnd, companyId, adminId) {
+  if (!isValidTimeFormat(shiftStart) || !isValidTimeFormat(shiftEnd)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "shiftStart and shiftEnd must be in HH:MM format");
+  }
+  const company = await getCompanyAdminUser(companyId, adminId);
+  company.companyShiftStart = shiftStart;
+  company.companyShiftEnd = shiftEnd;
+  await company.save();
+  return {
+    shiftStart: company.companyShiftStart,
+    shiftEnd: company.companyShiftEnd,
+    adminId: company._id,
+    adminEmail: company.email
+  };
+}
+
+export async function getCompanyTiming(companyId, adminId) {
+  const company = await getCompanyAdminUser(companyId, adminId);
+  return {
+    shiftStart: company.companyShiftStart || env.DEFAULT_SHIFT_START,
+    shiftEnd: company.companyShiftEnd || env.DEFAULT_SHIFT_END,
+    adminId: company._id,
+    adminEmail: company.email
+  };
+}
+
+// ─── HR Team (in-memory, per-session) ────────────────────────────────────────
+
 let hrDiscussions = [];
 let hrMeetings = [];
 let hrActivity = [];
 
-/**
- * Get all HR team members
- */
-export async function getHRTeam() {
-  return User.find({ role: ROLES.HR })
-    .select("_id name email profileImageUrl role")
-    .sort({ createdAt: -1 });
+export async function getHRTeam(companyId = null) {
+  const query = { role: ROLES.HR };
+  if (companyId) query.companyId = companyId;
+  return User.find(query).select("_id name email profileImageUrl role").sort({ createdAt: -1 });
 }
 
-/**
- * Get all HR discussions
- */
 export async function getHRDiscussions() {
   return hrDiscussions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-/**
- * Get all HR meetings
- */
 export async function getHRMeetings() {
   return hrMeetings.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
-/**
- * Get HR team activity feed
- */
 export async function getHRActivity() {
   return hrActivity.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 50);
 }
 
-/**
- * Create HR meeting
- */
 export async function createHRMeeting(userId, meetingData) {
+  const { randomBytes } = await import("crypto");
   const organizer = await User.findById(userId).select("name email");
-  const attendees = meetingData.attendees ? 
-    await User.find({ _id: { $in: meetingData.attendees } }).select("name email") : 
-    [];
+  const attendees = meetingData.attendees
+    ? await User.find({ _id: { $in: meetingData.attendees } }).select("name email")
+    : [];
 
   const meeting = {
-    _id: require("crypto").randomBytes(12).toString("hex"),
+    _id: randomBytes(12).toString("hex"),
     title: meetingData.title,
     description: meetingData.description,
-    type: meetingData.type, // discussion, video-call, onsite
+    type: meetingData.type,
     date: meetingData.date,
     time: meetingData.time,
     location: meetingData.location || null,
@@ -233,8 +299,6 @@ export async function createHRMeeting(userId, meetingData) {
   };
 
   hrMeetings.push(meeting);
-
-  // Add to activity
   hrActivity.push({
     type: "meeting",
     message: `${organizer.name} scheduled a meeting: "${meeting.title}"`,
@@ -245,247 +309,30 @@ export async function createHRMeeting(userId, meetingData) {
   return meeting;
 }
 
-/**
- * Update HR meeting status
- */
 export async function updateHRMeeting(meetingId, updateData) {
-  const meetingIndex = hrMeetings.findIndex(m => m._id === meetingId);
-  if (meetingIndex === -1) throw new Error("Meeting not found");
-
-  hrMeetings[meetingIndex] = {
-    ...hrMeetings[meetingIndex],
-    ...updateData,
-    updatedAt: new Date()
-  };
-
-  return hrMeetings[meetingIndex];
+  const idx = hrMeetings.findIndex(m => m._id === meetingId);
+  if (idx === -1) throw new Error("Meeting not found");
+  hrMeetings[idx] = { ...hrMeetings[idx], ...updateData, updatedAt: new Date() };
+  return hrMeetings[idx];
 }
 
-/**
- * Delete HR meeting
- */
 export async function deleteHRMeeting(meetingId) {
-  const meetingIndex = hrMeetings.findIndex(m => m._id === meetingId);
-  if (meetingIndex === -1) throw new Error("Meeting not found");
-
-  const meeting = hrMeetings[meetingIndex];
-  hrMeetings.splice(meetingIndex, 1);
-
-  // Add to activity
-  hrActivity.push({
-    type: "meeting",
-    message: `Meeting cancelled: "${meeting.title}"`,
-    timestamp: new Date()
-  });
-
+  const idx = hrMeetings.findIndex(m => m._id === meetingId);
+  if (idx === -1) throw new Error("Meeting not found");
+  const meeting = hrMeetings.splice(idx, 1)[0];
+  hrActivity.push({ type: "meeting", message: `Meeting cancelled: "${meeting.title}"`, timestamp: new Date() });
   return meeting;
 }
 
-/**
- * Add reply to discussion
- */
 export async function addHRDiscussionReply(discussionId, userId, replyText) {
+  const { randomBytes } = await import("crypto");
   const author = await User.findById(userId).select("name email");
-  const discussionIndex = hrDiscussions.findIndex(d => d._id === discussionId);
-  
-  if (discussionIndex === -1) throw new Error("Discussion not found");
+  const idx = hrDiscussions.findIndex(d => d._id === discussionId);
+  if (idx === -1) throw new Error("Discussion not found");
 
-  const reply = {
-    _id: require("crypto").randomBytes(12).toString("hex"),
-    text: replyText,
-    author,
-    createdAt: new Date()
-  };
-
-  if (!hrDiscussions[discussionIndex].replies) {
-    hrDiscussions[discussionIndex].replies = [];
-  }
-
-  hrDiscussions[discussionIndex].replies.push(reply);
-
-  // Add to activity
-  hrActivity.push({
-    type: "reply",
-    message: `${author.name} replied to discussion`,
-    timestamp: new Date(),
-    user: author
-  });
-
+  const reply = { _id: randomBytes(12).toString("hex"), text: replyText, author, createdAt: new Date() };
+  if (!hrDiscussions[idx].replies) hrDiscussions[idx].replies = [];
+  hrDiscussions[idx].replies.push(reply);
+  hrActivity.push({ type: "reply", message: `${author.name} replied to discussion`, timestamp: new Date(), user: author });
   return reply;
-}
-
-/**
- * Set company/office location (latitude and longitude)
- * Stores this in the first admin user (company representative)
- */
-export async function setCompanyLocation(latitude, longitude) {
-  // Find the first admin user (company HQ)
-  let company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-  
-  if (!company) {
-    // If no company location set yet, mark the first admin as company location
-    company = await User.findOne({ role: ROLES.ADMIN });
-  }
-  
-  if (!company) throw new Error("No admin user found to set company location");
-  
-  // Update coordinates
-  company.officeLatitude = latitude;
-  company.officeLongitude = longitude;
-  company.isCompanyLocation = true;
-  
-  await company.save();
-  
-  return {
-    latitude: company.officeLatitude,
-    longitude: company.officeLongitude,
-    adminId: company._id,
-    adminEmail: company.email
-  };
-}
-
-/**
- * Get company/office location
- */
-export async function getCompanyLocation() {
-  // Find the admin user marked as company location
-  const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-  
-  if (!company) {
-    // Fallback to first admin if no marker exists
-    const firstAdmin = await User.findOne({ role: ROLES.ADMIN });
-    if (!firstAdmin) throw new Error("No admin user found");
-    
-    return {
-      latitude: firstAdmin.officeLatitude || 0,
-      longitude: firstAdmin.officeLongitude || 0,
-      adminId: firstAdmin._id,
-      adminEmail: firstAdmin.email,
-      isSet: firstAdmin.officeLatitude !== 0 && firstAdmin.officeLongitude !== 0
-    };
-  }
-  
-  return {
-    latitude: company.officeLatitude,
-    longitude: company.officeLongitude,
-    adminId: company._id,
-    adminEmail: company.email,
-    isSet: company.officeLatitude !== 0 && company.officeLongitude !== 0
-  };
-}
-
-/**
- * Set company working days configuration
- * Days: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
- * Default: [1,2,3,4,5] = Monday to Friday
- */
-export async function setWorkingDays(workingDays) {
-  // Validate input
-  if (!Array.isArray(workingDays) || workingDays.length === 0) {
-    throw new Error("Working days must be a non-empty array");
-  }
-  
-  if (!workingDays.every(day => Number.isInteger(day) && day >= 0 && day <= 6)) {
-    throw new Error("Working days must contain integers between 0-6");
-  }
-
-  // Find the admin user to store company-wide settings
-  let company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-  
-  if (!company) {
-    company = await User.findOne({ role: ROLES.ADMIN });
-  }
-  
-  if (!company) throw new Error("No admin user found");
-  
-  // Update working days
-  company.workingDays = workingDays.sort((a, b) => a - b);
-  await company.save();
-  
-  return {
-    workingDays: company.workingDays,
-    adminId: company._id,
-    adminEmail: company.email
-  };
-}
-
-/**
- * Get company working days configuration
- */
-export async function getWorkingDays() {
-  // Find the admin user with company-wide settings
-  const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-  
-  if (!company) {
-    // Fallback to first admin if no marker exists
-    const firstAdmin = await User.findOne({ role: ROLES.ADMIN });
-    if (!firstAdmin) throw new Error("No admin user found");
-    
-    return {
-      workingDays: firstAdmin.workingDays || [1, 2, 3, 4, 5],
-      adminId: firstAdmin._id,
-      adminEmail: firstAdmin.email
-    };
-  }
-  
-  return {
-    workingDays: company.workingDays || [1, 2, 3, 4, 5],
-    adminId: company._id,
-    adminEmail: company.email
-  };
-}
-
-function isValidTimeFormat(time) {
-  return typeof time === "string" && /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
-}
-
-async function getCompanyAdminUser() {
-  let company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-
-  if (!company) {
-    company = await User.findOne({ role: ROLES.ADMIN });
-  }
-
-  if (!company) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "No admin user found");
-  }
-
-  return company;
-}
-
-/**
- * Set company timing configuration
- * shiftStart/shiftEnd format: HH:MM (24h)
- */
-export async function setCompanyTiming(shiftStart, shiftEnd) {
-  if (!isValidTimeFormat(shiftStart) || !isValidTimeFormat(shiftEnd)) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "shiftStart and shiftEnd must be in HH:MM format");
-  }
-
-  const company = await getCompanyAdminUser();
-
-  company.companyShiftStart = shiftStart;
-  company.companyShiftEnd = shiftEnd;
-  await company.save();
-
-  return {
-    shiftStart: company.companyShiftStart,
-    shiftEnd: company.companyShiftEnd,
-    adminId: company._id,
-    adminEmail: company.email
-  };
-}
-
-/**
- * Get company timing configuration
- */
-export async function getCompanyTiming() {
-  const company = await getCompanyAdminUser();
-
-  return {
-    shiftStart: company.companyShiftStart || env.DEFAULT_SHIFT_START,
-    shiftEnd: company.companyShiftEnd || env.DEFAULT_SHIFT_END,
-    adminId: company._id,
-    adminEmail: company.email
-  };
 }

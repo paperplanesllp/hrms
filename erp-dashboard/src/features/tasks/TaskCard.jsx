@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   CheckCircle2, 
   Clock, 
+  AlertCircle, 
   MessageSquare,
   Eye,
   Tag
@@ -17,7 +18,8 @@ import {
   getPriorityLabel,
   getStatusLabel,
   getDueDateDisplay,
-  isTaskOverdue
+  isTaskOverdue,
+  getDaysUntilDue
 } from './taskUtils.js';
 
 export default function TaskCard({
@@ -30,7 +32,7 @@ export default function TaskCard({
 }) {  
   const priorityStyles = getPriorityStyles(task.priority);
   const statusStyles = getStatusStyles(task.status);
-  const isOverdue = isTaskOverdue(task);
+  const isOverdue = isTaskOverdue(task.dueDate, task.status);
   const estimatedCountdown = useEstimatedTimeCountdown(task);
   
   const handleStatusToggle = async (e) => {
@@ -87,6 +89,14 @@ export default function TaskCard({
                 <span className={`w-2 h-2 rounded-full ${statusStyles.dot}`}></span>
                 {getStatusLabel(task.status)}
               </span>
+              
+              {/* Overdue Badge */}
+              {isOverdue && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-300 dark:border-red-700">
+                  <AlertCircle size={12} />
+                  {Math.abs(getDaysUntilDue(task.dueDate))} days overdue
+                </span>
+              )}
 
               {/* Completion Remark Badge */}
               {task.status === 'completed' && (
@@ -177,7 +187,7 @@ export default function TaskCard({
             <div className="flex items-center gap-1">
               <Clock size={14} className={isOverdue ? 'text-red-500' : 'text-slate-500'} />
               <span className={isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
-                {getDueDateDisplay(task)}
+                {getDueDateDisplay(task.dueDate, task.status)}
               </span>
             </div>
 
@@ -223,7 +233,39 @@ export default function TaskCard({
                 <Eye size={16} />
               </Button>
 
-              {/* Edit/Delete removed per request */}
+              {/* Edit Button */}
+              {onEdit && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(task);
+                  }}
+                  className="text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                  title="Edit task"
+                >
+                  ✏️
+                </Button>
+              )}
+
+              {/* Delete Button */}
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('Are you sure you want to delete this task?')) {
+                      onDelete(task._id);
+                    }
+                  }}
+                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+                  title="Delete task"
+                >
+                  🗑️
+                </Button>
+              )}
             </div>
           )}
         </div>

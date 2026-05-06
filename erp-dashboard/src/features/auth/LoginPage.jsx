@@ -34,15 +34,7 @@ export default function LoginPage() {
     email: "",
     phone: "",
   });
-  const [rememberMe, setRememberMe] = useState(() => {
-    // Initialize from localStorage
-    try {
-      const saved = localStorage.getItem("rememberMe");
-      return saved ? JSON.parse(saved) : false;
-    } catch {
-      return false;
-    }
-  });
+  const [rememberMe] = useState(true);
 
   // 2FA States
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
@@ -54,11 +46,11 @@ export default function LoginPage() {
   // Save rememberMe preference to localStorage whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem("rememberMe", JSON.stringify(rememberMe));
+      localStorage.setItem("rememberMe", "true");
     } catch (err) {
       console.error("Failed to save remember me preference:", err);
     }
-  }, [rememberMe]);
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -207,6 +199,7 @@ export default function LoginPage() {
       const res = await api.post("/auth/temporary/verify-otp", {
         email: tempEmail,
         otp: tempOtp,
+        rememberMe: true,
       });
 
       setSession(res.data);
@@ -412,7 +405,7 @@ export default function LoginPage() {
                     <input
                       type="checkbox"
                       checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
+                      disabled
                       className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
