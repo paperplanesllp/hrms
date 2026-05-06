@@ -43,11 +43,17 @@ const policiesSchema = new mongoose.Schema(
     pdfUrl: {
       type: String,
       default: null
+    },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true
     }
   },
   { timestamps: true }
 );
 
 policiesSchema.index({ isActive: 1, createdAt: -1 });
+policiesSchema.index({ companyId: 1, isActive: 1 });
 
 export const Policies = mongoose.model("Policies", policiesSchema);

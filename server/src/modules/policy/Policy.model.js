@@ -36,7 +36,12 @@ const policySchema = new mongoose.Schema({
     filename: String,
     url: String,
     uploadedAt: { type: Date, default: Date.now }
-  }]
+  }],
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    required: function() { return this.type === 'company'; }
+  }
 }, {
   timestamps: true
 });

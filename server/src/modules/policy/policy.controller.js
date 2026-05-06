@@ -54,14 +54,14 @@ export const markViewed = asyncHandler(async (req, res) => {
 
 // Company Policy endpoints
 export const getCompanyPolicyHandler = asyncHandler(async (req, res) => {
-  const policy = await getCompanyPolicy();
+  const policy = await getCompanyPolicy(req.user.companyId);
   res.json(policy);
 });
 
 export const updateCompanyPolicyHandler = asyncHandler(async (req, res) => {
   const { title, content } = req.body;
   
-  const policy = await updateCompanyPolicy(req.user.id, { title, content });
+  const policy = await updateCompanyPolicy(req.user.id, { title, content }, req.user.companyId);
   
   res.json(policy);
 });

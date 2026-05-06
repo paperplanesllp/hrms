@@ -2,8 +2,12 @@ import { Policies } from "./Policies.model.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 
-export const getAllPolicies = async (filters = {}) => {
-  const query = { isActive: true };
+export const getAllPolicies = async (filters = {}, companyId = null) => {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Company ID is required");
+  }
+
+  const query = { isActive: true, companyId };
 
   if (filters.category) {
     query.category = filters.category;
@@ -15,32 +19,46 @@ export const getAllPolicies = async (filters = {}) => {
     .sort({ createdAt: -1 });
 };
 
-export const getPolicyById = async (policyId) => {
-  const policy = await Policies.findById(policyId)
+export const getPolicyById = async (policyId, companyId = null) => {
+  const query = { _id: policyId };
+  if (companyId) {
+    query.companyId = companyId;
+  }
+
+  const policy = await Policies.findOne(query)
     .populate("createdBy", "name email")
     .populate("updatedBy", "name email");
 
   if (!policy) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found");
+    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found or access denied");
   }
 
   return policy;
 };
 
-export const createPolicy = async (userId, data) => {
+export const createPolicy = async (userId, data, companyId) => {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Company ID is required");
+  }
+
   const policy = new Policies({
     ...data,
-    createdBy: userId
+    createdBy: userId,
+    companyId
   });
 
   return await policy.save();
 };
 
-export const updatePolicy = async (policyId, userId, data) => {
-  const policy = await Policies.findById(policyId);
+export const updatePolicy = async (policyId, userId, data, companyId) => {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Company ID is required");
+  }
+
+  const policy = await Policies.findOne({ _id: policyId, companyId });
 
   if (!policy) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found");
+    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found or access denied");
   }
 
   // Update fields
@@ -55,11 +73,15 @@ export const updatePolicy = async (policyId, userId, data) => {
   return await policy.save();
 };
 
-export const deletePolicy = async (policyId) => {
-  const policy = await Policies.findById(policyId);
+export const deletePolicy = async (policyId, companyId) => {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Company ID is required");
+  }
+
+  const policy = await Policies.findOne({ _id: policyId, companyId });
 
   if (!policy) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found");
+    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found or access denied");
   }
 
   // Soft delete
@@ -67,11 +89,15 @@ export const deletePolicy = async (policyId) => {
   return await policy.save();
 };
 
-export const hardDeletePolicy = async (policyId) => {
-  const result = await Policies.findByIdAndDelete(policyId);
+export const hardDeletePolicy = async (policyId, companyId) => {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Company ID is required");
+  }
+
+  const result = await Policies.findOneAndDelete({ _id: policyId, companyId });
 
   if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found");
+    throw new ApiError(StatusCodes.NOT_FOUND, "Policy not found or access denied");
   }
 
   return result;

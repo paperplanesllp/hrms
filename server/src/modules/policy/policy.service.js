@@ -46,15 +46,18 @@ export const markPolicyViewed = async (userId) => {
 };
 
 // Company Policy functions
-export const getCompanyPolicy = async () => {
-  return await Policy.findOne({ type: 'company' })
+export const getCompanyPolicy = async (companyId) => {
+  if (!companyId) return null;
+  return await Policy.findOne({ type: 'company', companyId })
     .populate("createdBy", "name")
     .populate("updatedBy", "name")
     .sort({ updatedAt: -1 });
 };
 
-export const updateCompanyPolicy = async (userId, data) => {
-  const existingPolicy = await Policy.findOne({ type: 'company' });
+export const updateCompanyPolicy = async (userId, data, companyId) => {
+  if (!companyId) throw new Error('Company ID is required');
+  
+  const existingPolicy = await Policy.findOne({ type: 'company', companyId });
   
   if (existingPolicy) {
     existingPolicy.content = data.content;
@@ -68,6 +71,7 @@ export const updateCompanyPolicy = async (userId, data) => {
     return await createPolicy(userId, { 
       ...data, 
       type: 'company',
+      companyId,
       version: 1
     });
   }

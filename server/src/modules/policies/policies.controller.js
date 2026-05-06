@@ -15,13 +15,13 @@ export const listPolicies = asyncHandler(async (req, res) => {
     filters.category = req.query.category;
   }
 
-  const policies = await getAllPolicies(filters);
+  const policies = await getAllPolicies(filters, req.user.companyId);
   res.json(policies);
 });
 
 export const getPolicy = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const policy = await getPolicyById(id);
+  const policy = await getPolicyById(id, req.user.companyId);
   res.json(policy);
 });
 
@@ -41,7 +41,7 @@ export const createNewPolicy = asyncHandler(async (req, res) => {
     policyData.pdfUrl = `/uploads/policies/${req.file.filename}`;
   }
 
-  const policy = await createPolicy(req.user.id, policyData);
+  const policy = await createPolicy(req.user.id, policyData, req.user.companyId);
 
   res.status(201).json({
     message: "Policy created successfully",
@@ -67,7 +67,7 @@ export const updatePolicyHandler = asyncHandler(async (req, res) => {
     updateData.pdfUrl = `/uploads/policies/${req.file.filename}`;
   }
 
-  const policy = await updatePolicy(id, req.user.id, updateData);
+  const policy = await updatePolicy(id, req.user.id, updateData, req.user.companyId);
 
   res.json({
     message: "Policy updated successfully",
@@ -79,7 +79,7 @@ export const deletePolicyHandler = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   // Soft delete by default
-  const policy = await deletePolicy(id);
+  const policy = await deletePolicy(id, req.user.companyId);
 
   res.json({
     message: "Policy deleted successfully",
@@ -90,7 +90,7 @@ export const deletePolicyHandler = asyncHandler(async (req, res) => {
 export const hardDeletePolicyHandler = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const policy = await hardDeletePolicy(id);
+  const policy = await hardDeletePolicy(id, req.user.companyId);
 
   res.json({
     message: "Policy permanently deleted",
