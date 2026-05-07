@@ -42,29 +42,44 @@ function getCalendarDays(monthDate) {
 
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
 
-function addWeekOffRecords(records, monthDate, workingDays) {
+function addCalendarStatusRecords(records, monthDate, workingDays, holidayEvents = []) {
   const rows = Array.isArray(records) ? records : [];
   const configuredWorkingDays = Array.isArray(workingDays) && workingDays.length > 0 ? workingDays : DEFAULT_WORKING_DAYS;
-  const existingDates = new Set(rows.map((record) => record.date));
+  const recordsByDate = rows.reduce((acc, record) => {
+    acc[record.date] = record;
+    return acc;
+  }, {});
   const { from, to } = getMonthRange(monthDate);
   const start = parseISODate(from);
   const end = parseISODate(to);
-  const weekOffRecords = [];
+
+  holidayEvents
+    .filter((event) => event?.purpose === "PUBLIC_HOLIDAY" && event?.date)
+    .forEach((event) => {
+      recordsByDate[event.date] = {
+        ...(recordsByDate[event.date] || {}),
+        _id: recordsByDate[event.date]?._id || `holiday-${event._id || event.date}`,
+        date: event.date,
+        status: "HOLIDAY",
+        eventName: event.title || "Holiday",
+        isPublicHoliday: true,
+      };
+    });
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const isoDate = formatISODate(d);
-    if (!configuredWorkingDays.includes(d.getDay()) && !existingDates.has(isoDate)) {
-      weekOffRecords.push({
+    if (!configuredWorkingDays.includes(d.getDay()) && !recordsByDate[isoDate]) {
+      recordsByDate[isoDate] = {
         _id: `weekoff-${isoDate}`,
         date: isoDate,
         status: "HOLIDAY",
         eventName: "Week Off",
         isWeekOff: true,
-      });
+      };
     }
   }
 
-  return [...rows, ...weekOffRecords].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return Object.values(recordsByDate).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
 export default function HRAttendanceManagementPage() {
@@ -143,15 +158,24 @@ export default function HRAttendanceManagementPage() {
       setRecordsLoading(true);
       const { from: fromDate, to: toDate } = getMonthRange(monthDate);
 
-      const res = await api.get("/attendance", {
-        params: {
-          userId: employee._id,
-          from: fromDate,
-          to: toDate
-        }
-      });
+      const [res, eventsRes] = await Promise.all([
+        api.get("/attendance", {
+          params: {
+            userId: employee._id,
+            from: fromDate,
+            to: toDate
+          }
+        }),
+        api.get("/calendar/events", {
+          params: {
+            startDate: fromDate,
+            endDate: toDate
+          }
+        }).catch(() => ({ data: { events: [] } }))
+      ]);
 
-      setAttendanceRecords(addWeekOffRecords(Array.isArray(res.data) ? res.data : [], monthDate, workingDays));
+      const publicHolidays = (eventsRes.data?.events || []).filter((event) => event.purpose === "PUBLIC_HOLIDAY");
+      setAttendanceRecords(addCalendarStatusRecords(Array.isArray(res.data) ? res.data : [], monthDate, workingDays, publicHolidays));
     } catch (e) {
       toast({ 
         title: "Failed to load attendance records", 
@@ -358,7 +382,7 @@ export default function HRAttendanceManagementPage() {
   };
 
   const getStatusLabel = (status) => (status ? status.replace(/_/g, " ") : "No Record");
-  const getRecordLabel = (record) => record?.isWeekOff ? "Week Off" : getStatusLabel(record?.status);
+  const getRecordLabel = (record) => record?.eventName || getStatusLabel(record?.status);
   const equalPanelHeightClass = "h-[560px] md:h-[620px] xl:h-[calc(100vh-180px)]";
 
   return (
@@ -586,7 +610,7 @@ export default function HRAttendanceManagementPage() {
                               {getRecordLabel(record)}
                             </span>
                           </div>
-                          {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId ? (
+                          {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId && !record.isPublicHoliday ? (
                             <button
                               onClick={() => handleEditRecord(record)}
                               className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
