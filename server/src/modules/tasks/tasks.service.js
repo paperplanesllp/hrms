@@ -460,7 +460,7 @@ export const tasksService = {
     
     // Validate status
     if (data.status) {
-      const validStatuses = ['pending', 'in-progress', 'completed', 'on-hold', 'cancelled'];
+      const validStatuses = ['new', 'pending', 'in-progress', 'paused', 'on-hold', 'due-soon', 'under-review', 'extension_requested', 'completed', 'overdue', 'extended', 'rejected', 'cancelled'];
       if (!validStatuses.includes(data.status)) {
         throw new Error('Invalid status');
       }
