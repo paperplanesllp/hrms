@@ -35,6 +35,7 @@ function statusTone(status) {
   if (status === "PRESENT") return "text-green-600 dark:text-green-400";
   if (status === "SHORT_HOURS") return "text-yellow-600 dark:text-yellow-400";
   if (status === "HALF_DAY") return "text-indigo-600 dark:text-indigo-400";
+  if (status === "HOLIDAY") return "text-sky-600 dark:text-sky-400";
   return "text-red-600 dark:text-red-400";
 }
 
@@ -178,6 +179,13 @@ export default function CalendarPage() {
         ...worksheetRes.data.data
       };
 
+      const dateMeta = statusMap[dateStr];
+      const publicHoliday = events.find((event) => event.date === dateStr && event.purpose === "PUBLIC_HOLIDAY");
+      if (dateMeta?.isHoliday || publicHoliday) {
+        combined.status = "HOLIDAY";
+        combined.eventName = dateMeta?.eventName || publicHoliday?.title || "Holiday";
+      }
+
       setWorksheetData(combined);
       setShowWorksheetPanel(true);
     } catch (err) {
@@ -221,6 +229,7 @@ export default function CalendarPage() {
         purpose: defaultEventPurpose
       });
       loadEventsAndHeatmap();
+      loadMonthlyAttendance();
     } catch (err) {
       console.error(err);
       toast({
@@ -291,6 +300,10 @@ export default function CalendarPage() {
                 // First check backend's isWeekend flag, then fallback to hardcoded Sun/Sat only if no status
                 const isWeekend = status?.isWeekend ?? (dayOfWeek === 0 || dayOfWeek === 6);
                 const dayEvents = events.filter((e) => e.date === dateStr);
+                const publicHolidayEvent = dayEvents.find((e) => e.purpose === "PUBLIC_HOLIDAY");
+                const isPublicHoliday = Boolean(status?.isHoliday || publicHolidayEvent);
+                const displayStatus = isPublicHoliday ? "HOLIDAY" : status?.status;
+                const displayEventName = status?.eventName || publicHolidayEvent?.title;
 
                 const weekendBgClass = isWeekend ? "bg-slate-50 dark:bg-slate-800/50 opacity-60" : "bg-white dark:bg-slate-800";
                 const weekendBorderClass = isWeekend ? "border-slate-300 dark:border-slate-600" : "border-slate-200 dark:border-slate-700";
@@ -319,12 +332,16 @@ export default function CalendarPage() {
                       </div>
                     )}
 
-                    {status?.eventName && (
-                      <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">{status.eventName}</div>
+                    {displayEventName && (
+                      <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">{displayEventName}</div>
                     )}
 
-                    {status?.status === "ABSENT" && !isWeekend && (
+                    {displayStatus === "ABSENT" && !isWeekend && (
                       <div className="mt-1 text-xs text-red-500">Absent</div>
+                    )}
+
+                    {displayStatus === "HOLIDAY" && !isWeekend && (
+                      <div className="mt-1 text-xs text-sky-600 dark:text-sky-400">Holiday</div>
                     )}
 
                     {dayEvents.length > 0 && (
@@ -360,10 +377,10 @@ export default function CalendarPage() {
                             </div>
                           )}
 
-                          {status?.status && !isWeekend && (
+                          {displayStatus && !isWeekend && (
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-slate-500 dark:text-slate-400">Status</span>
-                              <span className={`font-semibold ${statusTone(status.status)}`}>{status.status}</span>
+                              <span className={`font-semibold ${statusTone(displayStatus)}`}>{displayStatus}</span>
                             </div>
                           )}
 

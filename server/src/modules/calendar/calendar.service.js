@@ -158,11 +158,11 @@ export async function getMonthlyAttendanceStatus(userId, year, month, companyId,
       };
     }
 
-    // Mark public holidays as ABSENT with holiday name (only for non-company scoped calendars)
+    // Mark public holidays as HOLIDAY with holiday name (only for non-company scoped calendars)
     if (!companyId) {
       INDIAN_HOLIDAYS.forEach((holiday) => {
         if (holiday.date >= monthStart && holiday.date <= monthEnd) {
-          statusMap[holiday.date] = { status: "ABSENT", eventName: holiday.name, isHoliday: true, isWeekend: statusMap[holiday.date]?.isWeekend, isWorkingDay: statusMap[holiday.date]?.isWorkingDay };
+          statusMap[holiday.date] = { status: "HOLIDAY", eventName: holiday.name, isHoliday: true, isWeekend: statusMap[holiday.date]?.isWeekend, isWorkingDay: statusMap[holiday.date]?.isWorkingDay };
         }
       });
     }
@@ -170,7 +170,7 @@ export async function getMonthlyAttendanceStatus(userId, year, month, companyId,
     // Mark public holidays from event table (overrides default list when same day exists)
     publicHolidayEvents.forEach((event) => {
       statusMap[event.date] = {
-        status: "ABSENT",
+        status: "HOLIDAY",
         eventName: event.title,
         isHoliday: true,
         isWeekend: statusMap[event.date]?.isWeekend,
@@ -178,7 +178,7 @@ export async function getMonthlyAttendanceStatus(userId, year, month, companyId,
       };
     });
 
-    // Mark all leave dates as ABSENT
+    // Mark all leave dates as ABSENT, except public holidays and week-offs
     approvedLeaves.forEach((leave) => {
       const [fromY, fromM, fromD] = leave.fromDate.split("-").map(Number);
       const [toY, toM, toD] = leave.toDate.split("-").map(Number);
@@ -188,7 +188,7 @@ export async function getMonthlyAttendanceStatus(userId, year, month, companyId,
 
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split("T")[0];
-        if (!statusMap[dateStr]?.eventName) {
+        if (!statusMap[dateStr]?.eventName && !statusMap[dateStr]?.isWeekend) {
           statusMap[dateStr] = {
             status: "ABSENT",
             isLeave: true,
@@ -295,23 +295,12 @@ async function syncPublicHolidayAttendance(date, holidayName, companyId) {
 
   const updates = [];
   for (const staff of staffUsers) {
-    // Check if employee took leave on this day
-    const leaveRecord = await Leave.findOne({
-      userId: staff._id,
-      status: "APPROVED",
-      fromDate: { $lte: date },
-      toDate: { $gte: date }
-    });
-
-    // If they took leave, mark as ABSENT; otherwise mark as HOLIDAY
-    const status = leaveRecord ? "ABSENT" : "HOLIDAY";
-
     updates.push({
       updateOne: {
         filter: { userId: staff._id, date },
         update: {
           $set: {
-            status,
+            status: "HOLIDAY",
             totalHours: 0,
             shiftName: holidayName || "Public Holiday",
             checkIn: "",
