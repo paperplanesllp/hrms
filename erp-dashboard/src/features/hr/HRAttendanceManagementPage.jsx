@@ -40,6 +40,33 @@ function getCalendarDays(monthDate) {
   });
 }
 
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+
+function addWeekOffRecords(records, monthDate, workingDays) {
+  const rows = Array.isArray(records) ? records : [];
+  const configuredWorkingDays = Array.isArray(workingDays) && workingDays.length > 0 ? workingDays : DEFAULT_WORKING_DAYS;
+  const existingDates = new Set(rows.map((record) => record.date));
+  const { from, to } = getMonthRange(monthDate);
+  const start = parseISODate(from);
+  const end = parseISODate(to);
+  const weekOffRecords = [];
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const isoDate = formatISODate(d);
+    if (!configuredWorkingDays.includes(d.getDay()) && !existingDates.has(isoDate)) {
+      weekOffRecords.push({
+        _id: `weekoff-${isoDate}`,
+        date: isoDate,
+        status: "HOLIDAY",
+        eventName: "Week Off",
+        isWeekOff: true,
+      });
+    }
+  }
+
+  return [...rows, ...weekOffRecords].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
 export default function HRAttendanceManagementPage() {
   const currentUser = useAuthStore((s) => s.user);
   const [employees, setEmployees] = useState([]);
@@ -57,6 +84,7 @@ export default function HRAttendanceManagementPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", checkInPeriod: "AM", checkOutPeriod: "PM" });
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
 
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
 
@@ -92,10 +120,21 @@ export default function HRAttendanceManagementPage() {
     }
   }, [currentUserId]);
 
+  const loadWorkingDays = useCallback(async () => {
+    try {
+      const res = await api.get("/admin/working-days");
+      setWorkingDays(Array.isArray(res.data?.workingDays) ? res.data.workingDays : DEFAULT_WORKING_DAYS);
+    } catch (e) {
+      console.error("Error loading working days:", e);
+      setWorkingDays(DEFAULT_WORKING_DAYS);
+    }
+  }, []);
+
   // Load all employees on mount
   useEffect(() => {
     loadEmployees();
-  }, [loadEmployees]);
+    loadWorkingDays();
+  }, [loadEmployees, loadWorkingDays]);
 
   const loadAttendanceRecords = async (employee, monthDate) => {
     if (!employee?._id) return;
@@ -112,7 +151,7 @@ export default function HRAttendanceManagementPage() {
         }
       });
 
-      setAttendanceRecords(Array.isArray(res.data) ? res.data : []);
+      setAttendanceRecords(addWeekOffRecords(Array.isArray(res.data) ? res.data : [], monthDate, workingDays));
     } catch (e) {
       toast({ 
         title: "Failed to load attendance records", 
@@ -129,7 +168,7 @@ export default function HRAttendanceManagementPage() {
     if (selectedEmployee) {
       loadAttendanceRecords(selectedEmployee, activeMonth);
     }
-  }, [selectedEmployee, activeMonth]);
+  }, [selectedEmployee, activeMonth, workingDays]);
 
   const handleEditRecord = (record) => {
     const targetUserId = String(record?.userId || "");
@@ -319,6 +358,7 @@ export default function HRAttendanceManagementPage() {
   };
 
   const getStatusLabel = (status) => (status ? status.replace(/_/g, " ") : "No Record");
+  const getRecordLabel = (record) => record?.isWeekOff ? "Week Off" : getStatusLabel(record?.status);
   const equalPanelHeightClass = "h-[560px] md:h-[620px] xl:h-[calc(100vh-180px)]";
 
   return (
@@ -488,7 +528,7 @@ export default function HRAttendanceManagementPage() {
                               setActiveMonth(new Date(day.getFullYear(), day.getMonth(), 1));
                             }
                           }}
-                          title={`${formatDisplayDate(isoDate, true)} - ${getStatusLabel(status)}`}
+                          title={`${formatDisplayDate(isoDate, true)} - ${getRecordLabel(dayRecord)}`}
                           className={`relative h-10 sm:h-11 rounded-lg border transition-all ${
                             isSelected
                               ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
@@ -543,7 +583,7 @@ export default function HRAttendanceManagementPage() {
                           <div className="flex items-center gap-2">
                             {getStatusIcon(record.status)}
                             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
-                              {record.status}
+                              {getRecordLabel(record)}
                             </span>
                           </div>
                           {record.userRole === ROLES.USER && String(record.userId || "") !== currentUserId ? (

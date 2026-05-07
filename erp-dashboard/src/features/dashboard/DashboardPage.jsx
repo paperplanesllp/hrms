@@ -46,7 +46,13 @@ export default function DashboardPage() {
   
   // Additional data for realistic dashboard
   const [leaveBalance, setLeaveBalance] = useState({ total: 0, used: 0, pending: 0, remaining: 0, byType: [] });
-  const [payrollInfo, setPayrollInfo] = useState({ nextPayDate: "2026-03-25", status: "On Track", lastPaid: "2026-03-10" });
+  const [payrollInfo, setPayrollInfo] = useState({
+    status: "No Records",
+    lastPaid: null,
+    nextPayDate: null,
+    totalRecords: 0,
+    pendingCount: 0,
+  });
   const [pendingTasks, setPendingTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   
@@ -85,6 +91,52 @@ export default function DashboardPage() {
     const s = String(time.seconds).padStart(2, '0');
     return `${h}:${m}:${s}`;
   };
+
+  const formatPayrollDate = (date, options) => {
+    if (!date) return "Not available";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return "Not available";
+    return parsed.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      ...options,
+    });
+  };
+
+  const buildPayrollInfo = (records = []) => {
+    const rows = Array.isArray(records) ? records : [];
+    const paidRows = rows
+      .filter((record) => record.paymentStatus === "PAID" || record.status === "PROCESSED")
+      .map((record) => ({
+        ...record,
+        paidDate: record.paymentDate || record.paidOn,
+      }))
+      .filter((record) => record.paidDate)
+      .sort((a, b) => new Date(b.paidDate) - new Date(a.paidDate));
+
+    const now = new Date();
+    const futurePaymentRows = rows
+      .filter((record) => record.paymentDate && new Date(record.paymentDate) > now)
+      .sort((a, b) => new Date(a.paymentDate) - new Date(b.paymentDate));
+
+    const pendingCount = rows.filter((record) => record.paymentStatus === "PENDING" || record.status === "PENDING").length;
+    const cancelledCount = rows.filter((record) => record.paymentStatus === "CANCELLED").length;
+
+    return {
+      status: rows.length === 0
+        ? "No Records"
+        : pendingCount > 0
+          ? `${pendingCount} Pending`
+          : cancelledCount === rows.length
+            ? "Cancelled"
+            : "On Track",
+      lastPaid: paidRows[0]?.paidDate || null,
+      nextPayDate: futurePaymentRows[0]?.paymentDate || null,
+      totalRecords: rows.length,
+      pendingCount,
+    };
+  };
+
+  const payrollRoute = canViewStats ? "/payroll/manage" : "/payroll";
 
   // Start timer when checked in
   useEffect(() => {
@@ -251,6 +303,7 @@ export default function DashboardPage() {
         let absentPromise = Promise.resolve({ data: [] });
         let todayAttendancePromise = Promise.resolve({ data: [] });
         let pendingLeavesPromise = Promise.resolve({ data: [] });
+        let payrollPromise = api.get("/payroll/my").catch(() => Promise.resolve({ data: [] }));
         
         if (isAdmin || isHR) {
           const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=20" : "/activity/hr-timeline?limit=20";
@@ -270,9 +323,12 @@ export default function DashboardPage() {
           pendingLeavesPromise = api.get("/leave").catch(() =>
             Promise.resolve({ data: [] })
           );
+          payrollPromise = api.get("/payroll").catch(() =>
+            Promise.resolve({ data: [] })
+          );
         }
 
-        const [s, n, u, lb, ae, todayAttendanceRes, pendingLeavesRes] = await Promise.all([
+        const [s, n, u, lb, ae, todayAttendanceRes, pendingLeavesRes, payrollRes] = await Promise.all([
           api.get("/dashboard/stats"),
           api.get("/news?limit=5"),
           activityPromise,
@@ -280,6 +336,7 @@ export default function DashboardPage() {
           absentPromise,
           todayAttendancePromise,
           pendingLeavesPromise,
+          payrollPromise,
         ]);
         setStats(s.data || stats);
         setRecentNews(n.data || []);
@@ -292,6 +349,13 @@ export default function DashboardPage() {
         if (lb.data) {
           setLeaveBalance(lb.data);
         }
+
+        const payrollRows = Array.isArray(payrollRes?.data)
+          ? payrollRes.data
+          : Array.isArray(payrollRes?.data?.data)
+            ? payrollRes.data.data
+            : [];
+        setPayrollInfo(buildPayrollInfo(payrollRows));
         
         // Update absent employees
         if (ae.data && Array.isArray(ae.data)) {
@@ -667,21 +731,41 @@ export default function DashboardPage() {
                     <div>
                       <span className="text-xs text-[#4A7FA7] dark:text-slate-400">Status</span>
                       <div className="flex items-center mt-1 space-x-2">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        {payrollInfo.pendingCount > 0 ? (
+                          <AlertCircle className="w-4 h-4 text-amber-500" />
+                        ) : payrollInfo.totalRecords > 0 ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-slate-400" />
+                        )}
                         <span className="text-sm font-semibold text-[#0A1931] dark:text-white">{payrollInfo.status}</span>
                       </div>
                     </div>
                     
                     <div className="pt-3 border-t border-blue-300 dark:border-blue-800/50">
                       <span className="text-xs text-[#4A7FA7] dark:text-slate-400">Last Paid</span>
-                      <p className="text-sm font-semibold text-[#0A1931] dark:text-white mt-1">{new Date(payrollInfo.lastPaid).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
+                      <p className="text-sm font-semibold text-[#0A1931] dark:text-white mt-1">
+                        {formatPayrollDate(payrollInfo.lastPaid, { day: "2-digit", month: "short", year: "numeric" })}
+                      </p>
                     </div>
                     
                     <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg dark:bg-blue-900/30 dark:border-blue-800/50">
                       <span className="text-xs text-blue-900 dark:text-blue-200">Next Pay Date</span>
-                      <p className="mt-1 text-lg font-bold text-blue-600 dark:text-blue-300">{new Date(payrollInfo.nextPayDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' })}</p>
+                      <p className="mt-1 text-lg font-bold text-blue-600 dark:text-blue-300">
+                        {payrollInfo.nextPayDate
+                          ? formatPayrollDate(payrollInfo.nextPayDate, { month: "short", day: "numeric", year: "numeric" })
+                          : "Not scheduled"}
+                      </p>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(payrollRoute)}
+                    className="w-full px-3 py-2 mt-4 text-sm font-semibold text-blue-700 transition-colors rounded-lg hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    Go to Payroll
+                  </button>
                 </div>
               </Card>
             </div>

@@ -194,16 +194,48 @@ export default function TaskCard({
             {/* Assigned To */}
             {task.assignedTo && (
               <div className="flex items-center gap-1">
-                {task.assignedTo.avatar ? (
-                  <img
-                    src={task.assignedTo.avatar}
-                    alt={task.assignedTo.name}
-                    className="w-4 h-4 rounded-full"
-                  />
+                {/* Show multiple assignees */}
+                {Array.isArray(task.assignedTo) ? (
+                  <div className="flex items-center gap-1">
+                    {task.assignedTo.slice(0, 2).map((user) => (
+                      <div
+                        key={user._id}
+                        title={user.name}
+                        className="relative"
+                      >
+                        {user.avatar ? (
+                          <img
+                            src={user.avatar}
+                            alt={user.name}
+                            className="w-4 h-4 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-white">
+                            {user.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {task.assignedTo.length > 2 && (
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 ml-1">
+                        +{task.assignedTo.length - 2}
+                      </span>
+                    )}
+                  </div>
                 ) : (
-                  <div className="w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <>
+                    {task.assignedTo.avatar ? (
+                      <img
+                        src={task.assignedTo.avatar}
+                        alt={task.assignedTo.name}
+                        className="w-4 h-4 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-600" />
+                    )}
+                    <span className="truncate">{task.assignedTo.name}</span>
+                  </>
                 )}
-                <span className="truncate">{task.assignedTo.name}</span>
               </div>
             )}
 

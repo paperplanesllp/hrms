@@ -51,6 +51,33 @@ function getCalendarDays(monthDate) {
   });
 }
 
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+
+function addWeekOffRecords(records, monthDate, workingDays) {
+  const rows = Array.isArray(records) ? records : [];
+  const configuredWorkingDays = Array.isArray(workingDays) && workingDays.length > 0 ? workingDays : DEFAULT_WORKING_DAYS;
+  const existingDates = new Set(rows.map((record) => record.date));
+  const { from, to } = getMonthRange(monthDate);
+  const start = parseISODate(from);
+  const end = parseISODate(to);
+  const weekOffRecords = [];
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const isoDate = formatISODate(d);
+    if (!configuredWorkingDays.includes(d.getDay()) && !existingDates.has(isoDate)) {
+      weekOffRecords.push({
+        _id: `weekoff-${isoDate}`,
+        date: isoDate,
+        status: "HOLIDAY",
+        eventName: "Week Off",
+        isWeekOff: true,
+      });
+    }
+  }
+
+  return [...rows, ...weekOffRecords].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
 export default function AdminAttendanceManagementPage() {
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -74,10 +101,22 @@ export default function AdminAttendanceManagementPage() {
     checkOutPeriod: "PM",
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
 
   useEffect(() => {
     loadEmployeesAndDepartments();
+    loadWorkingDays();
   }, []);
+
+  const loadWorkingDays = async () => {
+    try {
+      const res = await api.get("/admin/working-days");
+      setWorkingDays(Array.isArray(res.data?.workingDays) ? res.data.workingDays : DEFAULT_WORKING_DAYS);
+    } catch (e) {
+      console.error("Error loading working days:", e);
+      setWorkingDays(DEFAULT_WORKING_DAYS);
+    }
+  };
 
   const loadEmployeesAndDepartments = async () => {
     try {
@@ -160,7 +199,7 @@ export default function AdminAttendanceManagementPage() {
         },
       });
 
-      setAttendanceRecords(Array.isArray(res.data) ? res.data : []);
+      setAttendanceRecords(addWeekOffRecords(Array.isArray(res.data) ? res.data : [], monthDate, workingDays));
     } catch (error) {
       toast({ title: "Failed to load attendance records", type: "error" });
       console.error("Error loading attendance:", error);
@@ -173,7 +212,7 @@ export default function AdminAttendanceManagementPage() {
     if (selectedEmployee?._id) {
       loadAttendanceRecords(selectedEmployee, activeMonth);
     }
-  }, [selectedEmployee, activeMonth]);
+  }, [selectedEmployee, activeMonth, workingDays]);
 
   const handleEditRecord = (record) => {
     setEditingRecord(record);
@@ -341,6 +380,7 @@ export default function AdminAttendanceManagementPage() {
   };
 
   const getStatusLabel = (status) => (status ? status.replace(/_/g, " ") : "No Record");
+  const getRecordLabel = (record) => record?.isWeekOff ? "Week Off" : getStatusLabel(record?.status);
   const equalPanelHeightClass = "h-[560px] md:h-[620px] xl:h-[calc(100vh-180px)]";
 
   return (
@@ -519,7 +559,7 @@ export default function AdminAttendanceManagementPage() {
                                 setActiveMonth(new Date(day.getFullYear(), day.getMonth(), 1));
                               }
                             }}
-                            title={`${formatDisplayDate(isoDate, true)} - ${getStatusLabel(status)}`}
+                            title={`${formatDisplayDate(isoDate, true)} - ${getRecordLabel(dayRecord)}`}
                             className={`relative h-10 sm:h-11 rounded-lg border transition-all ${
                               isSelected
                                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
@@ -572,16 +612,18 @@ export default function AdminAttendanceManagementPage() {
                             <div className="flex items-center gap-2">
                               {getStatusIcon(record.status)}
                               <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(record.status)}`}>
-                                {record.status}
+                                {getRecordLabel(record)}
                               </span>
                             </div>
-                            <button
-                              onClick={() => handleEditRecord(record)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              Edit
-                            </button>
+                            {!record.isWeekOff && (
+                              <button
+                                onClick={() => handleEditRecord(record)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                Edit
+                              </button>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
