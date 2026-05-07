@@ -8,6 +8,7 @@ import { requireRole, ROLES } from "../../middleware/roles.js";
 import {
   listPolicies,
   getPolicy,
+  downloadPolicyPdf,
   createNewPolicy,
   updatePolicyHandler,
   deletePolicyHandler,
@@ -53,6 +54,7 @@ const router = express.Router();
 
 // Anyone can view policies
 router.get("/", requireAuth, listPolicies);
+router.get("/:id/download", requireAuth, downloadPolicyPdf);
 router.get("/:id", requireAuth, getPolicy);
 
 // HR/Admin only - with PDF upload

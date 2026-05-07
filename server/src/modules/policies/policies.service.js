@@ -67,6 +67,8 @@ export const updatePolicy = async (policyId, userId, data, companyId) => {
   if (data.content !== undefined) policy.content = data.content;
   if (data.category) policy.category = data.category;
   if (data.isActive !== undefined) policy.isActive = data.isActive;
+  if (data.pdfFileName !== undefined) policy.pdfFileName = data.pdfFileName;
+  if (data.pdfUrl !== undefined) policy.pdfUrl = data.pdfUrl;
 
   policy.updatedBy = userId;
 

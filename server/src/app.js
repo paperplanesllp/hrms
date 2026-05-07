@@ -42,7 +42,8 @@ export function createApp() {
   // Get absolute path to uploads directory
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const uploadsPath = path.join(__dirname, "../uploads");
+  const uploadsPath = path.join(__dirname, "uploads");
+  const legacyUploadsPath = path.join(__dirname, "../uploads");
 
   console.log("📁 [SERVER] Uploads directory:", uploadsPath);
 
@@ -90,7 +91,7 @@ export function createApp() {
     setHeaders: (res, path, stat) => {
       console.log("📥 [STATIC] Serving file successfully:", path);
     }
-  }));
+  }), express.static(legacyUploadsPath));
 
   app.get("/health", (req, res) => res.json({ ok: true }));
 

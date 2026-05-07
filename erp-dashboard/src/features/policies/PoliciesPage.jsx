@@ -87,8 +87,8 @@ export default function PoliciesPage() {
     setShowDetail(true);
   };
 
-  const handleDownloadPdf = (pdfUrl, fileName) => {
-    if (!pdfUrl) {
+  const handleDownloadPdf = async (policy) => {
+    if (!policy?.pdfUrl && !policy?.pdfFileName) {
       toast({
         title: "No PDF available",
         message: "This policy doesn't have a PDF attached",
@@ -98,48 +98,32 @@ export default function PoliciesPage() {
     }
 
     try {
-      // Use fetch to download the file with proper headers
-      fetch(pdfUrl)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          // Create blob URL
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = fileName || "policy.pdf";
-          document.body.appendChild(link);
-          link.click();
-          
-          // Cleanup
-          setTimeout(() => {
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-          }, 100);
-          
-          toast({
-            title: "Success",
-            message: "PDF downloaded successfully",
-            type: "success"
-          });
-        })
-        .catch(err => {
-          console.error("PDF download error:", err);
-          toast({
-            title: "Download failed",
-            message: "Failed to download PDF. Please try again.",
-            type: "error"
-          });
-        });
+      const response = await api.get(`/policies/${policy._id}/download`, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = policy.pdfFileName || "policy.pdf";
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
+      toast({
+        title: "Success",
+        message: "PDF downloaded successfully",
+        type: "success"
+      });
     } catch (err) {
-      console.error("Download error:", err);
+      console.error("PDF download error:", err);
       toast({
         title: "Download failed",
-        message: "Failed to download PDF",
+        message: err?.response?.data?.message || "Failed to download PDF. Please try again.",
         type: "error"
       });
     }
@@ -348,7 +332,7 @@ export default function PoliciesPage() {
                 </button>
                 {policy.pdfUrl && (
                   <button
-                    onClick={() => handleDownloadPdf(policy.pdfUrl, policy.pdfFileName)}
+                    onClick={() => handleDownloadPdf(policy)}
                     className="flex items-center gap-1 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold rounded-lg transition-colors"
                     title="Download PDF"
                   >
@@ -465,7 +449,7 @@ export default function PoliciesPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleDownloadPdf(selectedPolicy.pdfUrl, selectedPolicy.pdfFileName)}
+                      onClick={() => handleDownloadPdf(selectedPolicy)}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
                     >
                       <Download className="w-4 h-4" />
