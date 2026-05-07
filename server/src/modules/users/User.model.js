@@ -60,6 +60,12 @@ const userSchema = new mongoose.Schema(
     companyShiftStart: { type: String, default: "09:30" },
     companyShiftEnd: { type: String, default: "18:30" },
 
+    // Experimental company feature flags. Keep optional integrations behind
+    // isolated flags so they can be removed without changing HRMS workflows.
+    experimentalFeatures: {
+      spotifyWellnessEnabled: { type: Boolean, default: false },
+    },
+
     // Department & Designation
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Department", default: null },
     designationId: { type: mongoose.Schema.Types.ObjectId, ref: "Designation", default: null },

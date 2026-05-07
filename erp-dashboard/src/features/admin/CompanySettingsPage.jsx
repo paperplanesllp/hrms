@@ -15,7 +15,9 @@ import {
   Building2,
   CheckCircle2,
   ShieldCheck,
+  Headphones,
 } from "lucide-react";
+import { useSpotifyWellnessSettings } from "../../services/spotify/spotifyService.js";
 
 // ─── Reusable: SettingsLayout ─────────────────────────────────────────────────
 function SettingsLayout({ children }) {
@@ -128,6 +130,12 @@ export default function CompanySettingsPage() {
   const [shiftStart, setShiftStart] = useState("09:30");
   const [shiftEnd, setShiftEnd] = useState("18:30");
   const [savingTiming, setSavingTiming] = useState(false);
+  const {
+    spotifyWellnessEnabled,
+    loading: spotifySettingsLoading,
+    update: updateSpotifySettings,
+  } = useSpotifyWellnessSettings();
+  const [savingSpotifySettings, setSavingSpotifySettings] = useState(false);
 
   const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -240,6 +248,29 @@ export default function CompanySettingsPage() {
       toast({ title: "Failed to Save", description: e?.response?.data?.message || "Could not update company timing", type: "error" });
     } finally {
       setSavingTiming(false);
+    }
+  };
+
+  const handleToggleSpotifyWellness = async () => {
+    const nextEnabled = !spotifyWellnessEnabled;
+    setSavingSpotifySettings(true);
+    try {
+      await updateSpotifySettings({ spotifyWellnessEnabled: nextEnabled });
+      toast({
+        title: nextEnabled ? "Spotify Wellness enabled" : "Spotify Wellness disabled",
+        description: nextEnabled
+          ? "Focus Music is now visible in the dashboard and sidebar."
+          : "Spotify Wellness is now hidden for employees.",
+        type: "success",
+      });
+    } catch (e) {
+      toast({
+        title: "Failed to update Spotify setting",
+        description: e?.response?.data?.message || "Could not update Spotify Wellness",
+        type: "error",
+      });
+    } finally {
+      setSavingSpotifySettings(false);
     }
   };
 
@@ -412,6 +443,42 @@ export default function CompanySettingsPage() {
 
           <div className="flex pt-4 border-t border-gray-100">
             <SaveButton loading={savingWorkingDays} onClick={handleSaveWorkingDays} label="Save Working Days" />
+          </div>
+        </SectionCard>
+
+        {/* Section 4: Experimental Features */}
+        <SectionCard
+          icon={Headphones}
+          iconColor="text-emerald-600"
+          iconBg="bg-emerald-50"
+          title="Experimental Features"
+          description="Enable removable test modules without changing core HRMS workflows."
+          badge={<StatusBadge active={spotifyWellnessEnabled} activeLabel="Spotify enabled" inactiveLabel="Spotify disabled" />}
+        >
+          <div className="flex flex-col gap-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Enable Spotify Wellness Feature</h3>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Shows the Focus Music dashboard widget and Spotify Wellness sidebar page using official Spotify embeds only.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={spotifyWellnessEnabled}
+              disabled={spotifySettingsLoading || savingSpotifySettings}
+              onClick={handleToggleSpotifyWellness}
+              className={`relative h-8 w-14 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                spotifyWellnessEnabled ? "bg-emerald-600" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+                  spotifyWellnessEnabled ? "translate-x-7" : "translate-x-1"
+                }`}
+              />
+              <span className="sr-only">Toggle Spotify Wellness</span>
+            </button>
           </div>
         </SectionCard>
       </SettingsLayout>

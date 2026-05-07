@@ -3,11 +3,12 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, CalendarDays, Clock3, User,
   Megaphone, FileText, ClipboardList, BadgeDollarSign,
-  Users, Shield, Settings, BookOpen, MessageCircle, ChevronRight, TrendingUp, AlertCircle, Building2, File, CheckCircle2
+  Users, Shield, Settings, BookOpen, MessageCircle, ChevronRight, TrendingUp, AlertCircle, Building2, File, CheckCircle2, Headphones
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import SidebarProfile from "../ui/SidebarProfile.jsx";
+import { useSpotifyWellnessSettings } from "../../services/spotify/spotifyService.js";
 
 const base = "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ease-smooth select-none cursor-pointer group";
 const active = "bg-brand-accent/15 text-brand-accent shadow-accent-glow/20 border border-brand-accent/40 dark:bg-brand-accent/20 dark:text-brand-accent dark:border-brand-accent/50";
@@ -52,6 +53,7 @@ export default function RoleBasedSidebar({ open, setOpen }) {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === ROLES.ADMIN;
   const isHR = user?.role === ROLES.HR;
+  const { spotifyWellnessEnabled } = useSpotifyWellnessSettings();
 
   const mainLinks = [
     { to: isAdmin || isHR ? "/admin/analytics" : "/analytics", icon: <TrendingUp className="w-4 h-4" />, label: "Analytics", end: true },
@@ -72,6 +74,7 @@ export default function RoleBasedSidebar({ open, setOpen }) {
   const companyLinks = [
     { to: "/news", icon: <Megaphone className="w-4 h-4" />, label: "News" },
     { to: "/policy", icon: <Shield className="w-4 h-4" />, label: "Policies" },
+    ...(spotifyWellnessEnabled ? [{ to: "/spotify-wellness", icon: <Headphones className="w-4 h-4" />, label: "Spotify Wellness" }] : []),
     { to: "/complaints", icon: <AlertCircle className="w-4 h-4" />, label: "Raise Ticket" },
   ];
 

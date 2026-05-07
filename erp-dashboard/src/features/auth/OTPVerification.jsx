@@ -302,7 +302,7 @@ export default function OTPVerification({
         {/* Info Box */}
         <div className="otp-info-box">
           <p>
-            💡 <strong>Tip:</strong> Check your spam folder if you don't see the email within a minute.
+             <strong>Tip:</strong> Check your spam folder if you don't see the email within a minute.
           </p>
         </div>
       </div>

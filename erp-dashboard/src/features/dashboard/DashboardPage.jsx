@@ -16,6 +16,7 @@ import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import QuickAttendanceMarking from "./QuickAttendanceMarking.jsx";
 import { taskService } from "../tasks/taskService.js";
 import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
+import SpotifyWidget from "../../components/spotify/SpotifyWidget.jsx";
 import { Users, TrendingUp, Clock, AlertCircle, CheckCircle, XCircle, Eye, LogIn, LogOut, Timer, Home, Calendar, DollarSign, AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -802,6 +803,8 @@ export default function DashboardPage() {
 
             {/* Middle Column - Tasks and Company Updates */}
             <div className="grid gap-6 auto-rows-fr lg:col-span-1">
+              <SpotifyWidget dashboard />
+
               {/* Pending Tasks Card */}
               <Card elevated className="h-full min-h-[20rem] bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-900/30">
                 <div className="p-6 h-full flex flex-col">

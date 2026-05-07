@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import ProtectedRoute from "../components/common/ProtectedRoute.jsx";
@@ -60,6 +60,8 @@ import EmployeeAnalyticsDashboard from "../features/analytics/EmployeeAnalyticsD
 
 import { ROLES } from "./constants.js";
 
+const SpotifyPage = lazy(() => import("../features/spotify/SpotifyPage.jsx"));
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -120,7 +122,15 @@ export default function AppRoutes() {
         <Route path="tasks/my-tasks" element={<MyTasksPage />} />
         <Route path="tasks/manage" element={<TasksManagePage />} />
         <Route path="tasks/daily-updates" element={<DailyTaskUpdatesPage />} />
-<Route path="complaints" element={<StaffComplaintsDashboard />} />
+        <Route path="complaints" element={<StaffComplaintsDashboard />} />
+        <Route
+          path="spotify-wellness"
+          element={
+            <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading Spotify Wellness...</div>}>
+              <SpotifyPage />
+            </Suspense>
+          }
+        />
         <Route
           path="news-studio"
           element={
