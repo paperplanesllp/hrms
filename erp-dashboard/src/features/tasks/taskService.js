@@ -213,8 +213,10 @@ export const taskService = {
     return normalizeResponse(res);
   },
 
-  async reassignTask(taskId, newAssigneeId, reason) {
-    const res = await api.put(`/tasks/${taskId}/reassign`, { newAssigneeId, reason });
+  async reassignTask(taskId, assigneeIds, reason) {
+    // Handle both single ID and array of IDs
+    const assigneesToSend = Array.isArray(assigneeIds) ? assigneeIds : [assigneeIds];
+    const res = await api.put(`/tasks/${taskId}/reassign`, { assignedTo: assigneesToSend, reason });
     return normalizeResponse(res);
   },
 

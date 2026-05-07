@@ -429,9 +429,19 @@ export const tasksService = {
     }
     
     // Validate assignedTo if changing it
-    if (data.assignedTo && data.assignedTo !== task.assignedTo.toString()) {
-      const user = await User.findById(data.assignedTo);
-      if (!user) throw new Error('Assigned user not found');
+    if (data.assignedTo) {
+      const assignedToArray = Array.isArray(data.assignedTo) 
+        ? data.assignedTo 
+        : [data.assignedTo];
+      
+      // Validate each assignee exists
+      for (const uid of assignedToArray) {
+        const user = await User.findById(uid);
+        if (!user) throw new Error(`Assigned user not found: ${uid}`);
+      }
+      
+      // Convert to ObjectIds
+      data.assignedTo = assignedToArray.map(id => new mongoose.Types.ObjectId(id));
     }
     
     // Validate department if changing it
@@ -1226,7 +1236,7 @@ export const tasksService = {
   },
 
   // Reassign task to another user
-  async reassignTask(taskId, newAssigneeId, reasonText, performedById) {
+  async reassignTask(taskId, assigneeIds, reasonText, performedById) {
     const task = await Task.findOne({
       _id: new mongoose.Types.ObjectId(taskId),
       isDeleted: false
@@ -1237,14 +1247,24 @@ export const tasksService = {
       throw new Error('Task not found');
     }
 
-    // Validate new assignee exists
-    const newAssignee = await User.findById(new mongoose.Types.ObjectId(newAssigneeId));
-    if (!newAssignee) {
-      throw new Error('New assignee not found');
+    // Normalize assigneeIds to array
+    const assigneesToUse = Array.isArray(assigneeIds) ? assigneeIds : [assigneeIds];
+
+    if (assigneesToUse.length === 0) {
+      throw new Error('At least one assignee is required');
     }
 
-    if (newAssignee.isDeleted) {
-      throw new Error('Cannot assign to a deleted user');
+    // Validate all new assignees exist
+    const newAssignees = [];
+    for (const id of assigneesToUse) {
+      const newAssignee = await User.findById(new mongoose.Types.ObjectId(id));
+      if (!newAssignee) {
+        throw new Error(`Assignee not found: ${id}`);
+      }
+      if (newAssignee.isDeleted) {
+        throw new Error(`Cannot assign to a deleted user: ${newAssignee.email}`);
+      }
+      newAssignees.push(newAssignee);
     }
 
     const performer = await User.findById(new mongoose.Types.ObjectId(performedById));
@@ -1256,21 +1276,23 @@ export const tasksService = {
     const previousAssignees = task.assignedTo;
     const previousAssigneeNames = previousAssignees.map(a => a.name || 'Unknown').join(', ');
 
-    // Add to reassignment history
+    // Add to reassignment history for each previous assignee
     for (const oldAssignee of previousAssignees) {
-      task.reassignedHistory.push({
-        previousAssignee: oldAssignee._id,
-        previousAssigneeName: oldAssignee.name || 'Unknown',
-        newAssignee: new mongoose.Types.ObjectId(newAssigneeId),
-        newAssigneeName: newAssignee.name || 'Unknown',
-        reassignedBy: new mongoose.Types.ObjectId(performedById),
-        reason: reasonText || 'Task reassigned',
-        reassignedAt: new Date()
-      });
+      for (const newAssignee of newAssignees) {
+        task.reassignedHistory.push({
+          previousAssignee: oldAssignee._id,
+          previousAssigneeName: oldAssignee.name || 'Unknown',
+          newAssignee: new mongoose.Types.ObjectId(newAssignee._id),
+          newAssigneeName: newAssignee.name || 'Unknown',
+          reassignedBy: new mongoose.Types.ObjectId(performedById),
+          reason: reasonText || 'Task reassigned',
+          reassignedAt: new Date()
+        });
+      }
     }
 
-    // Update assignee (replace old with new)
-    task.assignedTo = [new mongoose.Types.ObjectId(newAssigneeId)];
+    // Update assignees (replace old with new)
+    task.assignedTo = newAssignees.map(a => new mongoose.Types.ObjectId(a._id));
     task.reassignedFrom = previousAssignees[0];
     task.reassignedAt = new Date();
 

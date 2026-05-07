@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
+import MultiUserSelect from '../../components/ui/MultiUserSelect.jsx';
 import {
   PRIORITY_OPTIONS,
   STATUS_OPTIONS,
@@ -20,7 +21,7 @@ export default function TaskForm({
   const [form, setForm] = useState({
     title: '',
     description: '',
-    assignedTo: '',
+    assignedTo: [],
     department: '',
     dueDate: '',
     priority: 'MEDIUM',
@@ -37,10 +38,23 @@ export default function TaskForm({
   // Initialize form with task data if editing
   useEffect(() => {
     if (task) {
-      setForm({
+      // Handle assignedTo as array
+      let assignedToArray = [];
+      if (Array.isArray(task.assignedTo)) {
+        assignedToArray = task.assignedTo.map(a => {
+          if (typeof a === 'object') return a;
+          return users.find(u => u._id === a) || { _id: a };
+        });
+      } else if (task.assignedTo) {
+        const user = users.find(u => u._id === task.assignedTo._id || u._id === task.assignedTo);
+        if (user) assignedToArray = [user];
+      }
+
+      setForm(prevForm => ({
+        ...prevForm,
         title: task.title || '',
         description: task.description || '',
-        assignedTo: task.assignedTo?._id || task.assignedTo || '',
+        assignedTo: assignedToArray,
         department: task.department?._id || task.department || '',
         dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
         priority: task.priority || 'MEDIUM',
@@ -49,9 +63,9 @@ export default function TaskForm({
         tags: task.tags || [],
         estimatedHours: task.estimatedHours || 0,
         estimatedMinutes: task.estimatedMinutes || 0
-      });
+      }));
     }
-  }, [task]);
+  }, [task, users]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -73,8 +87,8 @@ export default function TaskForm({
     }
 
     // Only require assignedTo for admin task management (not personal tasks)
-    if (!isPersonalTask && !form.assignedTo) {
-      newErrors.assignedTo = 'Please assign the task to a user';
+    if (!isPersonalTask && form.assignedTo.length === 0) {
+      newErrors.assignedTo = 'Please assign the task to at least one user';
     }
 
     if (!form.dueDate) {
@@ -101,7 +115,9 @@ export default function TaskForm({
       ...form,
       title: form.title.trim(),
       description: form.description.trim(),
-      progress: parseInt(form.progress) || 0
+      progress: parseInt(form.progress) || 0,
+      // Convert user objects to IDs for API submission
+      assignedTo: form.assignedTo.map(u => u._id || u)
     };
 
     if (!submitData.department) {
@@ -129,7 +145,6 @@ export default function TaskForm({
     });
   };
 
-  const assignedUser = users.find(u => u._id === form.assignedTo);
   const priorityStyle = getPriorityStyles(form.priority);
 
   return (
@@ -219,33 +234,17 @@ export default function TaskForm({
 
       {/* Three Column Layout */}
       <div className="grid grid-cols-3 gap-6">
-        {/* Assign To */}
+        {/* Assign To - Multi Select */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Assign To *
-          </label>
-          <select
-            value={form.assignedTo}
-            onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Select user...</option>
-            {users.map(user => (
-              <option key={user._id} value={user._id}>
-                {user.name} ({user.email})
-              </option>
-            ))}
-          </select>
-          {errors.assignedTo && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.assignedTo}</p>
-          )}
-          {assignedUser && (
-            <div className="mt-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                Assigned to: <strong>{assignedUser.name}</strong>
-              </p>
-            </div>
-          )}
+          <MultiUserSelect
+            users={users}
+            selectedUsers={form.assignedTo}
+            onSelectedUsersChange={(selected) => setForm({ ...form, assignedTo: selected })}
+            required={!isPersonalTask}
+            error={errors.assignedTo}
+            label="Assign To"
+            placeholder="Search and select users..."
+          />
         </div>
 
         {/* Department */}

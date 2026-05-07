@@ -485,17 +485,20 @@ export const tasksController = {
     }
   },
 
-  // Reassign task to another user
+  // Reassign task to another user or multiple users
   async reassignTask(req, res) {
     try {
       const { id } = req.params;
-      const { newAssigneeId, reason } = req.body;
+      const { assignedTo, newAssigneeId, reason } = req.body;
 
-      if (!newAssigneeId) {
-        return sendError(res, 'New assignee ID is required', 400);
+      // Support both assignedTo (array) and newAssigneeId (single ID) for backward compatibility
+      const assigneesToUse = assignedTo || (newAssigneeId ? [newAssigneeId] : null);
+
+      if (!assigneesToUse || (Array.isArray(assigneesToUse) && assigneesToUse.length === 0)) {
+        return sendError(res, 'At least one assignee is required', 400);
       }
 
-      const task = await tasksService.reassignTask(id, newAssigneeId, reason, req.user.id);
+      const task = await tasksService.reassignTask(id, assigneesToUse, reason, req.user.id);
 
       // 🔔 Emit socket event
       notifyTaskUpdated(task, req.user.id);
@@ -511,7 +514,7 @@ export const tasksController = {
         metadata: { 
           taskId: task._id, 
           title: task.title, 
-          newAssigneeId, 
+          assignedTo: assigneesToUse, 
           reason: reason || 'No reason provided'
         },
         ipAddress: req.ip,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History, MessageSquare, Send, Trash2, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
+import MultiUserSelect from '../../components/ui/MultiUserSelect.jsx';
 import { taskService } from './taskService.js';
 import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
@@ -41,7 +42,7 @@ export default function TaskDetailsModal({
   const [holdReason, setHoldReason] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [completionRemark, setCompletionRemark] = useState('');
-  const [selectedAssignee, setSelectedAssignee] = useState(null);
+  const [selectedAssignees, setSelectedAssignees] = useState([]);
   const [timeline, setTimeline] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [users, setUsers] = useState([]);
@@ -65,7 +66,9 @@ export default function TaskDetailsModal({
     const isHR = currentUser.role === 'HR';
     const isTaskAssigner = task.assignedBy?._id === currentUser._id || task.assignedBy?.id === currentUser._id;
     const isCompletingEmployee = task.completedBy?._id === currentUser._id || task.completedBy?.id === currentUser._id;
-    const isCurrentEmployee = task.assignedTo?._id === currentUser._id || task.assignedTo?.id === currentUser._id;
+    const isCurrentEmployee = task.assignedTo && Array.isArray(task.assignedTo) 
+      ? task.assignedTo.some(a => a._id === currentUser._id || a.id === currentUser._id)
+      : task.assignedTo?._id === currentUser._id || task.assignedTo?.id === currentUser._id;
     
     return isAdmin || isHR || isTaskAssigner || isCompletingEmployee || isCurrentEmployee;
   };
@@ -83,8 +86,14 @@ export default function TaskDetailsModal({
 
   // Fetch users when reassign modal opens
   useEffect(() => {
-    if (showReassignModal && users.length === 0) {
-      fetchUsers();
+    if (showReassignModal) {
+      if (users.length === 0) {
+        fetchUsers();
+      }
+      // Initialize selected assignees with current task assignees
+      if (task?.assignedTo && Array.isArray(task.assignedTo)) {
+        setSelectedAssignees(task.assignedTo);
+      }
     }
   }, [showReassignModal]);
 
@@ -273,17 +282,18 @@ export default function TaskDetailsModal({
   };
 
   const handleReassignTask = async () => {
-    if (!selectedAssignee) {
-      toast({ title: 'Please select an assignee', type: 'error' });
+    if (!selectedAssignees || selectedAssignees.length === 0) {
+      toast({ title: 'Please select at least one assignee', type: 'error' });
       return;
     }
 
     setIsProcessing(true);
     try {
-      await taskService.reassignTask(task._id, selectedAssignee, reassignReason);
+      const assigneeIds = selectedAssignees.map(a => a._id || a);
+      await taskService.reassignTask(task._id, assigneeIds, reassignReason);
       toast({ title: 'Task reassigned successfully', type: 'success' });
       setShowReassignModal(false);
-      setSelectedAssignee(null);
+      setSelectedAssignees([]);
       setReassignReason('');
       if (onStatusChange) {
         await onStatusChange(task._id, task.status);
@@ -970,26 +980,17 @@ export default function TaskDetailsModal({
               <Card className="w-full max-w-md">
                 <div className="p-6 space-y-4">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Reassign Task</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Select new assignee and provide reason</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Select assignees and provide reason</p>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">New Assignee (Department Members)</label>
-                    <select
-                      value={selectedAssignee || ''}
-                      onChange={(e) => setSelectedAssignee(e.target.value)}
-                      disabled={usersLoading}
-                      className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-50"
-                    >
-                      <option value="">
-                        {usersLoading ? 'Loading department members...' : users.length === 0 ? 'No department members found' : 'Select assignee...'}
-                      </option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>
-                          👤 {user.name || user.email}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <MultiUserSelect
+                    users={users}
+                    selectedUsers={selectedAssignees}
+                    onSelectedUsersChange={setSelectedAssignees}
+                    required={true}
+                    label="Assignees (Department Members)"
+                    placeholder="Search and select users..."
+                    loading={usersLoading}
+                  />
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Reason (Optional)</label>
@@ -1007,7 +1008,7 @@ export default function TaskDetailsModal({
                       variant="outline"
                       onClick={() => {
                         setShowReassignModal(false);
-                        setSelectedAssignee(null);
+                        setSelectedAssignees([]);
                         setReassignReason('');
                       }}
                     >
@@ -1015,7 +1016,7 @@ export default function TaskDetailsModal({
                     </Button>
                     <Button
                       onClick={handleReassignTask}
-                      disabled={isProcessing || !selectedAssignee}
+                      disabled={isProcessing || selectedAssignees.length === 0}
                       className="bg-blue-500 hover:bg-blue-600"
                     >
                       {isProcessing ? 'Reassigning...' : 'Reassign'}

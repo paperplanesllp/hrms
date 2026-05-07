@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Plus, Trash2, Upload, FileText, Image, File, CheckCircle2, AlertCircle } from 'lucide-react';
 import Button from '../../../components/ui/Button.jsx';
 import Input from '../../../components/ui/Input.jsx';
+import MultiUserSelect from '../../../components/ui/MultiUserSelect.jsx';
 import { toast } from '../../../store/toastStore.js';
 import { useAuthStore } from '../../../store/authStore.js';
 import api from '../../../lib/api.js';
@@ -38,7 +39,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
     dueDate: getDefaultDueDate(),
     estimatedHours: '',
     estimatedMinutes: '',
-    assignedTo: '',
+    assignedTo: [],
     department: '',
     tags: [],
     subtasks: [],
@@ -47,15 +48,18 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
   const [errors, setErrors] = useState({});
 
-  // Auto-fill department when employee is selected
-  const handleAssigneeChange = (userId) => {
-    setFormData({ ...formData, assignedTo: userId });
-    
-    const selectedUser = users.find(u => u._id === userId);
+  // Auto-fill department from the first selected employee
+  const handleAssigneesChange = (selectedUsers) => {
+    const assignedTo = selectedUsers.map(user => user._id);
+    setFormData(prev => ({ ...prev, assignedTo }));
+
+    const selectedUser = selectedUsers[0];
     if (selectedUser && selectedUser.department) {
       const deptId = typeof selectedUser.department === 'object' ? selectedUser.department._id : selectedUser.department;
       setFormData(prev => ({ ...prev, department: deptId }));
       console.log('✅ [Modal] Department auto-filled:', deptId);
+    } else if (selectedUsers.length === 0) {
+      setFormData(prev => ({ ...prev, department: '' }));
     }
   };
 
@@ -167,8 +171,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
     if (hours <= 0 && minutes <= 0) {
       newErrors.estimatedTime = 'Required time is mandatory';
     }
-    if (!formData.assignedTo) {
-      newErrors.assignedTo = 'Please assign the task to someone';
+    if (!formData.assignedTo || formData.assignedTo.length === 0) {
+      newErrors.assignedTo = 'Please assign the task to at least one person';
     }
 
     // Validate remarks for completed tasks
@@ -252,7 +256,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       console.log('✅ [CreateTaskModal] Task created successfully:', response.data);
       toast({
         title: 'Task created successfully',
-        description: `"${formData.title}" has been assigned to the team`,
+        description: `"${formData.title}" has been assigned to ${selectedAssigneeNames || 'the team'}`,
         type: 'success'
       });
 
@@ -270,7 +274,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         dueDate: defaultDate,
         estimatedHours: '',
         estimatedMinutes: '',
-        assignedTo: '',
+        assignedTo: [],
         department: '',
         tags: [],
         subtasks: [],
@@ -307,10 +311,14 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   if (!isOpen) return null;
 
   // Ensure current user is always in the list
-  const usersForDropdown = (users.length > 0 ? users : []).filter(u => 
-    !u.name?.includes('Voice Call Test') && !u.name?.includes('Debug User')
-  );
-  const currentUserExists = usersForDropdown.some(u => u._id === currentUser?.id || u._id === currentUser?._id);
+  const currentUserId = currentUser?.id || currentUser?._id;
+  const usersForDropdown = (users.length > 0 ? users : [])
+    .filter(u => !u.name?.includes('Voice Call Test') && !u.name?.includes('Debug User'))
+    .map(u => ({
+      ...u,
+      isCurrentUser: u._id === currentUserId
+    }));
+  const currentUserExists = usersForDropdown.some(u => u._id === currentUserId);
   
   // If current user not in list, add them at the top
   if (currentUser && !currentUserExists) {
@@ -318,12 +326,14 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
       _id: currentUser.id || currentUser._id,
       name: currentUser.name,
       email: currentUser.email,
-      department: currentUser.department
+      department: currentUser.department,
+      isCurrentUser: true
     });
   }
 
   // Get selected assignee info
-  const selectedAssignee = usersForDropdown.find(u => u._id === formData.assignedTo);
+  const selectedAssignees = usersForDropdown.filter(u => formData.assignedTo.includes(u._id));
+  const selectedAssigneeNames = selectedAssignees.map(u => u.name || u.email).join(', ');
   const selectedDept = departments.find(d => d._id === formData.department);
 
   return (
@@ -493,17 +503,36 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
               <div>
                 <label className="block mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                   Assign To <span className="text-red-500">*</span>
+                  {formData.assignedTo.length > 0 && (
+                    <span className="ml-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                      {formData.assignedTo.length} selected
+                    </span>
+                  )}
                 </label>
+                <MultiUserSelect
+                  users={usersForDropdown}
+                  selectedUsers={selectedAssignees}
+                  onSelectedUsersChange={handleAssigneesChange}
+                  label=""
+                  error={errors.assignedTo}
+                  placeholder="Search and select one or more users..."
+                />
                 <select
+                  multiple
+                  size="6"
                   value={formData.assignedTo}
-                  onChange={(e) => handleAssigneeChange(e.target.value)}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg transition dark:bg-slate-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 ${
+                  onChange={(e) => handleAssigneesChange(
+                    Array.from(e.target.selectedOptions)
+                      .map(option => usersForDropdown.find(u => u._id === option.value))
+                      .filter(Boolean)
+                  )}
+                  className={`hidden ${
                     errors.assignedTo 
                       ? 'border-red-500 dark:border-red-400' 
                       : 'border-slate-200 dark:border-slate-600'
                   }`}
                 >
-                  <option value="">Select a user...</option>
+                  <option value="" disabled>Select one or more users...</option>
                   {usersForDropdown.map((u) => {
                     const isYou = u._id === currentUser?.id || u._id === currentUser?._id;
                     return (
@@ -513,7 +542,6 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                     );
                   })}
                 </select>
-                {errors.assignedTo && <p className="flex items-center gap-1 mt-1 text-xs text-red-500"><AlertCircle size={12} /> {errors.assignedTo}</p>}
               </div>
 
               <div>
@@ -687,7 +715,7 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
                 <h3 className="mb-3 font-bold text-slate-900 dark:text-white">Preview</h3>
                 <div className="space-y-2 text-sm">
                   <p><span className="font-semibold">Title:</span> {formData.title}</p>
-                  <p><span className="font-semibold">Assigned To:</span> {selectedAssignee?.name || 'Not selected'}</p>
+                  <p><span className="font-semibold">Assigned To:</span> {selectedAssigneeNames || 'Not selected'}</p>
                   <p><span className="font-semibold">Priority:</span> <span className={`px-2 py-1 rounded text-xs font-bold ${PRIORITY_COLORS[formData.priority]}`}>{getPriorityIcon(formData.priority)} {formData.priority}</span></p>
                   <p><span className="font-semibold">Due Date:</span> {formData.dueDate || 'Not set'}</p>
                   <p><span className="font-semibold">Required Time:</span> {formData.estimatedHours || '0'}h {formData.estimatedMinutes || '0'}m</p>
