@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Spinner from "../../components/ui/Spinner.jsx";
@@ -13,6 +14,7 @@ import {
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { TrendingUp, Calendar, Users, AlertCircle, BarChart3, PieChart } from "lucide-react";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 
 export default function AdminAnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
@@ -24,9 +26,8 @@ export default function AdminAnalyticsDashboard() {
     return (Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals)).toFixed(decimals) + '%';
   };
 
-  useEffect(() => {
-    const loadAnalytics = async () => {
-      setLoading(true);
+  const loadAnalytics = async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
       try {
         const res = await api.get("/dashboard/analytics", {
           params: { range: timeRange }
@@ -40,12 +41,19 @@ export default function AdminAnalyticsDashboard() {
           type: "error"
         });
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
-    
+
+  useEffect(() => {
     loadAnalytics();
   }, [timeRange]);
+
+  const analyticsRefresh = useAutoRefresh(
+    () => loadAnalytics({ silent: true }),
+    30000,
+    { enabled: !loading }
+  );
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -60,9 +68,13 @@ export default function AdminAnalyticsDashboard() {
             <p className="text-[var(--text-muted)] mt-1">Executive insights into HR metrics, attendance, payroll, and team performance</p>
           </div>
         </div>
+        <RefreshStatus
+          isRefreshing={analyticsRefresh.isRefreshing}
+          lastUpdatedAt={analyticsRefresh.lastUpdatedAt}
+        />
         
         {/* Time Range Filter */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 mt-4">
           {["daily", "week", "month", "quarter", "year"].map((range) => (
             <button
               key={range}

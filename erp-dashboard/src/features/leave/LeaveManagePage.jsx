@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
@@ -11,6 +12,7 @@ import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 import { CheckCircle, XCircle, Calendar, User, Mail, Clock, Search, Filter } from "lucide-react";
 
 export default function LeaveManagePage() {
@@ -25,9 +27,9 @@ export default function LeaveManagePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [rejectionModal, setRejectionModal] = useState({ isOpen: false, leaveId: null, employeeName: "" });
 
-  const load = async () => {
+  const load = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       
@@ -43,7 +45,7 @@ export default function LeaveManagePage() {
     } catch {
       setItems([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -61,6 +63,12 @@ export default function LeaveManagePage() {
       window.removeEventListener('leaveStatusUpdate', handleNewRequest);
     };
   }, [searchTerm]);
+
+  const leaveRefresh = useAutoRefresh(
+    () => load({ silent: true }),
+    60000,
+    { enabled: Boolean(user) && !rejectionModal.isOpen }
+  );
 
   useEffect(() => {
     // Auto-scroll to highlighted item
@@ -114,7 +122,6 @@ export default function LeaveManagePage() {
 
   // Separate pending requests for quick action queue
   const pendingRequests = items.filter(item => item.status === 'PENDING');
-  const otherRequests = items.filter(item => item.status !== 'PENDING');
 
   const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -137,6 +144,10 @@ export default function LeaveManagePage() {
       <PageTitle 
         title={isAdmin ? "HR Leave Requests" : "Leave Management Center"} 
         subtitle={isAdmin ? "Approve or reject leave requests from HR staff members" : "Quick-action approval system for efficient leave management"} 
+      />
+      <RefreshStatus
+        isRefreshing={leaveRefresh.isRefreshing}
+        lastUpdatedAt={leaveRefresh.lastUpdatedAt}
       />
 
       {/* Search and Filter Bar */}

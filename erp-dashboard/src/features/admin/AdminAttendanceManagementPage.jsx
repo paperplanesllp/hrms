@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Spinner from "../../components/ui/Spinner.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import {
   Search,
@@ -199,11 +201,11 @@ export default function AdminAttendanceManagementPage() {
     }
   }, [displayedEmployees, selectedEmployee?._id]);
 
-  const loadAttendanceRecords = async (employee, monthDate) => {
+  const loadAttendanceRecords = async (employee, monthDate, { silent = false } = {}) => {
     if (!employee?._id) return;
 
     try {
-      setRecordsLoading(true);
+      if (!silent) setRecordsLoading(true);
       const { from, to } = getMonthRange(monthDate);
 
       const [res, eventsRes] = await Promise.all([
@@ -228,7 +230,7 @@ export default function AdminAttendanceManagementPage() {
       toast({ title: "Failed to load attendance records", type: "error" });
       console.error("Error loading attendance:", error);
     } finally {
-      setRecordsLoading(false);
+      if (!silent) setRecordsLoading(false);
     }
   };
 
@@ -237,6 +239,12 @@ export default function AdminAttendanceManagementPage() {
       loadAttendanceRecords(selectedEmployee, activeMonth);
     }
   }, [selectedEmployee, activeMonth, workingDays]);
+
+  const attendanceRefresh = useAutoRefresh(
+    () => loadAttendanceRecords(selectedEmployee, activeMonth, { silent: true }),
+    15000,
+    { enabled: Boolean(selectedEmployee?._id) && !showEditModal }
+  );
 
   const handleEditRecord = (record) => {
     setEditingRecord(record);
@@ -412,6 +420,10 @@ export default function AdminAttendanceManagementPage() {
       <PageTitle
         title="Attendance Management (Admin)"
         subtitle="View and manually edit all employee attendance records. Admin-level access for system issue corrections."
+      />
+      <RefreshStatus
+        isRefreshing={attendanceRefresh.isRefreshing}
+        lastUpdatedAt={attendanceRefresh.lastUpdatedAt}
       />
 
       {loading ? (

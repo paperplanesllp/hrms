@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Button from "../../components/ui/Button.jsx";
@@ -13,6 +14,7 @@ import { useAuthStore } from "../../store/authStore.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import { ROLES } from "../../app/constants.js";
 import { getDerivedPresenceStatus, getAvatarDotStyle, formatExactTimestamp } from "../../lib/presenceUtils.js";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 import { 
   Users, 
   Shield, 
@@ -303,9 +305,9 @@ export default function UsersPage() {
     }
   };
 
-  const load = async () => {
+  const load = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const canManageTemporaryApprovals =
         currentUser?.role === ROLES.ADMIN || currentUser?.role === ROLES.HR;
 
@@ -326,7 +328,7 @@ export default function UsersPage() {
         : "Failed to load users. Please try again.";
       toast({ title: message, type: "error" });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -517,6 +519,12 @@ export default function UsersPage() {
     load();
     loadDepartments();
   }, []);
+
+  const usersRefresh = useAutoRefresh(
+    () => load({ silent: true }),
+    15000,
+    { enabled: Boolean(currentUser) && !showCreateModal && !showEditModal && !showProfileModal }
+  );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -794,6 +802,11 @@ export default function UsersPage() {
             {presenceCounts.online} online now
           </span>
         )}
+        <RefreshStatus
+          isRefreshing={usersRefresh.isRefreshing}
+          lastUpdatedAt={usersRefresh.lastUpdatedAt}
+          className="ml-auto"
+        />
       </div>
 
       <UserManagementTable

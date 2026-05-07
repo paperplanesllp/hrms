@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import StatCard from "../../components/common/StatCard.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
@@ -14,6 +15,7 @@ import { getSocket } from "../../lib/socket.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import QuickAttendanceMarking from "./QuickAttendanceMarking.jsx";
 import { taskService } from "../tasks/taskService.js";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 import { Users, TrendingUp, Clock, AlertCircle, CheckCircle, XCircle, Eye, LogIn, LogOut, Timer, Home, Calendar, DollarSign, AlertTriangle, TrendingDown, BarChart3 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -34,8 +36,6 @@ export default function DashboardPage() {
 
   const [recentNews, setRecentNews] = useState([]);
   const [recentUpdates, setRecentUpdates] = useState([]);
-  const [absentEmployees, setAbsentEmployees] = useState([]);
-  const [absentLoading, setAbsentLoading] = useState(false);
   const [statEmployeeNames, setStatEmployeeNames] = useState({
     presentToday: [],
     shortHoursToday: [],
@@ -256,16 +256,16 @@ export default function DashboardPage() {
   }, []);
 
   // Load pending tasks from API
-  const loadPendingTasks = async () => {
+  const loadPendingTasks = async ({ silent = false } = {}) => {
     try {
-      setTasksLoading(true);
+      if (!silent) setTasksLoading(true);
       const tasks = await taskService.getDashboardTasks(3);
       setPendingTasks(tasks || []);
     } catch (error) {
       console.error("Error loading tasks:", error);
       setPendingTasks([]);
     } finally {
-      setTasksLoading(false);
+      if (!silent) setTasksLoading(false);
     }
   };
 
@@ -293,9 +293,8 @@ export default function DashboardPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+  const loadDashboard = useCallback(async ({ silent = false, includePayroll = true } = {}) => {
+      if (!silent) setLoading(true);
       try {
         // For regular staff users, don't fetch activity timeline (no access)
         // For HR/Admin, fetch appropriate role-based timeline
@@ -303,7 +302,9 @@ export default function DashboardPage() {
         let absentPromise = Promise.resolve({ data: [] });
         let todayAttendancePromise = Promise.resolve({ data: [] });
         let pendingLeavesPromise = Promise.resolve({ data: [] });
-        let payrollPromise = api.get("/payroll/my").catch(() => Promise.resolve({ data: [] }));
+        let payrollPromise = includePayroll
+          ? api.get("/payroll/my").catch(() => Promise.resolve({ data: [] }))
+          : Promise.resolve({ data: null });
         
         if (isAdmin || isHR) {
           const activityEndpoint = isAdmin ? "/activity/admin-timeline?limit=20" : "/activity/hr-timeline?limit=20";
@@ -323,9 +324,11 @@ export default function DashboardPage() {
           pendingLeavesPromise = api.get("/leave").catch(() =>
             Promise.resolve({ data: [] })
           );
-          payrollPromise = api.get("/payroll").catch(() =>
-            Promise.resolve({ data: [] })
-          );
+          payrollPromise = includePayroll
+            ? api.get("/payroll").catch(() =>
+                Promise.resolve({ data: [] })
+              )
+            : Promise.resolve({ data: null });
         }
 
         const [s, n, u, lb, ae, todayAttendanceRes, pendingLeavesRes, payrollRes] = await Promise.all([
@@ -338,7 +341,7 @@ export default function DashboardPage() {
           pendingLeavesPromise,
           payrollPromise,
         ]);
-        setStats(s.data || stats);
+        setStats((prev) => s.data || prev);
         setRecentNews(n.data || []);
         
         // Handle both activity logs and audit logs formats
@@ -350,18 +353,16 @@ export default function DashboardPage() {
           setLeaveBalance(lb.data);
         }
 
-        const payrollRows = Array.isArray(payrollRes?.data)
-          ? payrollRes.data
-          : Array.isArray(payrollRes?.data?.data)
-            ? payrollRes.data.data
-            : [];
-        setPayrollInfo(buildPayrollInfo(payrollRows));
+        if (includePayroll) {
+          const payrollRows = Array.isArray(payrollRes?.data)
+            ? payrollRes.data
+            : Array.isArray(payrollRes?.data?.data)
+              ? payrollRes.data.data
+              : [];
+          setPayrollInfo(buildPayrollInfo(payrollRows));
+        }
         
         // Update absent employees
-        if (ae.data && Array.isArray(ae.data)) {
-          setAbsentEmployees(ae.data);
-        }
-
         if (isAdmin || isHR) {
           const todayRows = Array.isArray(todayAttendanceRes?.data) ? todayAttendanceRes.data : [];
           const pendingLeaves = Array.isArray(pendingLeavesRes?.data) ? pendingLeavesRes.data : [];
@@ -420,12 +421,32 @@ export default function DashboardPage() {
       } catch {
         // if backend doesn't have these endpoints yet, UI still loads nicely
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
-    };
-    load();
+    }, [isAdmin, isHR]);
+
+  useEffect(() => {
+    loadDashboard({ includePayroll: true });
     loadAttendanceStatus();
-  }, [isAdmin, isHR]);
+  }, [loadDashboard]);
+
+  const dashboardRefresh = useAutoRefresh(
+    () => loadDashboard({ silent: true, includePayroll: false }),
+    30000,
+    { enabled: Boolean(user) && !loading }
+  );
+
+  const attendanceRefresh = useAutoRefresh(
+    loadAttendanceStatus,
+    15000,
+    { enabled: Boolean(user) && !attendanceLoading }
+  );
+
+  useAutoRefresh(
+    () => loadPendingTasks({ silent: true }),
+    30000,
+    { enabled: Boolean(user) && !tasksLoading }
+  );
 
   // Set up real-time leave balance updates via Socket.io
   useEffect(() => {
@@ -492,6 +513,15 @@ export default function DashboardPage() {
         title="Dashboard Overview"
         subtitle="Monitor attendance, leave requests, payroll, and company announcements at a glance."
       />
+      <div className="flex flex-wrap items-center gap-2">
+        <RefreshStatus
+          isRefreshing={dashboardRefresh.isRefreshing || attendanceRefresh.isRefreshing}
+          lastUpdatedAt={dashboardRefresh.lastUpdatedAt || attendanceRefresh.lastUpdatedAt}
+        />
+        <span className="text-xs font-medium text-slate-500">
+          Payroll data refreshes manually to avoid unnecessary heavy calls.
+        </span>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center h-96">

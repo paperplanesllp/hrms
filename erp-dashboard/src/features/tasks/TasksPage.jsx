@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore.js';
 import { toast } from '../../store/toastStore.js';
 import api from '../../lib/api.js';
 import PageTitle from '../../components/common/PageTitle.jsx';
+import RefreshStatus from '../../components/common/RefreshStatus.jsx';
 import Button from '../../components/ui/Button.jsx';
 import CreateTaskModal from './modals/CreateTaskModal.jsx';
 import TasksTabNavigation from './TasksTabNavigation.jsx';
@@ -14,6 +15,7 @@ import AssignedTasksSection from './sections/AssignedTasksSection.jsx';
 import TaskReportsSection from './sections/TaskReportsSection.jsx';
 import { TaskRefreshProvider, useTaskRefresh } from './context/TaskRefreshContext.jsx';
 import { useTaskSocketListener } from './hooks/useTaskSocketListener.js';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh.js';
 
 export default function TasksPage() {
   return (
@@ -36,6 +38,13 @@ function TasksPageInner() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const tasksRefresh = useAutoRefresh(
+    async () => {
+      triggerRefresh();
+    },
+    30000,
+    { enabled: Boolean(user && accessToken) && !isCreateModalOpen }
+  );
 
   // Check authentication on mount
   useEffect(() => {
@@ -56,7 +65,7 @@ function TasksPageInner() {
   }, [accessToken, user, navigate]);
 
   // Load users and departments for task form
-  const loadFormData = async () => {
+  async function loadFormData() {
     try {
       console.log('📥 [TasksPage] Loading users and departments...');
       const [usersRes, deptsRes] = await Promise.all([
@@ -75,10 +84,10 @@ function TasksPageInner() {
     } catch (err) {
       console.error('❌ [TasksPage] Error loading form data:', err);
     }
-  };
+  }
 
   // Callback when a task is created
-  const handleTaskCreated = (newTask) => {
+  const handleTaskCreated = () => {
     console.log('📝 [TasksPage] Task created, triggering global refresh');
     triggerRefresh();
   };
@@ -163,6 +172,12 @@ function TasksPageInner() {
 
       {/* Premium Tab Navigation */}
       <div className="mb-10">
+        <div className="mb-4">
+          <RefreshStatus
+            isRefreshing={tasksRefresh.isRefreshing}
+            lastUpdatedAt={tasksRefresh.lastUpdatedAt}
+          />
+        </div>
         <TasksTabNavigation 
           tabs={tabs}
           activeTab={activeTab}

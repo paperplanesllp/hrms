@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Button from "../../components/ui/Button.jsx";
@@ -8,6 +9,7 @@ import Input from "../../components/ui/Input.jsx";
 import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { Filter, Download, RefreshCw } from "lucide-react";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 
 export default function AdminAttendancePage() {
   const [loading, setLoading] = useState(true);
@@ -37,8 +39,8 @@ export default function AdminAttendancePage() {
     }
   };
 
-  const loadAttendance = async () => {
-    setLoading(true);
+  const loadAttendance = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const params = {};
       if (filters.userId) params.userId = filters.userId;
@@ -56,7 +58,7 @@ export default function AdminAttendancePage() {
         : "Failed to load attendance logs. Please try again.";
       toast({ title: message, type: "error" });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -64,6 +66,12 @@ export default function AdminAttendancePage() {
     loadUsers();
     loadAttendance();
   }, []);
+
+  const attendanceRefresh = useAutoRefresh(
+    () => loadAttendance({ silent: true }),
+    15000,
+    { enabled: !loading }
+  );
 
   const handleFilter = () => {
     loadAttendance();
@@ -106,6 +114,10 @@ export default function AdminAttendancePage() {
             Refresh
           </Button>
         }
+      />
+      <RefreshStatus
+        isRefreshing={attendanceRefresh.isRefreshing}
+        lastUpdatedAt={attendanceRefresh.lastUpdatedAt}
       />
 
       {/* Summary Stats */}

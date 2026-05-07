@@ -3,13 +3,33 @@ import { useAuthStore } from "../../store/authStore.js";
 import { useNotificationStore } from "../../store/enterpriseNotificationStore.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import { getAuth } from "../../lib/auth.js";
-import { initializeSocket, disconnectSocket, getCachedPresenceInit, triggerUserActivity } from "../../lib/socket.js";
+import { initializeSocket, disconnectSocket, getCachedPresenceInit, isSocketConnected, triggerUserActivity } from "../../lib/socket.js";
 import api from "../../lib/api.js";
 import { ensurePushSubscription } from "../../lib/pushNotifications.js";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 
 export default function SocketProvider({ children }) {
   const userId = useAuthStore((s) => s.user?._id || s.user?.id || null);
   const presenceInitialized = useRef(false);
+
+  useAutoRefresh(
+    async () => {
+      await useNotificationStore.getState().fetchNotifications();
+    },
+    10000,
+    { enabled: Boolean(userId) }
+  );
+
+  useAutoRefresh(
+    async () => {
+      if (isSocketConnected()) return;
+      const res = await api.get("/users");
+      const users = Array.isArray(res.data) ? res.data : res.data?.users || [];
+      usePresenceStore.getState().initializeUsers(users);
+    },
+    10000,
+    { enabled: Boolean(userId) }
+  );
 
   // Bridge socket presence events to Zustand presenceStore
   useEffect(() => {

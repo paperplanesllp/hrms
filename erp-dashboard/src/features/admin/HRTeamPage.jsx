@@ -10,6 +10,7 @@ import {
 } from "../../lib/presenceUtils.js";
 import { toast } from "../../store/toastStore.js";
 import PageTitle from "../../components/common/PageTitle.jsx";
+import RefreshStatus from "../../components/common/RefreshStatus.jsx";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Button from "../../components/ui/Button.jsx";
@@ -40,6 +41,7 @@ import HRDiscussionPanel from "./HRDiscussionPanel.jsx";
 import HRMeetingPanel from "./HRMeetingPanel.jsx";
 import HRActivityFeed from "./HRActivityFeed.jsx";
 import HRTimelineFeed from "./HRTimelineFeed.jsx";
+import { useAutoRefresh } from "../../hooks/useAutoRefresh.js";
 
 const initialHRForm = {
   name: "",
@@ -89,9 +91,9 @@ export default function HRTeamPage() {
   const [createHRLoading, setCreateHRLoading] = useState(false);
   const [hrForm, setHRForm] = useState(initialHRForm);
 
-  const loadHRTeamData = async () => {
+  const loadHRTeamData = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const [teamRes, discussionsRes, meetingsRes, activityRes] =
         await Promise.all([
@@ -113,7 +115,7 @@ export default function HRTeamPage() {
         type: "error",
       });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -159,6 +161,12 @@ export default function HRTeamPage() {
   useEffect(() => {
     loadHRTeamData();
   }, []);
+
+  const hrTeamRefresh = useAutoRefresh(
+    () => loadHRTeamData({ silent: true }),
+    10000,
+    { enabled: !showCreateHRModal }
+  );
 
   useEffect(() => {
     if (!socket) return;
@@ -312,6 +320,11 @@ export default function HRTeamPage() {
       <PageTitle
         title="HR Team Hub"
         subtitle="Unified HR collaboration, team management, discussions, and meetings"
+      />
+      <RefreshStatus
+        isRefreshing={hrTeamRefresh.isRefreshing}
+        lastUpdatedAt={hrTeamRefresh.lastUpdatedAt}
+        className="bg-slate-950/80 text-slate-200 border-slate-700"
       />
 
       <div
