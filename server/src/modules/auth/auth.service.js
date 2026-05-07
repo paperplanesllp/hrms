@@ -29,6 +29,59 @@ function hashOtp(code) {
   return crypto.createHash("sha256").update(code).digest("hex");
 }
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const ACCOUNT_LOCK_MS = 15 * 60 * 1000;
+const LOCKED_LOGIN_MESSAGE =
+  "Account temporarily locked due to multiple failed login attempts. Please try again later.";
+
+function getLoginAttempts(user) {
+  return Math.max(user.loginAttempts || 0, user.failedLoginAttempts || 0);
+}
+
+async function resetAccountLock(user) {
+  user.loginAttempts = 0;
+  user.failedLoginAttempts = 0;
+  user.lockUntil = null;
+  user.isLocked = false;
+  user.accountLocked = false;
+  await user.save();
+}
+
+async function autoUnlockIfExpired(user, now = new Date()) {
+  if ((user.isLocked || user.accountLocked) && user.lockUntil && user.lockUntil <= now) {
+    await resetAccountLock(user);
+    return true;
+  }
+
+  return false;
+}
+
+async function registerFailedLogin(user, reason = "invalid_password") {
+  const attempts = getLoginAttempts(user) + 1;
+  const now = new Date();
+
+  user.loginAttempts = attempts;
+  user.failedLoginAttempts = attempts;
+  user.lastFailedLoginAt = now;
+
+  if (attempts >= MAX_LOGIN_ATTEMPTS) {
+    user.isLocked = true;
+    user.accountLocked = true;
+    user.lockUntil = new Date(now.getTime() + ACCOUNT_LOCK_MS);
+  }
+
+  await user.save();
+
+  console.warn("[AUTH] Failed login attempt", {
+    userId: String(user._id),
+    email: user.email,
+    reason,
+    attempts,
+    locked: user.isLocked,
+    lockUntil: user.lockUntil,
+  });
+}
+
 export async function signup({ name, email, phone, password, rememberMe = true }) {
   console.log("🔄 SIGNUP SERVICE STARTED with:", { name, email, phone });
   
@@ -104,7 +157,8 @@ export async function signup({ name, email, phone, password, rememberMe = true }
  * If 2FA is enabled: Returns response indicating OTP verification needed
  */
 export async function login(email, password, rememberMe = true) {
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = String(email || "").toLowerCase().trim();
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
 
   if (user.role === ROLES.SUPERADMIN) {
@@ -118,32 +172,22 @@ export async function login(email, password, rememberMe = true) {
     );
   }
 
-  // Check if account is locked
-  if (user.accountLocked && user.lockUntil && user.lockUntil > new Date()) {
-    throw new ApiError(StatusCodes.LOCKED, "Account temporarily locked due to failed login attempts");
+  // Check if account is locked. Expired locks are cleared lazily on the next login attempt.
+  await autoUnlockIfExpired(user);
+  if ((user.isLocked || user.accountLocked) && user.lockUntil && user.lockUntil > new Date()) {
+    throw new ApiError(StatusCodes.LOCKED, LOCKED_LOGIN_MESSAGE);
   }
 
   // Verify password
   const ok = await user.comparePassword(password);
   if (!ok) {
-    // Increment failed attempts
-    user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-    
-    if (user.failedLoginAttempts >= 5) {
-      user.accountLocked = true;
-      user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    }
-    
-    await user.save();
+    await registerFailedLogin(user);
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
   }
 
   // Reset failed attempts on successful password verification
-  if (user.failedLoginAttempts > 0) {
-    user.failedLoginAttempts = 0;
-    user.accountLocked = false;
-    user.lockUntil = undefined;
-    await user.save();
+  if (getLoginAttempts(user) > 0 || user.isLocked || user.accountLocked || user.lockUntil) {
+    await resetAccountLock(user);
   }
 
   // ===== 2FA FLOW =====
@@ -180,9 +224,11 @@ export async function login(email, password, rememberMe = true) {
 
   // Mark user as active on login
   user.isActive = true;
+  user.loginAttempts = 0;
   user.failedLoginAttempts = 0;
+  user.isLocked = false;
   user.accountLocked = false;
-  user.lockUntil = undefined;
+  user.lockUntil = null;
   await user.save();
 
   const payload = {
@@ -338,6 +384,11 @@ export async function resetPassword(token, newPassword) {
   user.resetPasswordToken = "";
   user.resetPasswordExpires = undefined;
   user.refreshTokenHash = ""; // Invalidate all sessions
+  user.loginAttempts = 0;
+  user.failedLoginAttempts = 0;
+  user.isLocked = false;
+  user.accountLocked = false;
+  user.lockUntil = null;
   await user.save();
 
   return { message: "Password reset successful" };
@@ -751,18 +802,17 @@ export async function superadminLogin(email, password, rememberMe = true) {
 
   let user = await User.findOne({ email: normalizedEmail });
 
-  if (user?.accountLocked && user.lockUntil && user.lockUntil > new Date()) {
-    throw new ApiError(StatusCodes.LOCKED, "Account temporarily locked due to failed login attempts");
+  if (user) {
+    await autoUnlockIfExpired(user);
+  }
+
+  if (user && (user.isLocked || user.accountLocked) && user.lockUntil && user.lockUntil > new Date()) {
+    throw new ApiError(StatusCodes.LOCKED, LOCKED_LOGIN_MESSAGE);
   }
 
   if (normalizedEmail !== superEmail || password !== superPassword) {
     if (user) {
-      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-      if (user.failedLoginAttempts >= 5) {
-        user.accountLocked = true;
-        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
-      }
-      await user.save();
+      await registerFailedLogin(user, "invalid_superadmin_credentials");
     }
     throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid credentials");
   }
@@ -790,9 +840,11 @@ export async function superadminLogin(email, password, rememberMe = true) {
     user.passwordHash = await bcrypt.hash(superPassword, 12);
     user.accountType = "EMPLOYEE";
     user.approvalStatus = "APPROVED";
+    user.loginAttempts = 0;
     user.failedLoginAttempts = 0;
+    user.isLocked = false;
     user.accountLocked = false;
-    user.lockUntil = undefined;
+    user.lockUntil = null;
     await user.save();
   }
 

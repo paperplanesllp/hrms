@@ -18,6 +18,8 @@ const NEW_PASSWORD   = process.env.RESET_PASSWORD || "Admin@123456";
 const userSchema = new mongoose.Schema({
   email:             { type: String, lowercase: true },
   passwordHash:      { type: String },
+  loginAttempts:     { type: Number, default: 0 },
+  isLocked:          { type: Boolean, default: false },
   failedLoginAttempts: { type: Number, default: 0 },
   accountLocked:     { type: Boolean, default: false },
   lockUntil:         { type: Date },
@@ -41,9 +43,11 @@ async function resetPassword() {
 
   const hash = await bcrypt.hash(NEW_PASSWORD, 10);
   user.passwordHash        = hash;
+  user.loginAttempts       = 0;
   user.failedLoginAttempts = 0;
+  user.isLocked            = false;
   user.accountLocked       = false;
-  user.lockUntil           = undefined;
+  user.lockUntil           = null;
   await user.save();
 
   console.log(`✅  Password reset for ${ADMIN_EMAIL}`);

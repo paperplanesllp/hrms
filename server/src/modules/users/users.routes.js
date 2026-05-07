@@ -7,6 +7,7 @@ import {
 	getAllUsers,
 	getMe,
 	getUser,
+	unlockUser,
 	patchUser,
 	deleteUser,
 	updateMe,
@@ -76,6 +77,7 @@ router.get("/location/active", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), 
 
 // Admin & HR can view/edit/delete users (role-based restrictions enforced in controller)
 router.get("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), getUser);
+router.patch("/:id/unlock", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), unlockUser);
 router.patch("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), patchUser);
 router.delete("/:id", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), deleteUser);
 

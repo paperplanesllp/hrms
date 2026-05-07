@@ -88,6 +88,32 @@ export async function updateUser(id, patch) {
   return user;
 }
 
+export async function unlockUserAccount(id, companyId = null) {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid user ID");
+  }
+
+  const user = await User.findOneAndUpdate(
+    {
+      _id: id,
+      ...(companyId ? { companyId } : {}),
+    },
+    {
+      $set: {
+        loginAttempts: 0,
+        failedLoginAttempts: 0,
+        lockUntil: null,
+        isLocked: false,
+        accountLocked: false,
+      },
+    },
+    { returnDocument: "after" }
+  ).select("-passwordHash -refreshTokenHash");
+
+  if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
+  return user;
+}
+
 export async function changePassword(userId, currentPassword, newPassword) {
   const user = await User.findById(userId);
   if (!user) throw new ApiError(StatusCodes.NOT_FOUND, "User not found");

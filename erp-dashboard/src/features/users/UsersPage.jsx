@@ -6,11 +6,12 @@ import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
 import GoogleMapSelector from "../../components/ui/GoogleMapSelector.jsx";
 import api from "../../lib/api.js";
+import { userService } from "./userService.js";
+import UserManagementTable from "./UserManagementTable.jsx";
 import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import { ROLES } from "../../app/constants.js";
-import { getSocket } from "../../lib/socket.js";
 import { getDerivedPresenceStatus, getAvatarDotStyle, formatExactTimestamp } from "../../lib/presenceUtils.js";
 import { 
   Users, 
@@ -19,16 +20,13 @@ import {
   Briefcase, 
   Search, 
   Plus, 
-  Eye,
   Pencil,
-  Trash2,
   User,
   Mail,
   Phone,
   Heart,
   MapPin,
   Droplet,
-  Lock,
   X,
   Sparkles,
   Calendar,
@@ -70,14 +68,13 @@ const formatDateForDisplay = (dateString) => {
     const year = String(date.getFullYear()).slice(-2); // Last 2 digits
     
     return `${day}/${month}/${year}`;
-  } catch (err) {
+  } catch {
     return dateString; // Return original on error
   }
 };
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
-  const socket = getSocket();
   const presenceUsers = usePresenceStore(s => s.users);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -113,6 +110,7 @@ export default function UsersPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [pendingTemporaryUsers, setPendingTemporaryUsers] = useState([]);
   const [pendingActionId, setPendingActionId] = useState("");
+  const [unlockingUserId, setUnlockingUserId] = useState("");
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
   const [convertDesignations, setConvertDesignations] = useState([]);
@@ -129,6 +127,7 @@ export default function UsersPage() {
   const [approvalLocation, setApprovalLocation] = useState({ latitude: 0, longitude: 0 });
   const [editDesignations, setEditDesignations] = useState([]);
   const [editLoadingDesignations, setEditLoadingDesignations] = useState(false);
+  const [, setLockTimerTick] = useState(0);
   const [editForm, setEditForm] = useState({
     name: "", email: "", phone: "", gender: "", dateOfBirth: "",
     emergencyContact: "", maritalStatus: "", nationality: "", bloodGroup: "",
@@ -238,6 +237,26 @@ export default function UsersPage() {
         message: err?.response?.data?.message || "Please try again.",
         type: "error",
       });
+    }
+  };
+
+  const handleUnlockAccount = async (user) => {
+    setUnlockingUserId(user._id);
+    try {
+      const res = await userService.unlockAccount(user._id);
+      toast({
+        title: res?.data?.message || "Account unlocked successfully",
+        type: "success",
+      });
+      await load();
+    } catch (err) {
+      toast({
+        title: "Failed to unlock account",
+        message: err?.response?.data?.message || "Please try again.",
+        type: "error",
+      });
+    } finally {
+      setUnlockingUserId("");
     }
   };
 
@@ -499,6 +518,14 @@ export default function UsersPage() {
     loadDepartments();
   }, []);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setLockTimerTick((tick) => tick + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   // Presence counts (recompute when items or status map changes)
   const presenceCounts = useMemo(() => {
     let online = 0, away = 0, offline = 0;
@@ -541,20 +568,6 @@ export default function UsersPage() {
     admins: items.filter(u => u.role === ROLES.ADMIN).length,
     hr: items.filter(u => u.role === ROLES.HR).length,
     employees: items.filter(u => u.role === ROLES.USER).length
-  };
-
-  // Get role colors
-  const getRoleColor = (role) => {
-    switch(role) {
-      case ROLES.ADMIN:
-        return { bg: "bg-red-50", border: "border-red-300", text: "text-red-700", icon: Shield };
-      case ROLES.HR:
-        return { bg: "bg-blue-50", border: "border-blue-300", text: "text-blue-700", icon: UserCheck };
-      case ROLES.USER:
-        return { bg: "bg-green-50", border: "border-green-300", text: "text-green-700", icon: Briefcase };
-      default:
-        return { bg: "bg-gray-50", border: "border-gray-300", text: "text-gray-700", icon: Users };
-    }
   };
 
   return (
@@ -783,115 +796,17 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Staff Table */}
-      <Card className="p-6 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)] overflow-x-auto">
-        <h3 className="text-lg font-semibold text-[#0A1931] mb-4">Staff Members ({filteredItems.length})</h3>
-        <div className="border border-[#B3CFE5] rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[#0A1931] text-red-500">
-                <th className="px-6 py-4 font-semibold text-left">Name</th>
-                <th className="px-6 py-4 font-semibold text-left">Email</th>
-                <th className="px-6 py-4 font-semibold text-left">Role</th>
-                <th className="px-6 py-4 font-semibold text-center">Status</th>
-                <th className="px-6 py-4 font-semibold text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-[#70757A]">Loading staff...</td>
-                </tr>
-              ) : filteredItems.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-[#70757A]">No staff members found</td>
-                </tr>
-              ) : (
-                filteredItems.map((user, idx) => {
-                  const roleColor = getRoleColor(user.role);
-                  return (
-                    <tr key={user._id} className={`border-t border-[#B3CFE5] hover:bg-[#E6F4EA]/10 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F6FAFD]'}`}>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#0A1931] to-[#1A3D63] grid place-items-center text-white font-semibold text-sm">
-                            {user.name.slice(0, 1).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-[#0A1931]">{user.name}</p>
-                            <p className="text-xs text-[#70757A]">{user._id.slice(0, 8)}...</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-[#1A3D63]">{user.email}</td>
-                      <td className="px-6 py-4">
-                        <Badge className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${roleColor.bg} ${roleColor.border} ${roleColor.text}`}>
-                          {user.role}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {(() => {
-                          const p = getProfilePresence(user._id);
-                          const badgeMap = {
-                            'active-now': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', dot: 'bg-green-500' },
-                            'active-recently': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', dot: 'bg-green-500' },
-                            online: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-                            typing: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', dot: 'bg-blue-500' },
-                            away: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', dot: 'bg-amber-500' },
-                            offline: { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-600', dot: 'bg-slate-400' },
-                          };
-                          const s = badgeMap[p.status] || badgeMap.offline;
-                          return (
-                            <Badge className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${s.bg} ${s.border} ${s.text}`}
-                                   title={p.exactTooltip}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}></span>
-                              {p.label}
-                            </Badge>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => openProfileModal(user)}
-                            className="bg-[#4A7FA7] hover:bg-[#3a5f87] text-white border-0 shadow-sm flex items-center gap-1.5"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View Profile
-                          </Button>
-                          {(currentUser?.role === ROLES.ADMIN || (currentUser?.role === ROLES.HR && user.role === ROLES.USER)) && (
-                            <Button
-                              size="sm"
-                              onClick={() => openEditModal(user)}
-                              className="bg-amber-500 hover:bg-amber-600 text-white border-0 shadow-sm flex items-center gap-1.5"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                              Edit
-                            </Button>
-                          )}
-                          {(
-                            (currentUser?.role === ROLES.HR && user.role === ROLES.USER) ||
-                            (currentUser?.role === ROLES.ADMIN && user.role !== ROLES.ADMIN)
-                          ) && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleDeleteUser(user)}
-                              className="bg-red-500 hover:bg-red-600 text-white border-0 shadow-sm flex items-center gap-1.5"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <UserManagementTable
+        users={filteredItems}
+        loading={loading}
+        currentUser={currentUser}
+        unlockingUserId={unlockingUserId}
+        getProfilePresence={getProfilePresence}
+        onView={openProfileModal}
+        onEdit={openEditModal}
+        onUnlock={handleUnlockAccount}
+        onDelete={handleDeleteUser}
+      />
 
       {/* Approve Associate with Location Modal */}
       {showApproveLocationModal && approvingTempUser && (

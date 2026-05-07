@@ -10,6 +10,7 @@ import {
   listUsers,
   getUserById,
   updateUser,
+  unlockUserAccount,
   changePassword,
   listPendingTemporaryUsers,
   approveTemporaryUser,
@@ -299,6 +300,39 @@ export const patchUser = asyncHandler(async (req, res) => {
   }
 
   res.json({ user });
+});
+
+export const unlockUser = asyncHandler(async (req, res) => {
+  requireCompanyId(req);
+  const targetUser = await getUserById(req.params.id, req.user.companyId);
+
+  if (req.user.role === ROLES.HR && targetUser.role !== ROLES.USER) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR can only unlock employee accounts");
+  }
+
+  const user = await unlockUserAccount(req.params.id, req.user.companyId);
+
+  try {
+    await createActivityLog({
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.user.role,
+      actionType: "ADMIN_ACTION",
+      module: "ADMIN",
+      description: `Unlocked account for ${user.name} (${user.email})`,
+      targetUserId: user._id,
+      targetUserName: user.name,
+      metadata: { email: user.email },
+      visibility: "HR_ONLY",
+    });
+  } catch (logError) {
+    console.error("Failed to log account unlock activity:", logError.message);
+  }
+
+  res.json({
+    success: true,
+    message: "Account unlocked successfully",
+  });
 });
 
 // Update current user's own profile

@@ -188,6 +188,7 @@ export default function PayrollMyPage() {
 
   // Calculate total salary
   const totalSalary = Array.isArray(items) ? items.reduce((sum, item) => sum + (item.netSalary || 0), 0) : 0;
+  const latestPayslip = Array.isArray(items) && items.length > 0 ? items[0] : null;
 
   // For Admin: Show different message and button
   if (isAdmin) {
@@ -227,13 +228,25 @@ export default function PayrollMyPage() {
         title="Payroll"
         subtitle={isHR ? "Review your salary and manage employee payroll." : "Review your salary breakdowns, earnings, and deductions. Complete earnings history below."}
         actions={
-          isHR ? (
-            <Link to="/payroll/manage">
-              <Button variant="secondary" className="bg-white hover:bg-[#F6FAFD] text-[#0A1931] border border-[#B3CFE5] shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)]">
-                Manage Employee Payroll
-              </Button>
-            </Link>
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!latestPayslip}
+              onClick={() => latestPayslip && generatePayslipPDF([latestPayslip], user)}
+              className="flex items-center gap-2 bg-[#137333] hover:bg-[#0f5929] text-white"
+            >
+              <Download className="w-4 h-4" />
+              Download Latest Salary Slip
+            </Button>
+            {isHR ? (
+              <Link to="/payroll/manage">
+                <Button variant="secondary" className="bg-white hover:bg-[#F6FAFD] text-[#0A1931] border border-[#B3CFE5] shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)]">
+                  Manage Employee Payroll
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         }
       />
 

@@ -105,9 +105,13 @@ const userSchema = new mongoose.Schema(
     rememberMeEnabled: { type: Boolean, default: false }, // ✅ "Stay logged in" preference
     resetPasswordToken: { type: String, default: "" },
     resetPasswordExpires: { type: Date },
+    loginAttempts: { type: Number, default: 0, min: 0 },
+    lockUntil: { type: Date, default: null },
+    isLocked: { type: Boolean, default: false, index: true },
+    lastFailedLoginAt: { type: Date, default: null },
+    // Legacy aliases kept in sync for older modules that still read them.
     failedLoginAttempts: { type: Number, default: 0 },
     accountLocked: { type: Boolean, default: false },
-    lockUntil: { type: Date },
     // Two-Factor Authentication (2FA) fields
     otpCodeHash: { type: String, default: "" }, // Hash of OTP used for login
     otpExpiresAt: { type: Date, default: null }, // When login OTP expires
