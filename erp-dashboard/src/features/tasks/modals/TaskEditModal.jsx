@@ -3,58 +3,12 @@ import { X, Save, AlertCircle, Loader } from 'lucide-react';
 import { toast } from '../../../store/toastStore.js';
 import { PRIORITY_OPTIONS } from '../taskUtils.js';
 
-const getEstimateParts = (task) => {
-  const explicitTotal = Number(task?.estimatedTotalMinutes);
-  const rawHours = Number(task?.estimatedHours);
-  const rawMinutes = Number(task?.estimatedMinutes);
-  const safeHours = Number.isFinite(rawHours) && rawHours >= 0 ? rawHours : 0;
-  const safeMinutes = Number.isFinite(rawMinutes) && rawMinutes >= 0 ? rawMinutes : 0;
-  const label = `${task?.estimatedLabel || ''}`;
-  const labelHours = Number(label.match(/(\d+)\s*h/i)?.[1] || label.match(/(\d+)\s*hour/i)?.[1]);
-  const labelMinutes = Number(label.match(/(\d+)\s*m/i)?.[1] || label.match(/(\d+)\s*minute/i)?.[1]);
-
-  let safeTotalMinutes = 0;
-
-  if (Number.isFinite(explicitTotal) && explicitTotal > 0) {
-    safeTotalMinutes = Math.round(explicitTotal);
-  } else if (safeHours > 0 && safeMinutes < 60) {
-    safeTotalMinutes = Math.round((safeHours * 60) + safeMinutes);
-  } else if (safeMinutes > 0) {
-    safeTotalMinutes = Math.round(safeMinutes);
-  } else if (Number.isFinite(labelHours) || Number.isFinite(labelMinutes)) {
-    safeTotalMinutes = Math.round(
-      (Number.isFinite(labelHours) ? labelHours : 0) * 60 +
-      (Number.isFinite(labelMinutes) ? labelMinutes : 0)
-    );
-  } else {
-    safeTotalMinutes = Math.round(safeHours * 60);
-  }
-
-  return {
-    estimatedHours: Math.floor(safeTotalMinutes / 60),
-    estimatedMinutes: safeTotalMinutes % 60
-  };
-};
-
-const formatEstimate = (hours, minutes) => {
-  const safeHours = parseInt(hours, 10) || 0;
-  const safeMinutes = parseInt(minutes, 10) || 0;
-  if (safeHours > 0 && safeMinutes > 0) return `${safeHours}h ${safeMinutes}m`;
-  if (safeHours > 0) return `${safeHours}h`;
-  if (safeMinutes > 0) return `${safeMinutes}m`;
-  return 'No estimate set';
-};
-
 export default function TaskEditModal({ task, onClose, onSave }) {
   const [isLoading, setIsLoading] = useState(false);
-  const estimateParts = getEstimateParts(task);
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
     priority: task?.priority || 'MEDIUM',
-    dueDate: task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : '',
-    estimatedHours: estimateParts.estimatedHours,
-    estimatedMinutes: estimateParts.estimatedMinutes,
     progress: task?.progress || 0,
     tags: task?.tags || []
   });
@@ -72,23 +26,6 @@ export default function TaskEditModal({ task, onClose, onSave }) {
       setErrors(prev => ({
         ...prev,
         [name]: ''
-      }));
-    }
-  };
-
-  const handleEstimateChange = (field, value) => {
-    const parsed = parseInt(value, 10);
-    const nextValue = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-
-    setFormData(prev => ({
-      ...prev,
-      [field]: field === 'estimatedMinutes' ? Math.min(nextValue, 59) : nextValue
-    }));
-
-    if (errors.estimate) {
-      setErrors(prev => ({
-        ...prev,
-        estimate: ''
       }));
     }
   };
@@ -115,14 +52,6 @@ export default function TaskEditModal({ task, onClose, onSave }) {
     if (!formData.title.trim()) {
       newErrors.title = 'Task title is required';
     }
-    if (!formData.dueDate) {
-      newErrors.dueDate = 'Due date is required';
-    }
-    const estimatedHours = parseInt(formData.estimatedHours, 10) || 0;
-    const estimatedMinutes = parseInt(formData.estimatedMinutes, 10) || 0;
-    if (estimatedHours === 0 && estimatedMinutes === 0) {
-      newErrors.estimate = 'Estimate time must be at least 1 minute';
-    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -136,20 +65,10 @@ export default function TaskEditModal({ task, onClose, onSave }) {
 
     setIsLoading(true);
     try {
-      // Format dueDate to ISO string
-      const dueDateTime = new Date(formData.dueDate + 'T00:00:00Z');
-      const estimatedHours = parseInt(formData.estimatedHours, 10) || 0;
-      const estimatedMinutes = parseInt(formData.estimatedMinutes, 10) || 0;
-      const estimatedTotalMinutes = (estimatedHours * 60) + estimatedMinutes;
-      
       const updatePayload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         priority: formData.priority,
-        dueDate: dueDateTime.toISOString(),
-        estimatedHours,
-        estimatedMinutes,
-        estimatedTotalMinutes,
         progress: parseInt(formData.progress),
         tags: formData.tags
       };
@@ -228,9 +147,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
             />
           </div>
 
-          {/* Priority & Due Date Row */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Priority */}
+          <div>
             <div>
               <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2">
                 Priority
@@ -249,66 +166,6 @@ export default function TaskEditModal({ task, onClose, onSave }) {
                 ))}
               </select>
             </div>
-
-            {/* Due Date */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2">
-                Due Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                name="dueDate"
-                value={formData.dueDate}
-                onChange={handleInputChange}
-                disabled={isLoading}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50"
-              />
-              {errors.dueDate && (
-                <p className="mt-1 text-sm text-red-500">{errors.dueDate}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Estimate Time */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2">
-              Estimate Time <span className="text-red-500">*</span>
-            </label>
-            <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-              Current estimate: {formatEstimate(formData.estimatedHours, formData.estimatedMinutes)}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <input
-                  type="number"
-                  name="estimatedHours"
-                  min="0"
-                  step="1"
-                  value={formData.estimatedHours}
-                  onChange={(e) => handleEstimateChange('estimatedHours', e.target.value)}
-                  disabled={isLoading}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50"
-                />
-                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Hours</p>
-              </div>
-              <div>
-                <input
-                  type="number"
-                  name="estimatedMinutes"
-                  min="0"
-                  max="59"
-                  step="1"
-                  value={formData.estimatedMinutes}
-                  onChange={(e) => handleEstimateChange('estimatedMinutes', e.target.value)}
-                  disabled={isLoading}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50"
-                />
-                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Minutes</p>
-              </div>
-            </div>
-            {errors.estimate && (
-              <p className="mt-1 text-sm text-red-500">{errors.estimate}</p>
-            )}
           </div>
 
           {/* Progress */}
@@ -375,10 +232,10 @@ export default function TaskEditModal({ task, onClose, onSave }) {
           </div>
 
           {/* Info message */}
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-            <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              You can edit task details including the due date and time. Changes will be saved immediately.
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+              Due date and estimated time cannot be changed here. Request an extension if more time is needed.
             </p>
           </div>
 

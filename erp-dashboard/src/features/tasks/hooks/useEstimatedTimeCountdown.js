@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from '../../../store/toastStore.js';
-import { calculateRemainingTime, getEstimatedTotalMinutes } from '../utils/taskDeadlineUtils.js';
+import { getEstimatedTotalMinutes } from '../utils/taskDeadlineUtils.js';
 
 // Global tracking to prevent duplicate "TIME UP!" notifications
 let globalTimeUpShownAt = 0;
@@ -58,12 +58,10 @@ export function useEstimatedTimeCountdown(task) {
     // Do not run the countdown timer for completed tasks
     if (!task || task.status === 'completed') return;
 
-    // Calculate remaining seconds every second
-    const interval = setInterval(() => {
+    const updateCountdown = () => {
       const estimated = getEstimatedSeconds();
       const elapsed = calculateElapsedSeconds();
-      const normalized = calculateRemainingTime(task, new Date());
-      const remaining = Math.max(0, normalized.remainingSeconds ?? Math.max(0, estimated - elapsed));
+      const remaining = Math.max(0, estimated - elapsed);
       
       setRemainingSeconds(remaining);
 
@@ -137,10 +135,13 @@ export function useEstimatedTimeCountdown(task) {
         alertShownRef.current = { tenMin: false, fiveMin: false, oneMin: false, timeUp: false };
         setIsAlertShown(false);
       }
-    }, 1000);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
-  }, [task?.estimatedHours, task?.estimatedMinutes, task?.totalActiveTimeInSeconds, task?.currentSessionStartTime, task?.isRunning, task?.status, task?.title]);
+  }, [task?.estimatedTotalMinutes, task?.estimatedHours, task?.estimatedMinutes, task?.totalActiveTimeInSeconds, task?.currentSessionStartTime, task?.isRunning, task?.status, task?.title]);
 
   // For completed tasks, suppress the timer entirely — show isCompleted flag instead
   if (task?.status === 'completed') {
@@ -160,9 +161,9 @@ export function useEstimatedTimeCountdown(task) {
 
   // Calculate overdue time (time spent AFTER due date)
   const getOverdueSeconds = () => {
-    const normalized = calculateRemainingTime(task, new Date());
-    if (!normalized.isOverdue) return 0;
-    return Math.abs(normalized.remainingSeconds || 0);
+    const estimated = getEstimatedSeconds();
+    const elapsed = calculateElapsedSeconds();
+    return Math.max(0, elapsed - estimated);
   };
 
   // Get total time spent (active + paused)

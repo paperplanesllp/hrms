@@ -59,12 +59,9 @@ export default function UnifiedTimerDisplay({ countdown, task }) {
   let statusLabel = '';
   let showIcon = Clock;
 
-  // Check if task is overdue (past due date)
-  const isDueDate = new Date(task.dueDate);
-  const isAfterDue = new Date() > isDueDate;
+  const isTimeExceeded = countdown.overdueSeconds > 0;
 
-  if (isAfterDue) {
-    // OVERDUE MODE - show how much time has exceeded
+  if (isTimeExceeded) {
     bgColor = 'bg-red-100 dark:bg-red-900/40';
     textColor = 'text-red-800 dark:text-red-100';
     borderColor = 'ring-red-400 dark:ring-red-600';
@@ -114,12 +111,12 @@ export default function UnifiedTimerDisplay({ countdown, task }) {
   return (
     <div
       className={`flex items-center gap-2 px-3 py-2 rounded-xl font-mono font-bold border-2 ring-1 ${bgColor} ${textColor} ${borderColor} ${animate} transition-all`}
-      title={isAfterDue ? `Overdue by ${displayText}` : `Time remaining: ${countdown.remainingDisplay}`}
+      title={isTimeExceeded ? `Overdue by ${displayText}` : `Time remaining: ${countdown.remainingDisplay}`}
       role="status"
       aria-live="polite"
     >
       <Icon className={`w-4 h-4 ${iconColor} flex-shrink-0`} />
-      <span className="text-sm">{isAfterDue ? '+' : ''}{displayText}</span>
+      <span className="text-sm">{isTimeExceeded ? '+' : ''}{displayText}</span>
       {statusLabel && <span className="text-xs font-extrabold ml-1">{statusLabel}</span>}
     </div>
   );

@@ -23,35 +23,9 @@ const getDateWithOffset = (offsetDays = 0) => {
   return date.toISOString().slice(0, 10);
 };
 
-const toLocalDateTimeInputValue = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 16);
-};
-
-const getTaskEstimatedTotalMinutes = (task) => {
-  const total = Number(task?.estimatedTotalMinutes);
-  const hours = Number(task?.estimatedHours);
-  const minutes = Number(task?.estimatedMinutes);
-
-  if (Number.isFinite(total) && total >= 0) return Math.round(total);
-  if (Number.isFinite(hours) && hours > 0 && Number.isFinite(minutes) && minutes >= 0 && minutes < 60) {
-    return Math.round(hours * 60 + minutes);
-  }
-  if (Number.isFinite(minutes) && minutes >= 0) return Math.round(minutes);
-  if (Number.isFinite(hours) && hours >= 0) return Math.round(hours * 60);
-  return 0;
-};
-
 const createEditableTask = (task) => {
-  const totalMinutes = getTaskEstimatedTotalMinutes(task);
   return {
     ...task,
-    dueDateInput: toLocalDateTimeInputValue(task?.dueDate),
-    estimatedHours: Math.floor(totalMinutes / 60),
-    estimatedMinutes: totalMinutes % 60,
   };
 };
 
@@ -255,17 +229,8 @@ export default function MyTasksSection() {
     setSubmittingEdit(true);
     try {
       console.log('🔧 Updating task:', editingTask._id, formData);
-      const estimatedHours = Math.max(0, parseInt(formData.estimatedHours, 10) || 0);
-      const estimatedMinutes = Math.min(59, Math.max(0, parseInt(formData.estimatedMinutes, 10) || 0));
-      const dueDate = formData.dueDateInput ? new Date(formData.dueDateInput) : null;
-
       if (!formData.title?.trim()) {
         toast({ title: 'Task title is required', type: 'error' });
-        return;
-      }
-
-      if (!dueDate || Number.isNaN(dueDate.getTime())) {
-        toast({ title: 'Due date and time are required', type: 'error' });
         return;
       }
 
@@ -273,10 +238,6 @@ export default function MyTasksSection() {
         title: formData.title.trim(),
         description: (formData.description || '').trim(),
         priority: formData.priority || 'MEDIUM',
-        dueDate: dueDate.toISOString(),
-        estimatedHours,
-        estimatedMinutes,
-        estimatedTotalMinutes: estimatedHours * 60 + estimatedMinutes,
       };
 
       console.log('Updating task:', editingTask._id, updatePayload);
@@ -807,40 +768,11 @@ export default function MyTasksSection() {
                 <option value="URGENT">Urgent</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2">Due Date & Time <span className="text-red-500">*</span></label>
-              <input
-                type="datetime-local"
-                value={editingTask.dueDateInput || ''}
-                onChange={(e) => setEditingTask(prev => ({ ...prev, dueDateInput: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2">Estimated Time</label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editingTask.estimatedHours ?? 0}
-                    onChange={(e) => setEditingTask(prev => ({ ...prev, estimatedHours: e.target.value }))}
-                    className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
-                  />
-                  <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Hours</span>
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={editingTask.estimatedMinutes ?? 0}
-                    onChange={(e) => setEditingTask(prev => ({ ...prev, estimatedMinutes: e.target.value }))}
-                    className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
-                  />
-                  <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Minutes</span>
-                </div>
-              </div>
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800">
+              <AlertCircle className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                Due date and time fields cannot be changed. Request an extension if needed.
+              </p>
             </div>
             <div className="flex gap-3 pt-2">
               <button

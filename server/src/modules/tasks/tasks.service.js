@@ -187,7 +187,7 @@ export const tasksService = {
       
       if (companyId) {
         const companyUserIds = await this.getCompanyUserIds(companyId);
-        query.assignedTo = { $in: companyUserIds };
+        query.assignedTo = { $in: companyUserIds, $nin: [userObjectId] };
       }
 
       const tasks = await Task.find(query)
@@ -466,10 +466,12 @@ export const tasksService = {
       }
     }
     
-    const hasEstimateUpdate =
+    const allowTimingUpdate = data.allowTimingUpdate === true;
+    const hasEstimateUpdate = allowTimingUpdate && (
       'estimatedTotalMinutes' in data ||
       'estimatedHours' in data ||
-      'estimatedMinutes' in data;
+      'estimatedMinutes' in data
+    );
 
     if (hasEstimateUpdate) {
       const rawTotal = Number(data.estimatedTotalMinutes);
@@ -505,7 +507,10 @@ export const tasksService = {
     }
 
     // Update fields
-    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'dueDate', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
+    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
+    if (allowTimingUpdate) {
+      allowedFields.push('dueDate');
+    }
     allowedFields.forEach(field => {
       if (field in data) {
         task[field] = data[field];
