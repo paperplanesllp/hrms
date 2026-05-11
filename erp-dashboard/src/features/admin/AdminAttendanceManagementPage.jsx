@@ -118,22 +118,10 @@ export default function AdminAttendanceManagementPage() {
     checkOutPeriod: "PM",
   });
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
 
   useEffect(() => {
     loadEmployeesAndDepartments();
-    loadWorkingDays();
   }, []);
-
-  const loadWorkingDays = async () => {
-    try {
-      const res = await api.get("/admin/working-days");
-      setWorkingDays(Array.isArray(res.data?.workingDays) ? res.data.workingDays : DEFAULT_WORKING_DAYS);
-    } catch (e) {
-      console.error("Error loading working days:", e);
-      setWorkingDays(DEFAULT_WORKING_DAYS);
-    }
-  };
 
   const loadEmployeesAndDepartments = async () => {
     try {
@@ -160,7 +148,8 @@ export default function AdminAttendanceManagementPage() {
         setSelectedEmployee(null);
       }
     } catch (e) {
-      toast({ title: "Failed to load employees", type: "error" });
+      const errorMessage = e?.response?.data?.message || e?.message || "Failed to load employees";
+      toast({ title: errorMessage, type: "error" });
       console.error("Error loading employees:", e);
     } finally {
       setLoading(false);
@@ -225,9 +214,10 @@ export default function AdminAttendanceManagementPage() {
       ]);
 
       const publicHolidays = (eventsRes.data?.events || []).filter((event) => event.purpose === "PUBLIC_HOLIDAY");
-      setAttendanceRecords(addCalendarStatusRecords(Array.isArray(res.data) ? res.data : [], monthDate, workingDays, publicHolidays));
+      setAttendanceRecords(addCalendarStatusRecords(Array.isArray(res.data) ? res.data : [], monthDate, DEFAULT_WORKING_DAYS, publicHolidays));
     } catch (error) {
-      toast({ title: "Failed to load attendance records", type: "error" });
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to load attendance records";
+      toast({ title: errorMessage, type: "error" });
       console.error("Error loading attendance:", error);
     } finally {
       if (!silent) setRecordsLoading(false);
@@ -238,7 +228,7 @@ export default function AdminAttendanceManagementPage() {
     if (selectedEmployee?._id) {
       loadAttendanceRecords(selectedEmployee, activeMonth);
     }
-  }, [selectedEmployee, activeMonth, workingDays]);
+  }, [selectedEmployee, activeMonth]);
 
   const attendanceRefresh = useAutoRefresh(
     () => loadAttendanceRecords(selectedEmployee, activeMonth, { silent: true }),

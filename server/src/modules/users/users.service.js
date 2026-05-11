@@ -64,8 +64,6 @@ export async function listUsers(
   requesterEmail = ""
 ) {
   // Exclude terminated users from shared lists.
-  // Everyone can assign tasks to ADMIN users as well.
-  // HR can see all active staff (USER + HR + ADMIN) so they can assign tasks to themselves, peers, and admins.
   const query = {
     role: { $nin: ["TERMINATED"] },
     $or: [
@@ -74,40 +72,48 @@ export async function listUsers(
     ],
   };
 
-  const requesterDomain = getEmailDomain(requesterEmail);
-  if (companyId && requesterDomain) {
-    query.$and = [
-      {
-        $or: [
-          { companyId },
-          {
-            $and: [
-              { $or: [{ companyId: null }, { companyId: { $exists: false } }] },
-              { email: { $regex: `@${escapeRegex(requesterDomain)}$`, $options: "i" } },
-            ],
-          },
-        ],
-      },
-    ];
-  } else if (companyId) {
+  // Handle company filtering based on role
+  if (requestingUserRole === ROLES.ADMIN || requestingUserRole === ROLES.SUPERADMIN) {
+    // ADMIN/SUPERADMIN: can view all users (optionally scoped to companyId if provided)
+    if (companyId) {
+      query.companyId = companyId;
+    }
+  } else if (requestingUserRole === ROLES.HR) {
+    // HR: must be scoped to their company
+    if (!companyId) {
+      throw new Error("HR users must have a valid company ID");
+    }
     query.companyId = companyId;
   }
-  
-  // Filter by department if provided (for task reassignment to department members)
+
+  // Filter by department if provided
   if (departmentId) {
     query.departmentId = departmentId;
   }
 
+  // Handle role filtering
   let allowedRoles = normalizeRoleFilter(roleFilter);
-  if (requestingUserRole === ROLES.HR) {
-    allowedRoles = allowedRoles.length > 0
-      ? allowedRoles.filter((role) => role === ROLES.USER)
-      : [ROLES.USER];
+  
+  if (requestingUserRole === ROLES.ADMIN || requestingUserRole === ROLES.SUPERADMIN) {
+    // ADMIN/SUPERADMIN: if no roles specified, default to [USER, HR]
+    // if roles specified, use them but filter out ADMIN/SUPERADMIN
+    if (allowedRoles.length === 0) {
+      allowedRoles = [ROLES.USER, ROLES.HR];
+    } else {
+      // Remove ADMIN/SUPERADMIN from the filter for non-admins to see
+      allowedRoles = allowedRoles.filter(role => role === ROLES.USER || role === ROLES.HR);
+    }
+  } else if (requestingUserRole === ROLES.HR) {
+    // HR: can only see USER role
+    allowedRoles = [ROLES.USER];
   }
+
   if (allowedRoles.length > 0) {
     query.role = { $in: allowedRoles };
   }
 
+  // Backfill company ID for users with matching email domain (if applicable)
+  const requesterDomain = getEmailDomain(requesterEmail);
   if (companyId && requesterDomain) {
     const backfillQuery = {
       $or: [{ companyId: null }, { companyId: { $exists: false } }],

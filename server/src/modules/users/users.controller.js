@@ -93,13 +93,42 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
 });
 
 export const getAllUsers = asyncHandler(async (req, res) => {
-  requireCompanyId(req);
   const { department, role, roles } = req.query;
+  
+  // For USER role: only return own profile
+  if (req.user.role === ROLES.USER) {
+    const user = await User.findById(req.user.id)
+      .select("-passwordHash -refreshTokenHash");
+    return res.json([user]);
+  }
+
+  // For ADMIN/SUPERADMIN: no company filtering required
+  // For HR: require company ID (either provided or resolved from email domain)
+  let companyId = req.user.companyId;
+  
+  if (req.user.role === ROLES.HR && !companyId) {
+    // Try to resolve companyId from email domain
+    const { Company } = await import("../companies/Company.model.js");
+    const emailDomain = req.user.email?.split("@")[1];
+    if (emailDomain) {
+      const company = await Company.findOne({ domain: emailDomain });
+      if (company) {
+        companyId = company._id;
+      }
+    }
+    if (!companyId) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        "HR user must have company ID or email from registered company domain"
+      );
+    }
+  }
+
   const users = await listUsers(
     req.user.role,
     req.user.id,
     department,
-    req.user.companyId,
+    companyId,
     roles || role,
     req.user.email
   );
