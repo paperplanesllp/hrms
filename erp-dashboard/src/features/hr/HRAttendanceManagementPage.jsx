@@ -125,8 +125,9 @@ export default function HRAttendanceManagementPage() {
         setSelectedEmployee(null);
       }
     } catch (e) {
+      const errorMessage = e?.response?.data?.message || e?.response?.data?.error || "Failed to load employees";
       toast({ 
-        title: "Failed to load employees", 
+        title: errorMessage, 
         type: "error" 
       });
       console.error("Error loading employees:", e);

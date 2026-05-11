@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import { verifyAccessToken } from "../utils/tokens.js";
 import { User } from "../modules/users/User.model.js";
 import { Company } from "../modules/companies/Company.model.js";
+import { normalizeRole } from "./roles.js";
 
 function getEmailDomain(email = "") {
   const parts = String(email || "").trim().toLowerCase().split("@");
@@ -14,12 +15,16 @@ async function resolveCompanyIdForUser(user) {
 
   const domain = getEmailDomain(user.email);
   if (!domain) return null;
+  const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   const company = await Company.findOne({
     isActive: { $ne: false },
     $or: [
       { domain },
-      { contactEmail: { $regex: `@${domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
+      { domain: { $regex: `^${escapedDomain}$`, $options: "i" } },
+      { contactEmail: { $regex: `@${escapedDomain}$`, $options: "i" } },
+      { contactEmail: { $regex: escapedDomain, $options: "i" } },
+      { website: { $regex: escapedDomain, $options: "i" } },
     ],
   })
     .select("_id")
@@ -47,6 +52,7 @@ export async function requireAuth(req, res, next) {
   try {
     const payload = verifyAccessToken(token);
     req.user = payload; // { id, role, name }
+    req.user.role = normalizeRole(req.user.role);
 
     // Older live sessions may have been issued before companyId was included
     // in the JWT. Hydrate it from MongoDB so company-scoped APIs keep working

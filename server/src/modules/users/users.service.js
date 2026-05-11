@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { User } from "./User.model.js";
-import { ROLES } from "../../middleware/roles.js";
+import { ROLES, normalizeRole } from "../../middleware/roles.js";
 
 function getEmailDomain(email = "") {
   const parts = String(email || "").trim().toLowerCase().split("@");
@@ -17,7 +17,7 @@ function escapeRegex(value = "") {
 function normalizeRoleFilter(roleFilter = null) {
   const requestedRoles = String(roleFilter || "")
     .split(",")
-    .map((role) => role.trim().toUpperCase())
+    .map((role) => normalizeRole(role))
     .filter(Boolean);
 
   return requestedRoles.filter((role) => Object.values(ROLES).includes(role));
@@ -63,6 +63,8 @@ export async function listUsers(
   roleFilter = null,
   requesterEmail = ""
 ) {
+  requestingUserRole = normalizeRole(requestingUserRole);
+
   // Exclude terminated users from shared lists.
   const query = {
     role: { $nin: ["TERMINATED"] },
@@ -81,9 +83,11 @@ export async function listUsers(
   } else if (requestingUserRole === ROLES.HR) {
     // HR: must be scoped to their company
     if (!companyId) {
-      throw new Error("HR users must have a valid company ID");
+      throw new ApiError(StatusCodes.BAD_REQUEST, "HR company could not be resolved");
     }
     query.companyId = companyId;
+  } else if (requestingUserRole === ROLES.USER) {
+    query._id = currentUserId;
   }
 
   // Filter by department if provided
@@ -105,6 +109,8 @@ export async function listUsers(
     }
   } else if (requestingUserRole === ROLES.HR) {
     // HR: can only see USER role
+    allowedRoles = [ROLES.USER];
+  } else if (requestingUserRole === ROLES.USER) {
     allowedRoles = [ROLES.USER];
   }
 

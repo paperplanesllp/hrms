@@ -21,7 +21,7 @@ import {
 import { User } from "./User.model.js";
 import { Company } from "../companies/Company.model.js";
 import { AuditLog } from "../audit/AuditLog.model.js";
-import { ROLES } from "../../middleware/roles.js";
+import { ROLES, normalizeRole } from "../../middleware/roles.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { createActivityLog } from "../activity/activity.service.js";
@@ -44,36 +44,76 @@ function escapeRegex(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function resolveCompanyIdForHr(userId, email = "") {
-  let resolvedEmail = email;
-
-  if (!resolvedEmail && userId) {
-    const user = await User.findById(userId).select("email companyId").lean();
-    if (user?.companyId) return String(user.companyId);
-    resolvedEmail = user?.email || "";
+async function resolveCompanyForUser(user) {
+  if (user?.companyId) {
+    const company = await Company.findById(user.companyId).select("_id domain").lean();
+    return { companyId: String(user.companyId), company };
   }
 
-  const domain = getEmailDomain(resolvedEmail);
-  if (!domain) return null;
+  const domain = getEmailDomain(user?.email);
+  if (!domain) return { companyId: null, company: null };
 
   const domainRegex = `@${escapeRegex(domain)}$`;
+  const escapedDomain = escapeRegex(domain);
   const company = await Company.findOne({
     isActive: { $ne: false },
     $or: [
       { domain },
+      { domain: { $regex: `^${escapedDomain}$`, $options: "i" } },
       { contactEmail: { $regex: domainRegex, $options: "i" } },
+      { contactEmail: { $regex: escapedDomain, $options: "i" } },
+      { website: { $regex: escapedDomain, $options: "i" } },
     ],
-  }).select("_id").lean();
+  }).select("_id domain").lean();
 
-  if (company?._id) return String(company._id);
+  if (company?._id) return { companyId: String(company._id), company };
 
   const linkedUser = await User.findOne({
-    _id: { $ne: userId },
+    _id: { $ne: user?._id },
     companyId: { $ne: null },
     email: { $regex: domainRegex, $options: "i" },
-  }).select("companyId").lean();
+  }).select("companyId").populate("companyId", "_id domain").lean();
 
-  return linkedUser?.companyId ? String(linkedUser.companyId) : null;
+  const linkedCompany = linkedUser?.companyId?._id ? linkedUser.companyId : null;
+  return {
+    companyId: linkedCompany?._id ? String(linkedCompany._id) : null,
+    company: linkedCompany,
+  };
+}
+
+async function hydrateRequester(req) {
+  const dbUser = await User.findById(req.user.id).select("_id name email role companyId").lean();
+  if (!dbUser) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Requester not found");
+  }
+
+  const role = normalizeRole(dbUser.role || req.user.role);
+  const requester = {
+    ...dbUser,
+    role,
+    companyId: dbUser.companyId ? String(dbUser.companyId) : null,
+  };
+
+  const { companyId, company } = await resolveCompanyForUser(requester);
+
+  console.log("Requester:", requester.email, requester.role, companyId);
+  console.log("Resolved company:", company?._id, company?.domain);
+
+  if (companyId && !requester.companyId) {
+    await User.updateOne(
+      { _id: requester._id, $or: [{ companyId: null }, { companyId: { $exists: false } }] },
+      { $set: { companyId } }
+    );
+    requester.companyId = companyId;
+  }
+
+  req.user.id = String(requester._id);
+  req.user.name = req.user.name || requester.name;
+  req.user.email = requester.email;
+  req.user.role = requester.role;
+  req.user.companyId = requester.companyId || companyId || null;
+
+  return req.user;
 }
 
 export const createUserByAdmin = asyncHandler(async (req, res) => {
@@ -136,41 +176,33 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
 
 export const getAllUsers = asyncHandler(async (req, res) => {
   const { department, role, roles } = req.query;
+  const requester = await hydrateRequester(req);
   
   // For USER role: only return own profile
-  if (req.user.role === ROLES.USER) {
-    const user = await User.findById(req.user.id)
+  if (requester.role === ROLES.USER) {
+    const user = await User.findById(requester.id)
       .select("-passwordHash -refreshTokenHash");
     return res.json([user]);
   }
 
   // For ADMIN/SUPERADMIN: no company filtering required
   // For HR: require company ID (either provided or resolved from email domain)
-  let companyId = req.user.companyId;
+  let companyId = requester.companyId;
   
-  if (req.user.role === ROLES.HR && !companyId) {
-    companyId = await resolveCompanyIdForHr(req.user.id, req.user.email);
-
-    if (!companyId) {
-      throw new ApiError(
-        StatusCodes.BAD_REQUEST,
-        "HR company could not be resolved. Link this HR user to a company or set the company domain/contact email."
-      );
-    }
-
-    await User.updateOne(
-      { _id: req.user.id, $or: [{ companyId: null }, { companyId: { $exists: false } }] },
-      { $set: { companyId } }
+  if (requester.role === ROLES.HR && !companyId) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "HR company could not be resolved. Link this HR user to a company or set the company domain/contact email."
     );
   }
 
   const users = await listUsers(
-    req.user.role,
-    req.user.id,
+    requester.role,
+    requester.id,
     department,
     companyId,
     roles || role,
-    req.user.email
+    requester.email
   );
   res.json(users);
 });

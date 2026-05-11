@@ -9,6 +9,7 @@
     "seed": "node src/seed.js",
     "test": "node --test",
     "migrate:tasks": "node src/migrations/taskTimingFix.js",
+    "fix:paperplanes-company": "node scripts/fix-paperplanes-company.js",
     "validate:timing": "node src/scripts/validateTaskTimingSystem.js",
     "timing:backfill:dry": "node src/scripts/backfillTaskTiming.js --dry-run",
     "timing:backfill:apply": "node src/scripts/backfillTaskTiming.js --apply"
