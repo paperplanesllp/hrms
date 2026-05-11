@@ -45,7 +45,15 @@ function escapeRegex(value = "") {
 }
 
 async function resolveCompanyIdForHr(userId, email = "") {
-  const domain = getEmailDomain(email);
+  let resolvedEmail = email;
+
+  if (!resolvedEmail && userId) {
+    const user = await User.findById(userId).select("email companyId").lean();
+    if (user?.companyId) return String(user.companyId);
+    resolvedEmail = user?.email || "";
+  }
+
+  const domain = getEmailDomain(resolvedEmail);
   if (!domain) return null;
 
   const domainRegex = `@${escapeRegex(domain)}$`;
@@ -146,7 +154,7 @@ export const getAllUsers = asyncHandler(async (req, res) => {
     if (!companyId) {
       throw new ApiError(
         StatusCodes.BAD_REQUEST,
-        "HR user must have company ID or email from registered company domain"
+        "HR company could not be resolved. Link this HR user to a company or set the company domain/contact email."
       );
     }
 
