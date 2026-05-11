@@ -14,6 +14,15 @@ function escapeRegex(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function normalizeRoleFilter(roleFilter = null) {
+  const requestedRoles = String(roleFilter || "")
+    .split(",")
+    .map((role) => role.trim().toUpperCase())
+    .filter(Boolean);
+
+  return requestedRoles.filter((role) => Object.values(ROLES).includes(role));
+}
+
 export async function createUser(data) {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
@@ -89,15 +98,21 @@ export async function listUsers(
     query.departmentId = departmentId;
   }
 
-  if (roleFilter && Object.values(ROLES).includes(roleFilter)) {
-    query.role = roleFilter;
+  let allowedRoles = normalizeRoleFilter(roleFilter);
+  if (requestingUserRole === ROLES.HR) {
+    allowedRoles = allowedRoles.length > 0
+      ? allowedRoles.filter((role) => role === ROLES.USER)
+      : [ROLES.USER];
+  }
+  if (allowedRoles.length > 0) {
+    query.role = { $in: allowedRoles };
   }
 
   if (companyId && requesterDomain) {
     const backfillQuery = {
       $or: [{ companyId: null }, { companyId: { $exists: false } }],
       email: { $regex: `@${escapeRegex(requesterDomain)}$`, $options: "i" },
-      role: roleFilter && Object.values(ROLES).includes(roleFilter) ? roleFilter : { $nin: [ROLES.SUPERADMIN, ROLES.ADMIN] },
+      role: allowedRoles.length > 0 ? { $in: allowedRoles } : { $nin: [ROLES.SUPERADMIN, ROLES.ADMIN] },
     };
 
     await User.updateMany(backfillQuery, { $set: { companyId } });

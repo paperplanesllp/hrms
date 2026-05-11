@@ -99,7 +99,7 @@ export default function HRAttendanceManagementPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ checkIn: "", checkOut: "", checkInPeriod: "AM", checkOutPeriod: "PM" });
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
+  const workingDays = DEFAULT_WORKING_DAYS;
 
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
 
@@ -135,21 +135,10 @@ export default function HRAttendanceManagementPage() {
     }
   }, [currentUserId]);
 
-  const loadWorkingDays = useCallback(async () => {
-    try {
-      const res = await api.get("/admin/working-days");
-      setWorkingDays(Array.isArray(res.data?.workingDays) ? res.data.workingDays : DEFAULT_WORKING_DAYS);
-    } catch (e) {
-      console.error("Error loading working days:", e);
-      setWorkingDays(DEFAULT_WORKING_DAYS);
-    }
-  }, []);
-
   // Load all employees on mount
   useEffect(() => {
     loadEmployees();
-    loadWorkingDays();
-  }, [loadEmployees, loadWorkingDays]);
+  }, [loadEmployees]);
 
   const loadAttendanceRecords = async (employee, monthDate) => {
     if (!employee?._id) return;
@@ -192,7 +181,7 @@ export default function HRAttendanceManagementPage() {
     if (selectedEmployee) {
       loadAttendanceRecords(selectedEmployee, activeMonth);
     }
-  }, [selectedEmployee, activeMonth, workingDays]);
+  }, [selectedEmployee, activeMonth]);
 
   const handleEditRecord = (record) => {
     const targetUserId = String(record?.userId || "");

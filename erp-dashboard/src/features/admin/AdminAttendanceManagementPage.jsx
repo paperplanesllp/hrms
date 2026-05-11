@@ -139,7 +139,7 @@ export default function AdminAttendanceManagementPage() {
     try {
       setLoading(true);
 
-      const empRes = await api.get("/users?limit=1000");
+      const empRes = await api.get("/users?roles=USER,HR&limit=1000");
       const allEmployeesRaw = Array.isArray(empRes.data) ? empRes.data : empRes.data?.data || [];
       const allEmployees = allEmployeesRaw
         .slice()
