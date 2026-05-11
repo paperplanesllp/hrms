@@ -4,6 +4,7 @@ import { User } from '../users/User.model.js';
 import { Department } from '../department/Department.model.js';
 import { TASK_TIMING_STATE, calculateTaskMetrics, evaluateEmployeePerformance, syncTaskTimingFields } from './taskDeadline.utils.js';
 import { ROLES } from '../../middleware/roles.js';
+import { deleteTaskAttachmentFile } from './taskAttachment.service.js';
 
 export const tasksService = {
   async getCompanyUserIds(companyId) {
@@ -323,6 +324,7 @@ export const tasksService = {
       estimatedHours: Math.floor(estimatedMinutes / 60),
       estimatedMinutes,
       estimatedTotalMinutes: estimatedMinutes,
+      attachments: Array.isArray(data.attachments) ? data.attachments : [],
       pausedDurationMs: 0,
       pausedDurationMinutes: 0
     };
@@ -361,7 +363,7 @@ export const tasksService = {
     });
     
     await task.save();
-    await task.populate('assignedTo assignedBy department');
+    await task.populate('assignedTo assignedBy department attachments.uploadedBy');
     return task;
   },
 
@@ -507,7 +509,7 @@ export const tasksService = {
     }
 
     // Update fields
-    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'priority', 'status', 'progress', 'tags', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
+    const allowedFields = ['title', 'description', 'assignedTo', 'department', 'priority', 'status', 'progress', 'tags', 'attachments', 'isRecurring', 'recurrencePattern', 'completionRemarks'];
     if (allowTimingUpdate) {
       allowedFields.push('dueDate');
     }
@@ -531,7 +533,7 @@ export const tasksService = {
     }
     
     await task.save();
-    await task.populate('assignedTo assignedBy department');
+    await task.populate('assignedTo assignedBy department attachments.uploadedBy');
     return task;
   },
 
@@ -542,6 +544,12 @@ export const tasksService = {
       throw new Error('Task not found');
     }
     
+    const cloudinaryAttachments = Array.isArray(task.attachments)
+      ? task.attachments.filter(attachment => attachment?.public_id)
+      : [];
+
+    await Promise.allSettled(cloudinaryAttachments.map(attachment => deleteTaskAttachmentFile(attachment)));
+
     task.isDeleted = true;
     await task.save();
     return { message: 'Task deleted successfully' };
@@ -643,7 +651,8 @@ export const tasksService = {
     return await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false })
       .populate('assignedTo', 'name email avatar department')
       .populate('assignedBy', 'name email avatar')
-      .populate('department', 'name');
+      .populate('department', 'name')
+      .populate('attachments.uploadedBy', 'name email avatar');
   },
 
   // Add comment to task

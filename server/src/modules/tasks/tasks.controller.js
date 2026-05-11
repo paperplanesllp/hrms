@@ -20,6 +20,22 @@ import {
   syncTaskTimingFields,
 } from './taskDeadline.utils.js';
 import { formatTaskCollection, formatTaskResponse } from './taskResponseFormatter.js';
+import {
+  TASK_ATTACHMENT_LIMIT,
+  uploadTaskAttachments,
+  deleteTaskAttachmentFile,
+  createTaskAttachmentAccessUrl,
+  createTaskAttachmentDownloadUrl,
+} from './taskAttachment.service.js';
+
+function canAccessTask(task, user) {
+  const requesterId = user?.id;
+  const role = (user?.role || '').toUpperCase();
+  const isAdminOrHR = role === 'ADMIN' || role === 'HR';
+  const isCreator = task?.assignedBy?._id?.toString() === requesterId || task?.assignedBy?.toString() === requesterId;
+  const isAssignee = task?.assignedTo?.some(a => a?._id?.toString() === requesterId || a?.toString() === requesterId);
+  return isAdminOrHR || isCreator || isAssignee;
+}
 
 export const tasksController = {
   // Get my tasks
@@ -139,6 +155,12 @@ export const tasksController = {
         });
       }
       
+      if (req.files && req.files.length > 0) {
+        taskData.attachments = await uploadTaskAttachments(req.files, req.user.id, {
+          isPrivate: req.body.isPrivateAttachments === 'true'
+        });
+      }
+
       const task = await tasksService.createTask(taskData, req.user.id);
       
       // 🔔 Emit socket event for real-time update
@@ -258,6 +280,16 @@ export const tasksController = {
         }
       }
 
+      if (req.files && req.files.length > 0) {
+        const uploadedAttachments = await uploadTaskAttachments(req.files, req.user.id, {
+          isPrivate: req.body.isPrivateAttachments === 'true'
+        });
+        updateData.attachments = [
+          ...(Array.isArray(existingTask.attachments) ? existingTask.attachments : []),
+          ...uploadedAttachments,
+        ];
+      }
+
       const task = await tasksService.updateTask(id, updateData);
 
       // 🔔 Emit socket event for real-time update
@@ -328,6 +360,65 @@ export const tasksController = {
       sendSuccess(res, {}, 'Task deleted successfully', 200);
     } catch (error) {
       console.error('❌ [Controller] deleteTask error:', error);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async deleteAttachment(req, res) {
+    try {
+      const { id, attachmentId } = req.params;
+      const task = await Task.findById(id);
+
+      if (!task || task.isDeleted) {
+        return sendError(res, 'Task not found', 404);
+      }
+
+      if (!canAccessTask(task, req.user)) {
+        return sendError(res, 'Forbidden: You do not have access to this task attachment', 403);
+      }
+
+      const attachment = task.attachments.id?.(attachmentId) || task.attachments.find(a => a?._id?.toString() === attachmentId);
+      if (!attachment) {
+        return sendError(res, 'Attachment not found', 404);
+      }
+
+      await deleteTaskAttachmentFile(attachment);
+      task.attachments = task.attachments.filter(a => a?._id?.toString() !== attachmentId);
+      await task.save();
+      await task.populate('assignedTo assignedBy department attachments.uploadedBy');
+
+      sendSuccess(res, formatTaskResponse(task), 'Attachment deleted successfully');
+    } catch (error) {
+      console.error('❌ [Controller] deleteAttachment error:', error);
+      sendError(res, error.message, 400);
+    }
+  },
+
+  async getAttachmentAccess(req, res) {
+    try {
+      const { id, attachmentId } = req.params;
+      const task = await Task.findById(id);
+
+      if (!task || task.isDeleted) {
+        return sendError(res, 'Task not found', 404);
+      }
+
+      if (!canAccessTask(task, req.user)) {
+        return sendError(res, 'Forbidden: You do not have access to this task attachment', 403);
+      }
+
+      const attachment = task.attachments.id?.(attachmentId) || task.attachments.find(a => a?._id?.toString() === attachmentId);
+      if (!attachment) {
+        return sendError(res, 'Attachment not found', 404);
+      }
+
+      sendSuccess(res, {
+        url: createTaskAttachmentAccessUrl(attachment),
+        downloadUrl: createTaskAttachmentDownloadUrl(attachment),
+        expiresInSeconds: attachment.isPrivate ? 15 * 60 : null,
+      }, 'Attachment access URL generated');
+    } catch (error) {
+      console.error('❌ [Controller] getAttachmentAccess error:', error);
       sendError(res, error.message, 400);
     }
   },

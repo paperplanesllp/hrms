@@ -2,9 +2,16 @@ import { Router } from 'express';
 import { tasksController } from './tasks.controller.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireRole, ROLES } from '../../middleware/roles.js';
-import { uploadDocuments } from '../../middleware/upload.js';
+import rateLimit from 'express-rate-limit';
+import { uploadTaskAttachmentsMiddleware } from './taskAttachment.middleware.js';
 
 const router = Router();
+const taskAttachmentRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Protected routes - requires authentication
 router.use(requireAuth);
@@ -25,6 +32,9 @@ router.get('/my/dashboard', tasksController.getDashboardTasks);
 // Tasks assigned by me routes
 router.get('/assigned', tasksController.getMyAssignedTasks);
 
+router.get('/:id/attachments/:attachmentId/access', tasksController.getAttachmentAccess);
+router.delete('/:id/attachments/:attachmentId', tasksController.deleteAttachment);
+
 // Task detail route
 router.get('/:id', tasksController.getTaskById);
 
@@ -38,10 +48,10 @@ router.post('/reject-extension', tasksController.rejectTaskExtension);
 router.get('/', tasksController.getAllTasks);
 
 // Create task - all authenticated users can create tasks
-router.post('/', uploadDocuments.array('attachments', 10), tasksController.createTask);
+router.post('/', taskAttachmentRateLimit, uploadTaskAttachmentsMiddleware.array('attachments', 12), tasksController.createTask);
 
 // Update task - task owner/assignee/admin/hr
-router.patch('/:id', uploadDocuments.array('attachments', 10), tasksController.updateTask);
+router.patch('/:id', taskAttachmentRateLimit, uploadTaskAttachmentsMiddleware.array('attachments', 12), tasksController.updateTask);
 
 // Delete task - admin/hr or task owner/assignee (permission validated in controller)
 router.delete('/:id', tasksController.deleteTask);

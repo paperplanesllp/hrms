@@ -24,6 +24,7 @@ import {
   getDaysUntilDue
 } from './taskUtils.js';
 import RequestExtensionModal from './modals/RequestExtensionModal.jsx';
+import AttachmentGallery from './attachments/AttachmentGallery.jsx';
 
 export default function TaskDetailsModal({
   task,
@@ -47,6 +48,7 @@ export default function TaskDetailsModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [taskAttachments, setTaskAttachments] = useState(task?.attachments || []);
 
   // Comments state
   const [comments, setComments] = useState(null);   // null = not loaded yet
@@ -57,6 +59,10 @@ export default function TaskDetailsModal({
 
   // Get current user for permission checks
   const currentUser = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    setTaskAttachments(task?.attachments || []);
+  }, [task?._id, task?.attachments]);
 
   // Helper function to check if current user can view completion remarks
   const canViewCompletionRemarks = () => {
@@ -820,7 +826,19 @@ export default function TaskDetailsModal({
           </div>
 
           {/* Attachments Section */}
-          {task.attachments && task.attachments.length > 0 && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+            <AttachmentGallery
+              taskId={task._id}
+              attachments={taskAttachments}
+              canDelete={canViewCompletionRemarks()}
+              toast={toast}
+              onDeleted={(updatedTask) => {
+                const nextTask = updatedTask?.attachments ? updatedTask : updatedTask?.data;
+                setTaskAttachments(nextTask?.attachments || []);
+              }}
+            />
+          </div>
+          {false && task.attachments && task.attachments.length > 0 && (
             <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
                 <Paperclip size={16} />

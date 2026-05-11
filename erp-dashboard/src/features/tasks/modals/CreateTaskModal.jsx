@@ -7,6 +7,7 @@ import { toast } from '../../../store/toastStore.js';
 import { useAuthStore } from '../../../store/authStore.js';
 import api from '../../../lib/api.js';
 import { PRIORITY_OPTIONS } from '../taskUtils.js';
+import AttachmentUploader from '../attachments/AttachmentUploader.jsx';
 
 const PRIORITY_COLORS = {
   LOW: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -19,6 +20,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   const currentUser = useAuthStore(s => s.user);
   const [fallbackUsers, setFallbackUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPrivateAttachments, setIsPrivateAttachments] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [tagInput, setTagInput] = useState('');
@@ -258,28 +261,35 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         ? new Date(`${formData.dueDate}T18:00:00`).toISOString()
         : undefined;
 
-      const taskPayload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        priority: formData.priority,
-        status: formData.status,
-        dueDate: dueDateWithTime,
-        estimatedHours: hours,
-        estimatedMinutes: minutes,
-        estimatedTotalMinutes: totalMinutes,
-        assignedTo: formData.assignedTo,
-        department: formData.department || undefined,
-        tags: formData.tags,
-        subtasks: subtasks,
-        assignedBy: currentUser?.id,
-        createdAt: new Date(),
-        attachments: uploadedFiles.map(f => f.name),
-        ...(formData.status === 'completed' && { completionRemarks: formData.remarks.trim() })
-      };
+      const taskPayload = new FormData();
+      taskPayload.append('title', formData.title.trim());
+      taskPayload.append('description', formData.description.trim());
+      taskPayload.append('priority', formData.priority);
+      taskPayload.append('status', formData.status);
+      taskPayload.append('dueDate', dueDateWithTime);
+      taskPayload.append('estimatedHours', String(hours));
+      taskPayload.append('estimatedMinutes', String(minutes));
+      taskPayload.append('estimatedTotalMinutes', String(totalMinutes));
+      taskPayload.append('department', formData.department || '');
+      taskPayload.append('assignedBy', currentUser?.id || '');
+      taskPayload.append('createdAt', new Date().toISOString());
+      taskPayload.append('isPrivateAttachments', String(isPrivateAttachments));
+      formData.assignedTo.forEach(userId => taskPayload.append('assignedTo', userId));
+      formData.tags.forEach(tag => taskPayload.append('tags', tag));
+      subtasks.forEach(subtask => taskPayload.append('subtasks', JSON.stringify(subtask)));
+      uploadedFiles.forEach(item => taskPayload.append('attachments', item.file || item));
+      if (formData.status === 'completed') {
+        taskPayload.append('completionRemarks', formData.remarks.trim());
+      }
 
       console.log('📋 [CreateTaskModal] Task payload:', taskPayload);
 
-      const response = await api.post('/tasks', taskPayload);
+      const response = await api.post('/tasks', taskPayload, {
+        onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) return;
+          setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+        }
+      });
 
       console.log('✅ [CreateTaskModal] Task created successfully:', response.data);
       toast({
@@ -309,6 +319,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
         remarks: ''
       });
       setUploadedFiles([]);
+      setUploadProgress(0);
+      setIsPrivateAttachments(false);
       setSubtasks([]);
       setTagInput('');
       setSubtaskInput('');
@@ -684,63 +696,15 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
               <label className="block mb-3 text-sm font-bold text-slate-700 dark:text-slate-300">
                 Attachments <span className="text-xs font-normal text-slate-400">(Optional)</span>
               </label>
-              
-              {/* Drag & Drop Area */}
-              <div
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-lg p-8 text-center transition ${
-                  dragActive
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50'
-                }`}
-              >
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileChange}
-                  accept=".pdf,.jpg,.jpeg,.png,.gif,.xls,.xlsx,.doc,.docx"
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="flex flex-col items-center gap-2 cursor-pointer"
-                >
-                  <Upload size={32} className="text-blue-500" />
-                  <div className="text-sm text-slate-700 dark:text-slate-300">
-                    <p className="font-semibold">Drag files here or click to browse</p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">PDF, Images, Excel, Word (Max 5MB)</p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Uploaded Files */}
-              {uploadedFiles.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {uploadedFiles.map((file) => (
-                    <div
-                      key={file.name}
-                      className="flex items-center justify-between px-3 py-2 border border-green-200 rounded-lg bg-green-50 dark:bg-green-900/20 dark:border-green-800"
-                    >
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
-                        {getFileIcon(file.type)}
-                        <span className="truncate">{file.name}</span>
-                        <span className="text-xs text-green-600 dark:text-green-400">({(file.size / 1024).toFixed(1)}KB)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(file.name)}
-                        className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <AttachmentUploader
+                files={uploadedFiles}
+                onFilesChange={setUploadedFiles}
+                uploadProgress={uploadProgress}
+                isUploading={isLoading && uploadedFiles.length > 0}
+                isPrivate={isPrivateAttachments}
+                onPrivateChange={setIsPrivateAttachments}
+                toast={toast}
+              />
             </div>
 
             {/* Task Preview */}
