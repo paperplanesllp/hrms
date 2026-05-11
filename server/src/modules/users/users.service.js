@@ -5,6 +5,15 @@ import { StatusCodes } from "http-status-codes";
 import { User } from "./User.model.js";
 import { ROLES } from "../../middleware/roles.js";
 
+function getEmailDomain(email = "") {
+  const parts = String(email || "").trim().toLowerCase().split("@");
+  return parts.length === 2 && parts[1] ? parts[1] : "";
+}
+
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function createUser(data) {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
@@ -42,19 +51,38 @@ export async function listUsers(
   currentUserId = null,
   departmentId = null,
   companyId = null,
-  roleFilter = null
+  roleFilter = null,
+  requesterEmail = ""
 ) {
   // Exclude terminated users from shared lists.
   // Everyone can assign tasks to ADMIN users as well.
   // HR can see all active staff (USER + HR + ADMIN) so they can assign tasks to themselves, peers, and admins.
   const query = {
-    ...(companyId ? { companyId } : {}),
     role: { $nin: ["TERMINATED"] },
     $or: [
       { accountType: { $ne: "TEMPORARY" } },
       { accountType: "TEMPORARY", approvalStatus: "APPROVED" },
     ],
   };
+
+  const requesterDomain = getEmailDomain(requesterEmail);
+  if (companyId && requesterDomain) {
+    query.$and = [
+      {
+        $or: [
+          { companyId },
+          {
+            $and: [
+              { $or: [{ companyId: null }, { companyId: { $exists: false } }] },
+              { email: { $regex: `@${escapeRegex(requesterDomain)}$`, $options: "i" } },
+            ],
+          },
+        ],
+      },
+    ];
+  } else if (companyId) {
+    query.companyId = companyId;
+  }
   
   // Filter by department if provided (for task reassignment to department members)
   if (departmentId) {
@@ -63,6 +91,16 @@ export async function listUsers(
 
   if (roleFilter && Object.values(ROLES).includes(roleFilter)) {
     query.role = roleFilter;
+  }
+
+  if (companyId && requesterDomain) {
+    const backfillQuery = {
+      $or: [{ companyId: null }, { companyId: { $exists: false } }],
+      email: { $regex: `@${escapeRegex(requesterDomain)}$`, $options: "i" },
+      role: roleFilter && Object.values(ROLES).includes(roleFilter) ? roleFilter : { $nin: [ROLES.SUPERADMIN, ROLES.ADMIN] },
+    };
+
+    await User.updateMany(backfillQuery, { $set: { companyId } });
   }
 
   return User.find(query)

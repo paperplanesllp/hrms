@@ -9,6 +9,35 @@ function getEmailDomain(email = "") {
   return parts.length === 2 && parts[1] ? parts[1] : "";
 }
 
+async function resolveCompanyIdForUser(user) {
+  if (user.companyId) return String(user.companyId);
+
+  const domain = getEmailDomain(user.email);
+  if (!domain) return null;
+
+  const company = await Company.findOne({
+    isActive: { $ne: false },
+    $or: [
+      { domain },
+      { contactEmail: { $regex: `@${domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } },
+    ],
+  })
+    .select("_id")
+    .lean();
+
+  if (company?._id) return String(company._id);
+
+  const sameDomainCompanyUser = await User.findOne({
+    _id: { $ne: user._id },
+    companyId: { $ne: null },
+    email: { $regex: `@${domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  })
+    .select("companyId")
+    .lean();
+
+  return sameDomainCompanyUser?.companyId ? String(sameDomainCompanyUser.companyId) : null;
+}
+
 export async function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -25,21 +54,13 @@ export async function requireAuth(req, res, next) {
     if (req.user?.id && !req.user.companyId) {
       const user = await User.findById(req.user.id).select("companyId role name email").lean();
       if (user) {
-        let companyId = user.companyId ? String(user.companyId) : null;
+        const companyId = await resolveCompanyIdForUser(user);
 
-        if (!companyId) {
-          const domain = getEmailDomain(user.email);
-          const company = domain
-            ? await Company.findOne({ domain, isActive: { $ne: false } }).select("_id").lean()
-            : null;
-
-          if (company?._id) {
-            companyId = String(company._id);
-            await User.updateOne(
-              { _id: user._id, $or: [{ companyId: null }, { companyId: { $exists: false } }] },
-              { $set: { companyId } }
-            );
-          }
+        if (companyId && !user.companyId) {
+          await User.updateOne(
+            { _id: user._id, $or: [{ companyId: null }, { companyId: { $exists: false } }] },
+            { $set: { companyId } }
+          );
         }
 
         req.user.companyId = companyId;
