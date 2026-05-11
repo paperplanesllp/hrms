@@ -64,6 +64,24 @@ export async function listUsers(
     .sort({ createdAt: -1 });
 }
 
+export async function listAssignableUsers(departmentId = null) {
+  const query = {
+    role: { $nin: ["SUPERADMIN"] },
+    $or: [
+      { accountType: { $ne: "TEMPORARY" } },
+      { accountType: "TEMPORARY", approvalStatus: "APPROVED" },
+    ],
+  };
+
+  if (departmentId) {
+    query.departmentId = departmentId;
+  }
+
+  return User.find(query)
+    .select("-passwordHash -refreshTokenHash")
+    .sort({ name: 1, email: 1 });
+}
+
 export async function getUserById(id, companyId = null) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid user ID");

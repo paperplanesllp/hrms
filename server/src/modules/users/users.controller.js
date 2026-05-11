@@ -7,6 +7,7 @@ import {
 } from "./users.schemas.js";
 import {
   createUser,
+  listAssignableUsers,
   listUsers,
   getUserById,
   updateUser,
@@ -95,6 +96,12 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   requireCompanyId(req);
   const { department } = req.query;
   const users = await listUsers(req.user.role, req.user.id, department, req.user.companyId);
+  res.json(users);
+});
+
+export const getAssignableUsers = asyncHandler(async (req, res) => {
+  const { department } = req.query;
+  const users = await listAssignableUsers(department);
   res.json(users);
 });
 

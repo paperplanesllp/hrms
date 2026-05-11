@@ -68,13 +68,15 @@ function TasksPageInner() {
   async function loadFormData() {
     try {
       console.log('📥 [TasksPage] Loading users and departments...');
-      const [usersRes, deptsRes] = await Promise.all([
-        api.get('/users?limit=1000'),
+      const [usersResult, deptsResult] = await Promise.allSettled([
+        api.get('/users/assignable?limit=1000'),
         api.get('/department?limit=1000')
       ]);
 
-      const usersList = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []);
-      const deptsList = Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || []);
+      const usersRes = usersResult.status === 'fulfilled' ? usersResult.value : null;
+      const deptsRes = deptsResult.status === 'fulfilled' ? deptsResult.value : null;
+      const usersList = usersRes ? (Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || [])) : [];
+      const deptsList = deptsRes ? (Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || [])) : [];
 
       console.log('✅ [TasksPage] Loaded users:', usersList.length);
       console.log('✅ [TasksPage] Loaded departments:', deptsList.length);

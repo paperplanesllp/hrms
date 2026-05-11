@@ -4,6 +4,7 @@ import { requireRole, ROLES } from "../../middleware/roles.js";
 import { uploadProfileImage } from "../../middleware/upload.js";
 import {
 	createUserByAdmin,
+	getAssignableUsers,
 	getAllUsers,
 	getMe,
 	getUser,
@@ -36,6 +37,7 @@ router.post("/", requireAuth, requireRole(ROLES.ADMIN, ROLES.HR), createUserByAd
 
 // Get all users - available to all authenticated users for task assignment
 router.get("/", requireAuth, getAllUsers);
+router.get("/assignable", requireAuth, getAssignableUsers);
 
 // Endpoints for the current user (2FA status + activity log)
 router.get("/2fa-status", requireAuth, get2FAStatus);

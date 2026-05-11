@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Plus, Trash2, Upload, FileText, Image, File, CheckCircle2, AlertCircle } from 'lucide-react';
 import Button from '../../../components/ui/Button.jsx';
 import Input from '../../../components/ui/Input.jsx';
@@ -17,6 +17,7 @@ const PRIORITY_COLORS = {
 
 export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users = [], departments = [] }) {
   const currentUser = useAuthStore(s => s.user);
+  const [fallbackUsers, setFallbackUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -47,6 +48,33 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (!isOpen || users.length > 0) return;
+
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      try {
+        const response = await api.get('/users/assignable?limit=1000');
+        const usersList = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        if (!cancelled) {
+          setFallbackUsers(usersList);
+        }
+      } catch (error) {
+        console.error('[CreateTaskModal] Failed to load assignable users:', error);
+        if (!cancelled) {
+          setFallbackUsers([]);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, users.length]);
 
   // Auto-fill department from the first selected employee
   const handleAssigneesChange = (selectedUsers) => {
@@ -312,7 +340,8 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
 
   // Ensure current user is always in the list
   const currentUserId = currentUser?.id || currentUser?._id;
-  const usersForDropdown = (users.length > 0 ? users : [])
+  const assignableUsers = users.length > 0 ? users : fallbackUsers;
+  const usersForDropdown = (assignableUsers.length > 0 ? assignableUsers : [])
     .filter(u => !u.name?.includes('Voice Call Test') && !u.name?.includes('Debug User'))
     .map(u => ({
       ...u,
