@@ -110,7 +110,7 @@ export default function TaskDetailsModal({
       const currentUserDepartmentId = auth?.user?.departmentId;
       
       // Fetch only department members
-      const res = await api.get('/users', {
+      const res = await api.get('/users/assignable', {
         params: currentUserDepartmentId ? { department: currentUserDepartmentId } : {}
       });
       

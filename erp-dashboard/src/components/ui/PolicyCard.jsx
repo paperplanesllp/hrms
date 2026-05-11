@@ -11,7 +11,9 @@ export default function PolicyCard() {
         const res = await api.get("/policies");
         setPolicyData(res.data);
       } catch (err) {
-        console.error("Error loading policies:", err);
+        if (![401, 404].includes(err?.response?.status)) {
+          console.error("Error loading policies:", err);
+        }
         // Fallback to default policies if API not available yet
         setPolicyData([
           {

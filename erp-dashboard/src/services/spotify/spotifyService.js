@@ -8,6 +8,8 @@ const DEFAULT_SETTINGS = {
   spotifyWellnessEnabled: false,
 };
 
+const SPOTIFY_WELLNESS_API_ENABLED = import.meta.env.VITE_ENABLE_SPOTIFY_WELLNESS === "true";
+
 function readCachedSettings() {
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
@@ -61,7 +63,21 @@ export const SPOTIFY_PLAYLISTS = [
 // and currently-playing state behind this service so HRMS screens stay unchanged.
 export const spotifyService = {
   async getSettings() {
-    const response = await api.get("/spotify/settings");
+    if (!SPOTIFY_WELLNESS_API_ENABLED) {
+      cacheSettings(DEFAULT_SETTINGS);
+      return DEFAULT_SETTINGS;
+    }
+
+    let response;
+    try {
+      response = await api.get("/spotify/settings");
+    } catch (error) {
+      if (error?.response?.status === 404) {
+        cacheSettings(DEFAULT_SETTINGS);
+        return DEFAULT_SETTINGS;
+      }
+      throw error;
+    }
     const settings = {
       ...DEFAULT_SETTINGS,
       ...(response.data || {}),
@@ -71,6 +87,10 @@ export const spotifyService = {
   },
 
   async updateSettings(nextSettings) {
+    if (!SPOTIFY_WELLNESS_API_ENABLED) {
+      throw new Error("Spotify Wellness API is not enabled for this deployment.");
+    }
+
     const response = await api.patch("/spotify/settings", nextSettings);
     const settings = {
       ...DEFAULT_SETTINGS,

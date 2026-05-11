@@ -115,8 +115,8 @@ export const initializeSocket = () => {
       token: auth.accessToken
     },
     autoConnect: true,
-    transports: ["websocket"],
-    upgrade: false,
+    transports: ["websocket", "polling"],
+    upgrade: true,
     reconnection: true,
     reconnectionDelay: 1500,
     reconnectionDelayMax: 10000,

@@ -150,7 +150,7 @@ export default function MyTasksPage() {
         }
         
         const [usersRes, deptsRes] = await Promise.all([
-          api.get('/users?limit=1000'),
+          api.get('/users/assignable?limit=1000'),
           api.get('/department?limit=1000')
         ]);
         // Handle different response formats

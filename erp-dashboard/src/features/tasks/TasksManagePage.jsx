@@ -59,7 +59,7 @@ export default function TasksManagePage() {
       setLoading(true);
       const [tasksRes, usersRes, deptsRes] = await Promise.all([
         api.get('/tasks', { params: { limit: 500 } }),
-        api.get('/users'),
+        api.get('/users/assignable'),
         api.get('/department')
       ]);
       setAllTasks(tasksRes.data.data || []);

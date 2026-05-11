@@ -142,7 +142,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
       
       const [tasksRes, usersRes] = await Promise.all([
         api.get('/tasks', { params: { from: start, to: end, limit: 1000, populate: 'assignedTo' } }),
-        api.get('/users?limit=1000')
+        api.get('/users/assignable?limit=1000')
       ]);
 
       const tasks = tasksRes?.data?.data || tasksRes?.data || [];

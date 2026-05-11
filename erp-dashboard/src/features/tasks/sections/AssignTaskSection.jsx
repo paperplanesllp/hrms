@@ -59,7 +59,7 @@ export default function AssignTaskSection({ onTaskCreated }) {
       try {
         setLoading(true);
         const [usersRes, deptRes] = await Promise.all([
-          api.get('/users'),
+          api.get('/users/assignable'),
           api.get('/department')
         ]);
         setUsers(usersRes.data || []);

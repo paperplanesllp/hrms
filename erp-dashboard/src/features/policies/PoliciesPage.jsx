@@ -55,12 +55,15 @@ export default function PoliciesPage() {
     } catch (err) {
       console.error("Error loading policies:", err);
       const errorMsg = err?.response?.data?.message || "Failed to load policies";
+      const missingCompany = err?.response?.status === 401 && /company id/i.test(errorMsg);
       setError(errorMsg);
-      toast({
-        title: "Failed to load policies",
-        message: errorMsg,
-        type: "error"
-      });
+      if (!missingCompany) {
+        toast({
+          title: "Failed to load policies",
+          message: errorMsg,
+          type: "error"
+        });
+      }
     } finally {
       setLoading(false);
     }

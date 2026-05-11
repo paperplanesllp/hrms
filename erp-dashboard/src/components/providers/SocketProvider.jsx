@@ -23,7 +23,7 @@ export default function SocketProvider({ children }) {
   useAutoRefresh(
     async () => {
       if (isSocketConnected()) return;
-      const res = await api.get("/users");
+      const res = await api.get("/users/assignable");
       const users = Array.isArray(res.data) ? res.data : res.data?.users || [];
       usePresenceStore.getState().initializeUsers(users);
     },
@@ -66,7 +66,7 @@ export default function SocketProvider({ children }) {
     // Fetch all users from API and initialize presence store
     if (!presenceInitialized.current) {
       presenceInitialized.current = true;
-      api.get('/users').then(res => {
+      api.get('/users/assignable').then(res => {
         const users = Array.isArray(res.data) ? res.data : res.data?.users || [];
         const store = usePresenceStore.getState();
         store.initializeUsers(users);

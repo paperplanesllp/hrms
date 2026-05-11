@@ -43,7 +43,7 @@ const UserListWithPresence = ({
     const loadUsers = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/users');
+        const response = await api.get('/users/assignable');
         const users = Array.isArray(response.data) ? response.data : response.data?.users || [];
         initializeUsers(users);
       } catch (err) {
