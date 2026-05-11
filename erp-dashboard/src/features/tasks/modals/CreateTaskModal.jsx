@@ -346,7 +346,12 @@ export default function CreateTaskModal({ isOpen, onClose, onTaskCreated, users 
     .map(u => ({
       ...u,
       isCurrentUser: u._id === currentUserId
-    }));
+    }))
+    .sort((a, b) => {
+      if (a.isCurrentUser) return -1;
+      if (b.isCurrentUser) return 1;
+      return (a.name || a.email || '').localeCompare(b.name || b.email || '');
+    });
   const currentUserExists = usersForDropdown.some(u => u._id === currentUserId);
   
   // If current user not in list, add them at the top
