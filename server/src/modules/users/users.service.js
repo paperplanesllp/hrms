@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { User } from "./User.model.js";
+import { ROLES } from "../../middleware/roles.js";
 
 export async function createUser(data) {
   const exists = await User.findOne({ email: data.email });
@@ -40,7 +41,8 @@ export async function listUsers(
   requestingUserRole = null,
   currentUserId = null,
   departmentId = null,
-  companyId = null
+  companyId = null,
+  roleFilter = null
 ) {
   // Exclude terminated users from shared lists.
   // Everyone can assign tasks to ADMIN users as well.
@@ -57,6 +59,10 @@ export async function listUsers(
   // Filter by department if provided (for task reassignment to department members)
   if (departmentId) {
     query.departmentId = departmentId;
+  }
+
+  if (roleFilter && Object.values(ROLES).includes(roleFilter)) {
+    query.role = roleFilter;
   }
 
   return User.find(query)
