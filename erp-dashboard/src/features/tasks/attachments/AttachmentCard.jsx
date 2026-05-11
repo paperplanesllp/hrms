@@ -59,7 +59,14 @@ export default function AttachmentCard({
               <button type="button" onClick={() => onPreview?.(file)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800" title="Preview">
                 <ExternalLink className="h-4 w-4" />
               </button>
-              <a href={getDownloadUrl(file)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800" title="Download">
+              <a
+                href={getDownloadUrl(file)}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={file.originalName || file.name || true}
+                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"
+                title="Download"
+              >
                 <Download className="h-4 w-4" />
               </a>
               <button type="button" onClick={() => onCopy?.(file)} className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800" title="Copy link">

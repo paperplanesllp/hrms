@@ -20,7 +20,14 @@ export default function AttachmentPreviewModal({ attachment, onClose }) {
             <p className="text-xs text-slate-500 dark:text-slate-400">{kind.toUpperCase()} preview</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href={getDownloadUrl(file)} className="rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Download">
+            <a
+              href={getDownloadUrl(file)}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={file.originalName || true}
+              className="rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Download"
+            >
               <Download className="h-4 w-4" />
             </a>
             <a href={file.url} target="_blank" rel="noreferrer" className="rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Open">
