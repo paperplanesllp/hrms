@@ -19,6 +19,7 @@ import {
   convertTemporaryToPermanent,
 } from "./users.service.js";
 import { User } from "./User.model.js";
+import { Company } from "../companies/Company.model.js";
 import { AuditLog } from "../audit/AuditLog.model.js";
 import { ROLES } from "../../middleware/roles.js";
 import { ApiError } from "../../utils/apiError.js";
@@ -32,6 +33,39 @@ function requireCompanyId(req) {
   if (!req.user?.companyId) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Company is required");
   }
+}
+
+function getEmailDomain(email = "") {
+  const parts = String(email || "").trim().toLowerCase().split("@");
+  return parts.length === 2 && parts[1] ? parts[1] : "";
+}
+
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function resolveCompanyIdForHr(userId, email = "") {
+  const domain = getEmailDomain(email);
+  if (!domain) return null;
+
+  const domainRegex = `@${escapeRegex(domain)}$`;
+  const company = await Company.findOne({
+    isActive: { $ne: false },
+    $or: [
+      { domain },
+      { contactEmail: { $regex: domainRegex, $options: "i" } },
+    ],
+  }).select("_id").lean();
+
+  if (company?._id) return String(company._id);
+
+  const linkedUser = await User.findOne({
+    _id: { $ne: userId },
+    companyId: { $ne: null },
+    email: { $regex: domainRegex, $options: "i" },
+  }).select("companyId").lean();
+
+  return linkedUser?.companyId ? String(linkedUser.companyId) : null;
 }
 
 export const createUserByAdmin = asyncHandler(async (req, res) => {
@@ -107,21 +141,19 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   let companyId = req.user.companyId;
   
   if (req.user.role === ROLES.HR && !companyId) {
-    // Try to resolve companyId from email domain
-    const { Company } = await import("../companies/Company.model.js");
-    const emailDomain = req.user.email?.split("@")[1];
-    if (emailDomain) {
-      const company = await Company.findOne({ domain: emailDomain });
-      if (company) {
-        companyId = company._id;
-      }
-    }
+    companyId = await resolveCompanyIdForHr(req.user.id, req.user.email);
+
     if (!companyId) {
       throw new ApiError(
         StatusCodes.BAD_REQUEST,
         "HR user must have company ID or email from registered company domain"
       );
     }
+
+    await User.updateOne(
+      { _id: req.user.id, $or: [{ companyId: null }, { companyId: { $exists: false } }] },
+      { $set: { companyId } }
+    );
   }
 
   const users = await listUsers(
