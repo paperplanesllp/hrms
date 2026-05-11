@@ -3,10 +3,17 @@ import dotenv from "dotenv";
 
 import { Company } from "../src/modules/companies/Company.model.js";
 import { User } from "../src/modules/users/User.model.js";
+import { ROLES } from "../src/middleware/roles.js";
 
 dotenv.config();
 
+const PAPERPLANES_NAME = "Paperplanes";
 const PAPERPLANES_DOMAIN = "paperplanesco.com";
+const PAPERPLANES_CONTACT_EMAIL = "stephen@paperplanesco.com";
+
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 async function run() {
   if (!process.env.MONGO_URI) {
@@ -17,34 +24,37 @@ async function run() {
   await mongoose.connect(process.env.MONGO_URI);
   console.log("DB connected");
 
-  const company = await Company.findOne({
-    name: { $regex: "paperplanes", $options: "i" },
-  });
+  const company = await Company.findOneAndUpdate(
+    {
+      $or: [
+        { domain: PAPERPLANES_DOMAIN },
+        { name: { $regex: escapeRegex(PAPERPLANES_NAME), $options: "i" } },
+        { contactEmail: PAPERPLANES_CONTACT_EMAIL },
+      ],
+    },
+    {
+      $set: {
+        name: PAPERPLANES_NAME,
+        domain: PAPERPLANES_DOMAIN,
+        contactEmail: PAPERPLANES_CONTACT_EMAIL,
+        isActive: true,
+      },
+    },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true }
+  );
 
-  if (!company) {
-    console.error("No Company found with name matching Paperplanes");
-    process.exitCode = 1;
-    return;
-  }
-
-  if (!company.domain) {
-    company.domain = PAPERPLANES_DOMAIN;
-    await company.save();
-    console.log("Set Paperplanes domain:", PAPERPLANES_DOMAIN);
-  } else {
-    console.log("Paperplanes domain already set:", company.domain);
-  }
+  console.log("Ensured Paperplanes company:", String(company._id));
 
   const result = await User.updateMany(
     {
-      role: "HR",
-      email: { $regex: `@${PAPERPLANES_DOMAIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
-      $or: [{ companyId: null }, { companyId: { $exists: false } }],
+      email: { $regex: `@${escapeRegex(PAPERPLANES_DOMAIN)}$`, $options: "i" },
+      role: { $in: [ROLES.ADMIN, ROLES.HR, ROLES.USER] },
     },
     { $set: { companyId: company._id } }
   );
 
-  console.log("Paperplanes HR users updated:", result.modifiedCount);
+  console.log("Paperplanes users matched:", result.matchedCount);
+  console.log("Paperplanes users updated:", result.modifiedCount);
   await mongoose.disconnect();
   console.log("Migration completed");
 }

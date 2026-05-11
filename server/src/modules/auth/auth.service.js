@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { User } from "../users/User.model.js";
+import { Company } from "../companies/Company.model.js";
 import { ROLES } from "../../middleware/roles.js";
 import {
   signAccessToken,
@@ -27,6 +28,40 @@ function generateOtpCode() {
 
 function hashOtp(code) {
   return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+function getEmailDomain(email = "") {
+  const parts = String(email || "").trim().toLowerCase().split("@");
+  return parts.length === 2 && parts[1] ? parts[1] : "";
+}
+
+function escapeRegex(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function backfillCompanyIdFromEmailDomain(user) {
+  if (!user || user.companyId) return user?.companyId ? String(user.companyId) : null;
+
+  const domain = getEmailDomain(user.email);
+  if (!domain) return null;
+
+  const escapedDomain = escapeRegex(domain);
+  const company = await Company.findOne({
+    isActive: { $ne: false },
+    $or: [
+      { domain },
+      { domain: { $regex: `^${escapedDomain}$`, $options: "i" } },
+      { contactEmail: { $regex: `@${escapedDomain}$`, $options: "i" } },
+      { contactEmail: { $regex: escapedDomain, $options: "i" } },
+      { website: { $regex: escapedDomain, $options: "i" } },
+    ],
+  }).select("_id");
+
+  if (!company?._id) return null;
+
+  user.companyId = company._id;
+  await user.save();
+  return String(company._id);
 }
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -223,6 +258,7 @@ export async function login(email, password, rememberMe = true) {
   console.log(`✅ Password verified, issuing tokens for user ${user.email}`);
 
   // Mark user as active on login
+  await backfillCompanyIdFromEmailDomain(user);
   user.isActive = true;
   user.loginAttempts = 0;
   user.failedLoginAttempts = 0;
@@ -549,6 +585,7 @@ export async function verifyTemporaryOtp(email, otp, rememberMe = true) {
   user.otpCodeHash = "";
   user.otpExpiresAt = null;
   user.otpAttempts = 0;
+  await backfillCompanyIdFromEmailDomain(user);
   user.isActive = true;
 
   const payload = {
@@ -749,13 +786,19 @@ export async function verify2FALoginOTP(userId, otp, rememberMe = true) {
   user.otpExpiresAt = null;
   user.otpAttempts = 0;
   user.otpLastSentAt = null;
+  await backfillCompanyIdFromEmailDomain(user);
   user.isActive = true;
   user.temp2FAToken = undefined; // Clear temp token
   user.temp2FATokenExpires = undefined;
   await user.save();
 
   // Generate tokens
-  const payload = { id: String(user._id), role: user.role, name: user.name };
+  const payload = {
+    id: String(user._id),
+    role: user.role,
+    name: user.name,
+    companyId: user.companyId ? String(user.companyId) : null,
+  };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload, rememberMe);
 
@@ -784,6 +827,7 @@ export async function verify2FALoginOTP(userId, otp, rememberMe = true) {
       role: user.role,
       email: user.email,
       profileImageUrl: user.profileImageUrl,
+      companyId: user.companyId ? String(user.companyId) : null,
     },
   };
 }
