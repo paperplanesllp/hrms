@@ -9,6 +9,7 @@ import {
   getRemainingState,
   normalizeTaskTiming,
   shouldSendReminder,
+  extendTaskTime,
 } from '../src/modules/tasks/taskDeadline.utils.js';
 
 function makeTask(overrides = {}) {
@@ -183,4 +184,26 @@ test('ongoing pause freezes remaining time and extends effective dueAt', () => {
     afterTwentyMinutesPaused.dueAt.getTime() - atPauseStart.dueAt.getTime(),
     20 * 60 * 1000
   );
+});
+
+test('manual extension increases estimate and clears overdue timing', () => {
+  const task = makeTask({
+    startedAt: new Date('2026-04-14T10:00:00.000Z'),
+    estimatedMinutes: 1,
+    estimatedTotalMinutes: 1,
+    status: 'overdue',
+    isRunning: true,
+    extensionHistory: [],
+    remarks: [],
+  });
+
+  assert.equal(normalizeTaskTiming(task, new Date('2026-04-14T10:02:00.000Z')).isOverdue, true);
+
+  extendTaskTime(task, 5, 'user-1', 'Need a few more minutes');
+  const normalized = normalizeTaskTiming(task, new Date('2026-04-14T10:02:00.000Z'));
+
+  assert.equal(task.estimatedTotalMinutes, 6);
+  assert.equal(normalized.estimatedMinutes, 6);
+  assert.equal(normalized.isOverdue, false);
+  assert.equal(normalized.remainingMinutes > 0, true);
 });

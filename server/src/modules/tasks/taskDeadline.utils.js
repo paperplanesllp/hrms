@@ -187,7 +187,7 @@ export function calculateTaskMetrics(task, now = new Date()) {
   const isRunning = Boolean(task?.isRunning && !isPaused && !isOnHold && !terminal);
 
   const estimatedMinutes = getEstimatedTotalMinutes(task);
-  const estimatedMs = estimatedMinutes > 0 ? estimatedMinutes * 60 * 1000 : 0;
+  const baseEstimatedMs = estimatedMinutes > 0 ? estimatedMinutes * 60 * 1000 : 0;
 
   const metricsNow = terminal && completedAt ? completedAt : current;
 
@@ -214,9 +214,17 @@ export function calculateTaskMetrics(task, now = new Date()) {
     getHoldEntriesDurationMs(task, metricsNow)
   );
 
-  const effectiveDueAt = isStarted && estimatedMs > 0
-    ? new Date(startedAt.getTime() + estimatedMs + pausedMs + holdMs)
+  const computedDueAt = isStarted && baseEstimatedMs > 0
+    ? new Date(startedAt.getTime() + baseEstimatedMs + pausedMs + holdMs)
     : null;
+  const storedDueAt = toDate(task?.dueAt) || toDate(task?.dueDate);
+  const effectiveDueAt = [computedDueAt, storedDueAt]
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+  const effectiveEstimatedMs = isStarted && effectiveDueAt
+    ? Math.max(baseEstimatedMs, effectiveDueAt.getTime() - startedAt.getTime() - pausedMs - holdMs)
+    : baseEstimatedMs;
+  const estimatedMs = Math.max(0, effectiveEstimatedMs);
 
   const remainingMs = terminal
     ? 0
@@ -587,15 +595,23 @@ export function extendTaskTime(task, additionalMinutes, addedBy, remarksText) {
   }
 
   const newDue = new Date(previousDue.getTime() + extra * 60 * 1000);
+  const currentEstimate = getEstimatedTotalMinutes(task);
+  const newEstimate = currentEstimate + extra;
 
+  task.estimatedTotalMinutes = newEstimate;
+  task.estimatedMinutes = newEstimate;
+  task.estimatedHours = Math.floor(newEstimate / 60);
   task.dueAt = newDue;
   task.dueDate = newDue;
   task.extendedTimeMinutes = toMinutes(task.extendedTimeMinutes) + extra;
   task.extensionCount = toMinutes(task.extensionCount) + 1;
   task.taskExtended = true;
   task.status = "extended";
+  task.timingState = TASK_TIMING_STATE.IN_PROGRESS;
   task.overdueReminderSent = false;
   task.dueNowReminderSent = false;
+  task.thirtyMinReminderSent = false;
+  task.fifteenMinReminderSent = false;
 
   task.extensionHistory.push({
     addedMinutes: extra,
