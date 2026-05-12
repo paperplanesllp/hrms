@@ -976,13 +976,9 @@ export const tasksController = {
         return sendError(res, 'Completed tasks cannot request extension', 400);
       }
 
-      // Check if task is self-assigned - self-assigned tasks CANNOT request extension
+      // Self-assigned tasks can extend immediately because the assigner and assignee are the same person.
       const isSelfAssigned = task.assignedBy?.toString() === req.user.id ||
         task.assignedBy?._id?.toString() === req.user.id;
-      
-      if (isSelfAssigned) {
-        return sendError(res, 'Self-assigned tasks cannot request extension. Please contact your manager if you need more time.', 403);
-      }
 
       const effectiveDueAt = task.dueAt || task.dueDate;
       const now = new Date();
@@ -1043,6 +1039,24 @@ export const tasksController = {
         approvalStatus: 'pending',
       });
 
+      if (isSelfAssigned) {
+        const pendingRequest = task.extensionRequests[task.extensionRequests.length - 1];
+        pendingRequest.approvalStatus = 'approved';
+        pendingRequest.approvedBy = req.user.id;
+        pendingRequest.approvedAt = new Date();
+
+        task.approvalStatus = 'approved';
+        extendTaskTime(task, additionalMinutes, req.user.id, safeRemarks);
+        task.status = 'extended';
+
+        task.remarks.push({
+          type: 'extension',
+          text: `Self-approved extension: +${additionalMinutes} minutes. ${safeRemarks}`,
+          addedAt: new Date(),
+          addedBy: req.user.id,
+        });
+      }
+
       await task.save();
       await task.populate([
         { path: 'assignedTo', select: 'name email' },
@@ -1050,8 +1064,30 @@ export const tasksController = {
         { path: 'department', select: 'name' }
       ]);
 
-      // Notify only the task assigner (not HR/Admin)
-      if (task.assignedBy) {
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_UPDATE',
+        module: 'TASK',
+        description: isSelfAssigned
+          ? `${req.user.name || 'User'} auto-approved +${additionalMinutes} min extension for self-assigned task "${task.title}"`
+          : `${req.user.name || 'User'} requested +${additionalMinutes} min extension for task "${task.title}"`,
+        targetUserId: task.assignedBy?._id || task.assignedBy,
+        targetUserName: task.assignedBy?.name || null,
+        metadata: {
+          taskId: task._id,
+          title: task.title,
+          event: isSelfAssigned ? 'TASK_EXTENSION_AUTO_APPROVED' : 'TASK_EXTENSION_REQUESTED',
+          additionalMinutes,
+          remarks: safeRemarks
+        },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
+      // Notify only the task assigner when approval is needed.
+      if (!isSelfAssigned && task.assignedBy) {
         await createTaskNotification({
           userId: task.assignedBy._id || task.assignedBy,
           taskId: task._id,
@@ -1063,7 +1099,11 @@ export const tasksController = {
       }
 
       notifyTaskUpdated(task, req.user.id);
-      sendSuccess(res, formatTaskResponse(task), 'Extension request submitted successfully');
+      sendSuccess(
+        res,
+        formatTaskResponse(task),
+        isSelfAssigned ? 'Extension applied successfully' : 'Extension request submitted successfully'
+      );
     } catch (error) {
       sendError(res, error.message, 400);
     }
@@ -1075,11 +1115,12 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      // Only the task assigner can approve extension requests
+      // The task assigner approves; HR/Admin can also approve for oversight.
       const canApprove = task.assignedBy?.toString() === req.user.id ||
-        task.assignedBy?._id?.toString() === req.user.id;
+        task.assignedBy?._id?.toString() === req.user.id ||
+        ['ADMIN', 'HR'].includes((req.user.role || '').toUpperCase());
       if (!canApprove) {
-        return sendError(res, 'Only the task assigner can approve extension requests', 403);
+        return sendError(res, 'Only the task assigner or HR/Admin can approve extension requests', 403);
       }
 
       const requests = task.extensionRequests || [];
@@ -1120,6 +1161,25 @@ export const tasksController = {
         });
       }
 
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_UPDATE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} approved +${pendingRequest.requestedTimeMinutes} min extension for task "${task.title}"`,
+        targetUserId: pendingRequest.requestedBy,
+        metadata: {
+          taskId: task._id,
+          title: task.title,
+          event: 'TASK_EXTENSION_APPROVED',
+          requestId: pendingRequest._id,
+          additionalMinutes: pendingRequest.requestedTimeMinutes
+        },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
+
       notifyTaskUpdated(task, req.user.id);
       sendSuccess(res, formatTaskResponse(task), 'Extension request approved successfully');
     } catch (error) {
@@ -1138,11 +1198,12 @@ export const tasksController = {
       const task = await Task.findOne({ _id: taskId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
-      // Only the task assigner can reject extension requests
+      // The task assigner rejects; HR/Admin can also reject for oversight.
       const canReject = task.assignedBy?.toString() === req.user.id ||
-        task.assignedBy?._id?.toString() === req.user.id;
+        task.assignedBy?._id?.toString() === req.user.id ||
+        ['ADMIN', 'HR'].includes((req.user.role || '').toUpperCase());
       if (!canReject) {
-        return sendError(res, 'Only the task assigner can reject extension requests', 403);
+        return sendError(res, 'Only the task assigner or HR/Admin can reject extension requests', 403);
       }
 
       const requests = task.extensionRequests || [];
@@ -1186,6 +1247,25 @@ export const tasksController = {
           triggeredBy: req.user.id,
         });
       }
+
+      createActivityLog({
+        actorId: req.user.id,
+        actorName: req.user.name || 'Unknown',
+        actorRole: req.user.role,
+        actionType: 'TASK_UPDATE',
+        module: 'TASK',
+        description: `${req.user.name || 'User'} rejected extension request for task "${task.title}"`,
+        targetUserId: pendingRequest.requestedBy,
+        metadata: {
+          taskId: task._id,
+          title: task.title,
+          event: 'TASK_EXTENSION_REJECTED',
+          requestId: pendingRequest._id,
+          rejectionReason: reason
+        },
+        ipAddress: req.ip,
+        visibility: 'PUBLIC',
+      }).catch(() => {});
 
       notifyTaskStatusChanged(task, req.user.id);
       sendSuccess(res, formatTaskResponse(task), 'Extension request rejected successfully');

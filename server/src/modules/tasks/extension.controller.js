@@ -3,8 +3,35 @@ import { Task } from './Task.model.js';
 import { sendSuccess, sendError } from '../../utils/responseHelpers.js';
 import { createTaskNotification } from '../../utils/notificationHelper.js';
 import { notifyTaskStatusChanged } from '../../utils/socket.js';
-import { extendTaskTime, formatToIST } from './taskDeadline.utils.js';
-import { formatTaskResponse } from './taskResponseFormatter.js';
+import { createActivityLog } from '../activity/activity.service.js';
+
+const formatExtraTime = (hours = 0, minutes = 0) => {
+  const parts = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  return parts.length ? parts.join(' ') : '0m';
+};
+
+const logExtensionActivity = (req, { description, task, targetUserId, targetUserName, metadata = {} }) => {
+  createActivityLog({
+    actorId: req.user.id,
+    actorName: req.user.name || 'Unknown',
+    actorRole: req.user.role,
+    actionType: 'TASK_UPDATE',
+    module: 'TASK',
+    description,
+    targetUserId,
+    targetUserName,
+    metadata: {
+      taskId: task?._id || task?.id,
+      title: task?.title,
+      ...metadata
+    },
+    ipAddress: req.ip,
+    userAgent: req.get?.('user-agent') || null,
+    visibility: 'PUBLIC',
+  }).catch(() => {});
+};
 
 export const extensionController = {
   // Request extension
@@ -27,6 +54,7 @@ export const extensionController = {
 
       const additionalTotalMinutes = (additionalHours || 0) * 60 + (additionalMinutes || 0);
       if (additionalTotalMinutes <= 0) return sendError(res, 'Additional time must be greater than 0', 400);
+      const isSelfAssigned = task.assignedBy?._id?.toString() === req.user.id || task.assignedBy?.toString() === req.user.id;
 
       const extensionRequest = new ExtensionRequest({
         taskId,
@@ -40,15 +68,48 @@ export const extensionController = {
 
       await extensionRequest.save();
 
-      // Update task status to extension_requested
-      task.status = 'extension_requested';
-      task.approvalStatus = 'pending';
+      if (isSelfAssigned) {
+        extensionRequest.status = 'approved';
+        extensionRequest.approvalNotes = 'Auto-approved for self-assigned task';
+        extensionRequest.approvedBy = req.user.id;
+        extensionRequest.approvedAt = new Date();
+        await extensionRequest.save();
+
+        task.estimatedTotalMinutes = (task.estimatedTotalMinutes || 0) + additionalTotalMinutes;
+        task.estimatedHours = Math.floor(task.estimatedTotalMinutes / 60);
+        task.estimatedMinutes = task.estimatedTotalMinutes % 60;
+        task.dueDate = new Date(new Date(task.dueDate).getTime() + additionalTotalMinutes * 60000);
+        if (task.dueAt) task.dueAt = new Date(new Date(task.dueAt).getTime() + additionalTotalMinutes * 60000);
+        task.status = task.startedAt ? 'in-progress' : 'pending';
+        task.approvalStatus = 'approved';
+        task.taskExtended = true;
+        task.extendedTimeMinutes = (task.extendedTimeMinutes || 0) + additionalTotalMinutes;
+      } else {
+        // Update task status to extension_requested
+        task.status = 'extension_requested';
+        task.approvalStatus = 'pending';
+      }
       await task.save();
 
       await extensionRequest.populate(['taskId', 'requestedBy', 'requestedFrom']);
 
+      logExtensionActivity(req, {
+        task,
+        targetUserId: task.assignedBy?._id || task.assignedBy,
+        targetUserName: task.assignedBy?.name || null,
+        description: isSelfAssigned
+          ? `${req.user.name || 'User'} auto-approved ${formatExtraTime(additionalHours || 0, additionalMinutes || 0)} extension for self-assigned task "${task.title}"`
+          : `${req.user.name || 'User'} requested ${formatExtraTime(additionalHours || 0, additionalMinutes || 0)} extension for task "${task.title}"`,
+        metadata: {
+          event: isSelfAssigned ? 'TASK_EXTENSION_AUTO_APPROVED' : 'TASK_EXTENSION_REQUESTED',
+          extensionRequestId: extensionRequest._id,
+          additionalMinutes: additionalTotalMinutes,
+          reason: reason.trim()
+        }
+      });
+
       // Notify the assigner (HR/manager)
-      await createTaskNotification({
+      if (!isSelfAssigned) await createTaskNotification({
         userId: task.assignedBy._id,
         taskId,
         eventType: 'system',
@@ -59,7 +120,12 @@ export const extensionController = {
 
       notifyTaskStatusChanged(task, req.user.id).catch(() => {});
 
-      sendSuccess(res, extensionRequest, 'Extension request submitted successfully', 201);
+      sendSuccess(
+        res,
+        extensionRequest,
+        isSelfAssigned ? 'Extension applied successfully' : 'Extension request submitted successfully',
+        201
+      );
     } catch (error) {
       console.error('❌ [ExtensionController] Error requesting extension:', error.message);
       sendError(res, error.message, 500);
@@ -111,6 +177,19 @@ export const extensionController = {
         await task.save();
         await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
         notifyTaskStatusChanged(task, req.user.id).catch(() => {});
+
+        logExtensionActivity(req, {
+          task,
+          targetUserId: extensionRequest.requestedBy?._id || extensionRequest.requestedBy,
+          targetUserName: extensionRequest.requestedBy?.name || null,
+          description: `${req.user.name || 'User'} approved ${formatExtraTime(extensionRequest.additionalHoursRequested, extensionRequest.additionalMinutesRequested)} extension for task "${task.title}"`,
+          metadata: {
+            event: 'TASK_EXTENSION_APPROVED',
+            extensionRequestId: extensionRequest._id,
+            additionalMinutes,
+            approvalNotes: extensionRequest.approvalNotes
+          }
+        });
       }
 
       // Notify the employee who requested
@@ -166,6 +245,18 @@ export const extensionController = {
         await task.save();
         await task.populate([{ path: 'assignedTo', select: 'name email' }, { path: 'assignedBy', select: 'name email' }]);
         notifyTaskStatusChanged(task, req.user.id).catch(() => {});
+
+        logExtensionActivity(req, {
+          task,
+          targetUserId: extensionRequest.requestedBy?._id || extensionRequest.requestedBy,
+          targetUserName: extensionRequest.requestedBy?.name || null,
+          description: `${req.user.name || 'User'} rejected extension request for task "${task.title}"`,
+          metadata: {
+            event: 'TASK_EXTENSION_REJECTED',
+            extensionRequestId: extensionRequest._id,
+            rejectionReason: rejectionReason.trim()
+          }
+        });
       }
 
       // Notify the employee
