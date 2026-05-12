@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, FileText, Download, Image, File, Paperclip, Eye, Clock, History, MessageSquare, Send, Trash2, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button.jsx';
 import Card from '../../components/ui/Card.jsx';
+import DigitalClock from '../../components/ui/DigitalClock.jsx';
 import MultiUserSelect from '../../components/ui/MultiUserSelect.jsx';
 import { taskService } from './taskService.js';
 import { toast } from '../../store/toastStore.js';
@@ -506,15 +507,16 @@ export default function TaskDetailsModal({
                 </span>
               )}
             </div>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <TimerChip
                 countdown={countdown}
                 isPaused={task.isPaused}
                 dueTooltip={`Due: ${formatToIST(effectiveDueAt)}`}
               />
+              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
             </div>
             <div className="mt-2">
-              <EstimatedTimeTimer countdown={estimatedCountdown} task={task} />
+              <DigitalClock compact showDate={false} className="w-fit" />
             </div>
           </div>
 

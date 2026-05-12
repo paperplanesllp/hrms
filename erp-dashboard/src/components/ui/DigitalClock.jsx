@@ -12,7 +12,11 @@ function getClockColor(hour24, minute) {
   return "text-slate-900 dark:text-white";                                      // outside work hours
 }
 
-export default function DigitalClock() {
+export default function DigitalClock({
+  compact = false,
+  showDate = true,
+  className = "",
+}) {
   const [time, setTime] = useState("");
   const [dateInfo, setDateInfo] = useState("");
   const [colorClass, setColorClass] = useState("text-slate-900 dark:text-white");
@@ -63,22 +67,30 @@ export default function DigitalClock() {
     return () => clearInterval(interval);
   }, []);
 
+  const wrapperClass = compact
+    ? "flex items-center gap-2 px-3 py-2 rounded-xl bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 shadow-sm group"
+    : "flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/60 dark:to-slate-800/60 border border-slate-200/70 dark:border-slate-600/70 hover:shadow-lg hover:border-slate-300/70 dark:hover:border-slate-500/70 transition-all duration-300 ease-smooth group";
+  const iconClass = compact ? "w-4 h-4" : "w-5 h-5";
+  const timeClass = compact ? "text-base" : "text-sm";
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/60 dark:to-slate-800/60 border border-slate-200/70 dark:border-slate-600/70 hover:shadow-lg hover:border-slate-300/70 dark:hover:border-slate-500/70 transition-all duration-300 ease-smooth group">
+    <div className={`${wrapperClass} ${className}`}>
       {/* Clock Icon */}
-      <Clock className="flex-shrink-0 w-5 h-5 transition-colors text-brand-accent dark:text-brand-accent/90 group-hover:text-brand-accent/80" />
+      <Clock className={`flex-shrink-0 transition-colors text-brand-accent dark:text-brand-accent/90 group-hover:text-brand-accent/80 ${iconClass}`} />
       
       {/* Time & Date Display */}
       <div className="flex flex-col items-start gap-0.5">
         {/* Time with AM/PM */}
-        <span className={`font-mono text-sm font-bold leading-tight tracking-wide ${colorClass}`}>
+        <span className={`font-mono font-bold leading-tight tracking-wide ${timeClass} ${colorClass}`}>
           {time || "12:00 pm"}
         </span>
         
         {/* Full Date */}
-        <span className="text-xs font-medium leading-tight text-slate-600 dark:text-slate-300">
-          {dateInfo || "Loading..."}
-        </span>
+        {showDate && (
+          <span className="text-xs font-medium leading-tight text-slate-600 dark:text-slate-300">
+            {dateInfo || "Loading..."}
+          </span>
+        )}
       </div>
     </div>
   );
