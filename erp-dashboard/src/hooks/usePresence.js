@@ -38,8 +38,8 @@ export const useUserPresence = (userId) => {
   const tooltip = rawDate ? `Last active on ${formatExactTimestamp(rawDate)}` : presence.tooltip;
 
   let label = presence.label;
-  if (presence.status === 'offline' && presence.lastSeen && presence.lastSeen !== 'never') {
-    label = `Last seen ${presence.lastSeen}`;
+  if (presence.status === 'offline' && data?.lastSeen) {
+    label = `Last seen ${formatExactTimestamp(data.lastSeen)}`;
   }
 
   return {
