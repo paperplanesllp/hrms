@@ -5,7 +5,8 @@ export default function Card({
   className = "", 
   elevated = false,
   interactive = false,
-  variant = "default"
+  variant = "default",
+  ...props
 }) {
   const baseClasses = elevated
     ? "rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-elevation-2 transition-all duration-300 ease-smooth hover:border-brand-accent/50 dark:hover:border-brand-accent/60 hover:shadow-elevation-3 hover:shadow-accent-glow/10"
@@ -24,7 +25,7 @@ export default function Card({
   };
 
   return (
-    <div className={`${baseClasses} ${interactiveClasses} ${variantClasses[variant]} ${className}`}>
+    <div className={`${baseClasses} ${interactiveClasses} ${variantClasses[variant]} ${className}`} {...props}>
       {children}
     </div>
   );

@@ -35,6 +35,7 @@ function TasksPageInner() {
   useTaskSocketListener();
   
   const [activeTab, setActiveTab] = useState('overview');
+  const [myTasksInitialFilter, setMyTasksInitialFilter] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -100,6 +101,46 @@ function TasksPageInner() {
     setIsCreateModalOpen(true);
   };
 
+  const openMyTasks = (filter = 'all') => {
+    setMyTasksInitialFilter(filter);
+    setActiveTab('my-tasks');
+  };
+
+  const handleExportTasks = async () => {
+    try {
+      const res = await api.get('/tasks/my', { params: { limit: 1000 } });
+      const tasks = res.data?.data || res.data || [];
+      const rows = [
+        ['Title', 'Status', 'Priority', 'Assigned By', 'Due', 'Estimated Minutes', 'Remaining', 'Created'],
+        ...tasks.map((task) => [
+          task.title || '',
+          task.status || '',
+          task.priority || '',
+          task.assignedBy?.name || task.assignedBy?.email || '',
+          task.dueAt || task.dueDate || '',
+          task.estimatedTotalMinutes ?? task.estimatedMinutes ?? '',
+          task.remainingLabel || '',
+          task.createdAt || '',
+        ])
+      ];
+      const csv = rows
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `my-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: 'Tasks exported', message: 'Your task list was downloaded as CSV.', type: 'success' });
+    } catch (error) {
+      toast({ title: 'Export failed', message: error?.response?.data?.message || error.message, type: 'error' });
+    }
+  };
+
   // Close create task modal
   const handleCloseCreateModal = () => {
     console.log('🎯 [TasksPage] Closing create task modal');
@@ -124,15 +165,15 @@ function TasksPageInner() {
   const renderActiveSection = () => {
     switch (activeTab) {
       case 'overview':
-        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
+        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} onOpenTaskList={openMyTasks} />;
       case 'my-tasks':
-        return <MyTasksSection />;
+        return <MyTasksSection initialFilter={myTasksInitialFilter} />;
       case 'assigned-tasks':
         return <AssignedTasksSection />;
       case 'reports':
-        return isAdminOrHR ? <TaskReportsSection /> : <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
+        return isAdminOrHR ? <TaskReportsSection /> : <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} onOpenTaskList={openMyTasks} />;
       default:
-        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} />;
+        return <TasksOverviewSection onCreateTask={handleOpenCreateModal} onViewAnalytics={() => setActiveTab('reports')} onOpenTaskList={openMyTasks} />;
     }
   };
 
@@ -149,6 +190,7 @@ function TasksPageInner() {
             variant="secondary" 
             size="md"
             leftIcon={<Filter className="w-4 h-4" />}
+            onClick={() => openMyTasks('all')}
           >
             Filter
           </Button>,
@@ -157,6 +199,7 @@ function TasksPageInner() {
             variant="secondary" 
             size="md"
             leftIcon={<Download className="w-4 h-4" />}
+            onClick={handleExportTasks}
           >
             Export
           </Button>,

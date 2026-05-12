@@ -362,7 +362,7 @@ function getHoursWorked(records, startDate, endDate, range) {
 export default function EmployeeAnalyticsDashboard() {
   const user = useAuthStore((s) => s.user);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState("month");
+  const [timeRange, setTimeRange] = useState("daily");
   const [currentAttendance, setCurrentAttendance] = useState([]);
   const [previousAttendance, setPreviousAttendance] = useState([]);
   const [leaveBalance, setLeaveBalance] = useState(null);

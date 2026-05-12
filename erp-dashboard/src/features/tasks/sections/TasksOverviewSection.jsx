@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Loader } from 'lucide-react';
@@ -31,13 +30,19 @@ import {
   Sparkles
 } from 'lucide-react';
 
-function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel }) {
+function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel, onOpen }) {
   const countdown = useCountdownTimer(activity || {});
   const remaining = calculateRemainingTime(activity || {});
   const effectiveDueAt = remaining.effectiveDueAt || activity?.dueAt || activity?.dueDate;
 
   return (
     <div
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onOpen?.();
+      }}
       className="flex items-start gap-4 p-4 transition-colors rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 group"
     >
       <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 text-lg transition-transform rounded-full bg-slate-200 dark:bg-slate-700 group-hover:scale-110">
@@ -70,8 +75,7 @@ function RecentTaskActivityRow({ activity, getActivityColor, getActivityLabel })
   );
 }
 
-export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) {
-  const navigate = useNavigate();
+export default function TasksOverviewSection({ onCreateTask, onViewAnalytics, onOpenTaskList }) {
   const { refreshKey } = useTaskRefresh();
   const user = useAuthStore(s => s.user);
   const isAdminOrHR = user?.role === 'ADMIN' || user?.role === 'HR';
@@ -189,6 +193,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       color: 'from-blue-500 to-blue-600',
       bgColor: 'bg-blue-50 dark:bg-blue-950/30',
       textColor: 'text-blue-600 dark:text-blue-400',
+      filter: 'all',
     },
     {
       id: 'pending',
@@ -199,6 +204,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       color: 'from-amber-500 to-amber-600',
       bgColor: 'bg-amber-50 dark:bg-amber-950/30',
       textColor: 'text-amber-600 dark:text-amber-400',
+      filter: 'pending',
     },
     {
       id: 'inprogress',
@@ -209,6 +215,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       color: 'from-purple-500 to-purple-600',
       bgColor: 'bg-purple-50 dark:bg-purple-950/30',
       textColor: 'text-purple-600 dark:text-purple-400',
+      filter: 'in-progress',
     },
     {
       id: 'completed',
@@ -219,6 +226,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       color: 'from-emerald-500 to-emerald-600',
       bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
       textColor: 'text-emerald-600 dark:text-emerald-400',
+      filter: 'completed',
     },
     {
       id: 'overdue',
@@ -229,6 +237,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
       color: 'from-red-500 to-red-600',
       bgColor: 'bg-red-50 dark:bg-red-950/30',
       textColor: 'text-red-600 dark:text-red-400',
+      filter: 'overdue',
     },
   ];
 
@@ -346,6 +355,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
               key={stat.id}
               className={`p-6 transition-all duration-300 hover:shadow-lg group cursor-pointer ${stat.bgColor}`}
               interactive
+              onClick={() => onOpenTaskList?.(stat.filter)}
             >
               <div className="space-y-4">
                 {/* Icon Container */}
@@ -397,7 +407,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
                 Recent Activity
               </h3>
               <button 
-                onClick={() => navigate('/tasks/daily-updates')}
+                onClick={() => onOpenTaskList?.('all')}
                 className="flex items-center gap-1 text-sm font-semibold transition-colors text-brand-accent hover:text-brand-accent/80"
               >
                 View All <ChevronRight className="w-4 h-4" />
@@ -411,6 +421,7 @@ export default function TasksOverviewSection({ onCreateTask, onViewAnalytics }) 
                   activity={activity}
                   getActivityColor={getActivityColor}
                   getActivityLabel={getActivityLabel}
+                  onOpen={() => onOpenTaskList?.(activity.status || 'all')}
                 />
               ))}
             </div>

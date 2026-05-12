@@ -30,7 +30,7 @@ const createEditableTask = (task) => {
   };
 };
 
-export default function MyTasksSection() {
+export default function MyTasksSection({ initialFilter = 'all' }) {
   const currentUser = useAuthStore(s => s.user);
   const currentUserId = currentUser?._id || currentUser?.id;
   const { refreshKey, triggerRefresh } = useTaskRefresh();
@@ -59,6 +59,10 @@ export default function MyTasksSection() {
 
   // Track whether a fetch is already in flight to prevent duplicate calls
   const fetchInFlight = useRef(false);
+
+  useEffect(() => {
+    setFilter(initialFilter || 'all');
+  }, [initialFilter]);
 
   // Helper function to sort tasks: running first, then newest
   const sortTasks = useCallback((tasks) => {
@@ -556,6 +560,9 @@ export default function MyTasksSection() {
   const FILTER_OPTIONS = [
     { value: 'all',         label: 'All' },
     { value: 'daily',       label: 'Daily Task' },
+    { value: 'pending',     label: 'Pending' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'overdue',     label: 'Overdue' },
     { value: 'paused',      label: 'Paused' },
     { value: 'on-hold',     label: 'On Hold' },
     { value: 'completed',   label: 'Completed' },
