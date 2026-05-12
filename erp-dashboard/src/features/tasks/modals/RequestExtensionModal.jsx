@@ -9,7 +9,8 @@ export default function RequestExtensionModal({
   isOpen, 
   onClose, 
   task, 
-  onExtensionRequested 
+  onExtensionRequested,
+  isSelfAssigned = false
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -65,8 +66,10 @@ export default function RequestExtensionModal({
       await api.post(`/tasks/${task._id}/request-extension`, payload);
 
       toast({
-        title: 'Extension requested',
-        description: 'Your request has been sent to the manager/HR for approval',
+        title: isSelfAssigned ? 'Time extended' : 'Extension requested',
+        description: isSelfAssigned
+          ? 'Extra time has been added to your self-assigned task'
+          : 'Your request has been sent to the assigner for approval',
         type: 'success'
       });
 
@@ -97,7 +100,9 @@ export default function RequestExtensionModal({
             <div className="flex items-center gap-3">
               <Clock size={24} className="text-orange-600 dark:text-orange-400" />
               <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Request Time Extension</h1>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {isSelfAssigned ? 'Extend Task Time' : 'Request Time Extension'}
+                </h1>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Task: {task.title}</p>
               </div>
             </div>
@@ -195,7 +200,11 @@ export default function RequestExtensionModal({
             {/* Info Box */}
             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
               <p className="text-sm text-amber-900 dark:text-amber-200">
-                ℹ️ Your extension request will be sent to <strong>the person who assigned this task</strong> for approval. They can approve or reject your request.
+                {isSelfAssigned ? (
+                  <>This task was assigned by you, so the extra time will be applied immediately.</>
+                ) : (
+                  <>Your extension request will be sent to <strong>the person who assigned this task</strong> for approval. They can approve or reject your request.</>
+                )}
               </p>
             </div>
           </form>
@@ -221,12 +230,12 @@ export default function RequestExtensionModal({
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white rounded-full animate-spin border-t-transparent"></div>
-                Sending...
+                {isSelfAssigned ? 'Extending...' : 'Sending...'}
               </>
             ) : (
               <>
                 <Send size={18} />
-                Send Request
+                {isSelfAssigned ? 'Extend Time' : 'Send Request'}
               </>
             )}
           </Button>

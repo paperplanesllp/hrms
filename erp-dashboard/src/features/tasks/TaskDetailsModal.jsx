@@ -138,6 +138,8 @@ export default function TaskDetailsModal({
 
   const auth = getAuth();
   const currentUserId = auth?.user?._id || auth?.user?.id;
+  const assignedById = task.assignedBy?._id || task.assignedBy?.id || task.assignedBy;
+  const isSelfAssignedTask = assignedById?.toString() === currentUserId?.toString();
   
   // Check if task is assigned only to current user
   const isAssignedOnlyToCurrentUser = () => {
@@ -433,8 +435,12 @@ export default function TaskDetailsModal({
       );
     }
 
-    // Show Request Extension button if task is overdue and user is assigned
-    const isUserAssigned = task.assignedTo && task.assignedTo.some(u => u._id === currentUserId || u.id === currentUserId);
+    // Show extension action if task is overdue and user is assigned.
+    // Self-assigned tasks extend directly; externally assigned tasks request approval.
+    const isUserAssigned = task.assignedTo && task.assignedTo.some(u => {
+      const assignedId = u?._id || u?.id || u;
+      return assignedId?.toString() === currentUserId?.toString();
+    });
     const taskIsOverdue = isOverdue && task.status !== 'completed' && isUserAssigned;
     
     if (taskIsOverdue) {
@@ -446,7 +452,7 @@ export default function TaskDetailsModal({
           className="bg-orange-500 hover:bg-orange-600"
         >
           <AlertCircle size={16} />
-          Request Extension
+          {isSelfAssignedTask ? 'Extend Time' : 'Request Extension'}
         </Button>
       );
     }
@@ -1206,6 +1212,7 @@ export default function TaskDetailsModal({
               isOpen={showExtensionModal}
               onClose={() => setShowExtensionModal(false)}
               task={task}
+              isSelfAssigned={isSelfAssignedTask}
               onExtensionRequested={() => {
                 setShowExtensionModal(false);
                 // Optionally refresh task data here

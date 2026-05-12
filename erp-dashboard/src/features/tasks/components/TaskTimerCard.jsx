@@ -85,6 +85,7 @@ export default function TaskTimerCard({
   const isLoading = loadingAction === task._id;
   const isCompleted = task.status === 'completed';
   const currentUser = useAuthStore(s => s.user);
+  const currentUserId = currentUser?._id || currentUser?.id;
 
   const lastPauseReason =
     task.pauseEntries?.length > 0
@@ -278,19 +279,21 @@ export default function TaskTimerCard({
         {/* ── Action buttons ── */}
         <div className="flex flex-wrap items-center gap-2">
           {(() => {
-            const isUserAssigned = task.assignedTo?.some(u => u._id === currentUser?._id || u.id === currentUser?._id);
-            const isSelfAssigned = task.assignedBy?._id === currentUser?._id || 
-                                  task.assignedBy?.id === currentUser?._id ||
-                                  task.assignedBy === currentUser?._id;
+            const isUserAssigned = task.assignedTo?.some(u => {
+              const assignedId = u?._id || u?.id || u;
+              return assignedId?.toString() === currentUserId?.toString();
+            });
+            const assignedById = task.assignedBy?._id || task.assignedBy?.id || task.assignedBy;
+            const isSelfAssigned = assignedById?.toString() === currentUserId?.toString();
             const isOverdueOrTimeUp = (isOverdue || (estimatedCountdown.isExpired && estimatedCountdown.estimatedSeconds > 0)) && !['rejected', 'completed', 'extension_requested', 'cancelled'].includes(task.status);
-            const canRequestExtension = isUserAssigned && !isSelfAssigned && isOverdueOrTimeUp;
+            const canExtend = isUserAssigned && isOverdueOrTimeUp;
             
-            return canRequestExtension && (
+            return canExtend && (
               <button
                 onClick={() => onRequestMoreTime?.(task)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold transition-all"
               >
-                Request Extension
+                {isSelfAssigned ? 'Extend Time' : 'Request Extension'}
               </button>
             );
           })()}

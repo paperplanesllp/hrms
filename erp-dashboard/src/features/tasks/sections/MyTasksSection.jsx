@@ -15,6 +15,7 @@ import PauseTaskModal from '../components/PauseTaskModal.jsx';
 import OnHoldModal from '../components/OnHoldModal.jsx';
 import { formatSecondsHuman } from '../utils/taskTimerUtils.js';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
+import { useAuthStore } from '../../../store/authStore.js';
 
 // Helper function to get dates with offset
 const getDateWithOffset = (offsetDays = 0) => {
@@ -30,6 +31,8 @@ const createEditableTask = (task) => {
 };
 
 export default function MyTasksSection() {
+  const currentUser = useAuthStore(s => s.user);
+  const currentUserId = currentUser?._id || currentUser?.id;
   const { refreshKey, triggerRefresh } = useTaskRefresh();
   const [filter, setFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState(getDateWithOffset(0));
@@ -391,10 +394,15 @@ export default function MyTasksSection() {
   };
 
   const handleRequestMoreTime = (task) => {
+    const assignedById = task.assignedBy?._id || task.assignedBy?.id || task.assignedBy;
     setAdditionalTime('30');
     setTimeUnit('minutes');
     setExtensionRemarks('');
-    setExtensionModal({ _id: task._id, title: task.title });
+    setExtensionModal({
+      _id: task._id,
+      title: task.title,
+      isSelfAssigned: assignedById?.toString() === currentUserId?.toString(),
+    });
   };
 
   const handleRejectTaskRequest = (task) => {
@@ -418,7 +426,13 @@ export default function MyTasksSection() {
       });
 
       updateTaskInList(updated);
-      toast({ title: 'Extension Request Sent', message: 'Your manager will review this extension request.', type: 'success' });
+      toast({
+        title: extensionModal.isSelfAssigned ? 'Time Extended' : 'Extension Request Sent',
+        message: extensionModal.isSelfAssigned
+          ? 'Extra time was added to your self-assigned task.'
+          : 'The task assigner will review this extension request.',
+        type: 'success'
+      });
       setExtensionModal(null);
       triggerRefresh();
     } catch (error) {
@@ -897,9 +911,13 @@ export default function MyTasksSection() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setExtensionModal(null)} />
           <div className="relative z-10 w-full max-w-md mx-4 rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Request Extension</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              {extensionModal.isSelfAssigned ? 'Extend Time' : 'Request Extension'}
+            </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Task Overdue: "{extensionModal.title}" is now overdue. Do you want to request more time?
+              {extensionModal.isSelfAssigned
+                ? `Task Overdue: "${extensionModal.title}" is now overdue. Add extra time to continue.`
+                : `Task Overdue: "${extensionModal.title}" is now overdue. Do you want to request more time?`}
             </p>
 
             <div className="grid grid-cols-2 gap-3">
@@ -939,7 +957,7 @@ export default function MyTasksSection() {
                 onClick={submitExtensionRequest}
                 className="flex-1 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white"
               >
-                Submit
+                {extensionModal.isSelfAssigned ? 'Extend Time' : 'Submit'}
               </button>
             </div>
           </div>
