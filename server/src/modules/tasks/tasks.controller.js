@@ -20,6 +20,9 @@ import {
   syncTaskTimingFields,
 } from './taskDeadline.utils.js';
 import { formatTaskCollection, formatTaskResponse } from './taskResponseFormatter.js';
+import { buildTaskAnalyticsReportData } from './taskAnalyticsReport.service.js';
+import { generateTaskAnalyticsPdfBuffer } from './taskAnalyticsPdf.service.js';
+import { createDownloadFileName } from './taskAnalyticsPdf.utils.js';
 import {
   TASK_ATTACHMENT_LIMIT,
   uploadTaskAttachments,
@@ -495,6 +498,47 @@ export const tasksController = {
     } catch (error) {
       console.error('Error fetching trends:', error);
       sendError(res, error.message, 400);
+    }
+  },
+
+  async exportTaskAnalyticsPdf(req, res) {
+    try {
+      if (!req.user.companyId) {
+        return sendError(res, 'Company context is required to export task analytics', 400);
+      }
+
+      const reportData = await buildTaskAnalyticsReportData({
+        companyId: req.user.companyId,
+        generatedBy: req.user,
+        from: req.query.from,
+        to: req.query.to,
+        dateRange: req.query.dateRange || 'month',
+        departmentId: req.query.department,
+        theme: req.query.theme || 'light',
+      });
+
+      const pdfBuffer = await generateTaskAnalyticsPdfBuffer(reportData);
+      const fileName = createDownloadFileName(reportData.brand.companyName, reportData.generatedAt);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error('Error exporting task analytics PDF:', error);
+      if (!res.headersSent) {
+        const isPuppeteerInstallIssue = /Could not find Chrome|Could not find Chromium|executable/i.test(error.message || '');
+        sendError(
+          res,
+          isPuppeteerInstallIssue
+            ? 'PDF renderer is not available. Install Puppeteer browser dependencies or set PUPPETEER_EXECUTABLE_PATH.'
+            : error.message,
+          500
+        );
+      }
     }
   },
 

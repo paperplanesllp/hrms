@@ -23,6 +23,7 @@ router.get('/debug/diagnostics', tasksController.getTasksDiagnostics);
 router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
 router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
 router.get('/analytics/completion-trends', tasksController.getTaskCompletionTrends);
+router.get('/analytics/export/pdf', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.exportTaskAnalyticsPdf);
 
 // My tasks routes
 router.get('/my', tasksController.getMyTasks);
