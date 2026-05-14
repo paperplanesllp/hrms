@@ -40,6 +40,14 @@ function canAccessTask(task, user) {
   return isAdminOrHR || isCreator || isAssignee;
 }
 
+function requireCompanyContext(req, res) {
+  if (!req.user?.companyId) {
+    sendError(res, 'Company context is required', 400);
+    return null;
+  }
+  return req.user.companyId;
+}
+
 export const tasksController = {
   // Get my tasks
   async getMyTasks(req, res) {
@@ -66,7 +74,10 @@ export const tasksController = {
         sort: req.query.sort
       };
       
-      const tasks = await tasksService.getMyTasks(userId, filters);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const tasks = await tasksService.getMyTasks(userId, filters, companyId);
       console.log('📦 [Controller] Returning', tasks.length, 'tasks');
       sendSuccess(res, formatTaskCollection(tasks), 'Tasks fetched successfully');
     } catch (error) {
@@ -79,6 +90,9 @@ export const tasksController = {
   // Get all tasks (admin/HR)
   async getAllTasks(req, res) {
     try {
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
       const filters = {
         status: req.query.status,
         department: req.query.department,
@@ -89,7 +103,7 @@ export const tasksController = {
         limit: parseInt(req.query.limit) || 100
       };
       
-      const tasks = await tasksService.getAllTasks(filters, req.user.companyId);
+      const tasks = await tasksService.getAllTasks(filters, companyId);
       sendSuccess(res, formatTaskCollection(tasks), 'All tasks fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -117,7 +131,10 @@ export const tasksController = {
         limit: parseInt(req.query.limit) || 500
       };
       
-      const tasks = await tasksService.getAssignedByUser(userId, filters, req.user.companyId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const tasks = await tasksService.getAssignedByUser(userId, filters, companyId);
       console.log('📦 [Controller] Returning', tasks.length, 'assigned tasks');
       sendSuccess(res, formatTaskCollection(tasks), 'Assigned tasks fetched successfully');
     } catch (error) {
@@ -129,7 +146,11 @@ export const tasksController = {
   // Create new task (admin/HR)
   async createTask(req, res) {
     try {
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
       const taskData = {
+        companyId,
         title: req.body.title,
         description: req.body.description,
         dueDate: req.body.dueDate,
@@ -209,7 +230,10 @@ export const tasksController = {
         totalPausedMilliseconds
       };
       
-      const task = await tasksService.updateTaskStatus(id, req.user.id, status, completionData);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await tasksService.updateTaskStatus(id, req.user.id, status, completionData, companyId);
       
       // 🔔 Send notifications for task completion
       if (status === 'completed' && completionRemarks) {
@@ -250,7 +274,10 @@ export const tasksController = {
       const { id } = req.params;
       const updateData = { ...req.body };
 
-      const existingTask = await tasksService.getTaskById(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const existingTask = await tasksService.getTaskById(id, companyId);
       if (!existingTask) {
         return sendError(res, 'Task not found', 404);
       }
@@ -293,7 +320,7 @@ export const tasksController = {
         ];
       }
 
-      const task = await tasksService.updateTask(id, updateData);
+      const task = await tasksService.updateTask(id, updateData, companyId);
 
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:updated event');
@@ -325,7 +352,10 @@ export const tasksController = {
       const { id } = req.params;
 
       // Fetch task to validate existing and check ownership
-      const task = await tasksService.getTaskById(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await tasksService.getTaskById(id, companyId);
       if (!task) {
         return sendError(res, 'Task not found', 404);
       }
@@ -341,7 +371,7 @@ export const tasksController = {
         return sendError(res, 'Forbidden: You do not have permission to delete this task', 403);
       }
 
-      await tasksService.deleteTask(id);
+      await tasksService.deleteTask(id, companyId);
 
       // 🔔 Emit socket event for real-time update
       console.log('📡 [Socket] Emitting task:deleted event');
@@ -370,7 +400,10 @@ export const tasksController = {
   async deleteAttachment(req, res) {
     try {
       const { id, attachmentId } = req.params;
-      const task = await Task.findById(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
 
       if (!task || task.isDeleted) {
         return sendError(res, 'Task not found', 404);
@@ -400,7 +433,10 @@ export const tasksController = {
   async getAttachmentAccess(req, res) {
     try {
       const { id, attachmentId } = req.params;
-      const task = await Task.findById(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
 
       if (!task || task.isDeleted) {
         return sendError(res, 'Task not found', 404);
@@ -430,7 +466,9 @@ export const tasksController = {
   async getTaskStats(req, res) {
     try {
       const userId = req.user.id;
-      const stats = await tasksService.getTaskStats(userId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const stats = await tasksService.getTaskStats(userId, companyId);
       sendSuccess(res, stats, 'Task stats fetched');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -442,7 +480,9 @@ export const tasksController = {
     try {
       const userId = req.user.id;
       const limit = parseInt(req.query.limit) || 5;
-      const tasks = await tasksService.getDashboardTasks(userId, limit);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const tasks = await tasksService.getDashboardTasks(userId, limit, companyId);
       sendSuccess(res, formatTaskCollection(tasks), 'Dashboard tasks fetched');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -452,7 +492,9 @@ export const tasksController = {
   async getTaskById(req, res) {
     try {
       const { id } = req.params;
-      const task = await tasksService.getTaskById(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const task = await tasksService.getTaskById(id, companyId);
       if (!task) return sendError(res, 'Task not found', 404);
 
       sendSuccess(res, formatTaskResponse(task), 'Task fetched successfully');
@@ -467,7 +509,9 @@ export const tasksController = {
       const dateRange = req.query.dateRange || 'month';
       const from = req.query.from;
       const to = req.query.to;
-      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to }, req.user.companyId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to }, companyId);
       sendSuccess(res, analytics, 'Analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -480,7 +524,9 @@ export const tasksController = {
       const dateRange = req.query.dateRange || 'month';
       const from = req.query.from;
       const to = req.query.to;
-      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to }, req.user.companyId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to }, companyId);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -492,8 +538,10 @@ export const tasksController = {
     try {
       const { days = 7 } = req.query;
       const userId = req.query.userId || req.user.id;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
       
-      const trends = await tasksService.getTaskCompletionTrends(userId, parseInt(days));
+      const trends = await tasksService.getTaskCompletionTrends(userId, parseInt(days), companyId);
       sendSuccess(res, trends, 'Task completion trends fetched successfully');
     } catch (error) {
       console.error('Error fetching trends:', error);
@@ -546,7 +594,9 @@ export const tasksController = {
   async getTasksDiagnostics(req, res) {
     try {
       const userId = req.user.id;
-      const diagnostics = await tasksService.getTasksDiagnostics(userId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const diagnostics = await tasksService.getTasksDiagnostics(userId, companyId);
       sendSuccess(res, diagnostics, 'Diagnostic info fetched');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -565,7 +615,9 @@ export const tasksController = {
         return sendError(res, 'Hold reason is required', 400);
       }
 
-      const task = await tasksService.holdTask(id, req.user.id, reason);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const task = await tasksService.holdTask(id, req.user.id, reason, companyId);
 
       // 🔔 Emit socket event
       notifyTaskStatusChanged(task, req.user.id);
@@ -595,7 +647,9 @@ export const tasksController = {
     try {
       const { id } = req.params;
 
-      const task = await tasksService.resumeTaskFromHold(id, req.user.id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const task = await tasksService.resumeTaskFromHold(id, req.user.id, companyId);
 
       // 🔔 Emit socket event
       notifyTaskStatusChanged(task, req.user.id);
@@ -633,7 +687,9 @@ export const tasksController = {
         return sendError(res, 'At least one assignee is required', 400);
       }
 
-      const task = await tasksService.reassignTask(id, assigneesToUse, reason, req.user.id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const task = await tasksService.reassignTask(id, assigneesToUse, reason, req.user.id, companyId);
 
       // 🔔 Emit socket event
       notifyTaskUpdated(task, req.user.id);
@@ -667,7 +723,9 @@ export const tasksController = {
   async getTaskTimeline(req, res) {
     try {
       const { id } = req.params;
-      const timeline = await tasksService.getTaskTimeline(id);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const timeline = await tasksService.getTaskTimeline(id, companyId);
       sendSuccess(res, timeline, 'Task timeline fetched successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in getTaskTimeline:', error.message);
@@ -679,7 +737,9 @@ export const tasksController = {
   async checkWorkload(req, res) {
     try {
       const { userId } = req.params;
-      const workload = await tasksService.checkWorkload(userId);
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const workload = await tasksService.checkWorkload(userId, companyId);
       sendSuccess(res, workload, 'Workload check completed');
     } catch (error) {
       console.error('❌ [Controller] Error in checkWorkload:', error.message);
@@ -691,7 +751,9 @@ export const tasksController = {
   async getDashboardMetrics(req, res) {
     try {
       const userId = req.user.id;
-      const metrics = await tasksService.getAllTasksAnalytics('month');
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const metrics = await tasksService.getAllTasksAnalytics({ dateRange: 'month' }, companyId);
       sendSuccess(res, metrics, 'Dashboard metrics fetched successfully');
     } catch (error) {
       console.error('❌ [Controller] Error in getDashboardMetrics:', error.message);
@@ -705,7 +767,10 @@ export const tasksController = {
   async startTask(req, res) {
     try {
       const { id } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -790,7 +855,10 @@ export const tasksController = {
         return sendError(res, 'Pause reason is required', 400);
       }
 
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -845,7 +913,10 @@ export const tasksController = {
   async resumeTask(req, res) {
     try {
       const { id } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -916,7 +987,10 @@ export const tasksController = {
         return sendError(res, 'Completion remark cannot exceed 5000 characters', 400);
       }
 
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -1008,7 +1082,10 @@ export const tasksController = {
       const taskId = req.params.id || req.body.taskId;
       const { additionalTime, unit = 'minutes', remarks } = req.body;
 
-      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: taskId, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -1156,7 +1233,10 @@ export const tasksController = {
   async approveTaskExtension(req, res) {
     try {
       const { taskId, requestId } = req.body;
-      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: taskId, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       // The task assigner approves; HR/Admin can also approve for oversight.
@@ -1239,7 +1319,10 @@ export const tasksController = {
         return sendError(res, 'Rejection reason is required', 400);
       }
 
-      const task = await Task.findOne({ _id: taskId, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: taskId, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       // The task assigner rejects; HR/Admin can also reject for oversight.
@@ -1324,7 +1407,10 @@ export const tasksController = {
       const { id } = req.params;
       const { rejectionReason } = req.body;
 
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
@@ -1361,7 +1447,10 @@ export const tasksController = {
   async getTaskAnalysis(req, res) {
     try {
       const { id } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false })
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false })
         .populate('assignedTo', 'name email')
         .populate('assignedBy', 'name email');
 
@@ -1470,7 +1559,11 @@ export const tasksController = {
       }
       
       // Get incomplete tasks
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
       const incompleteTasks = await Task.find({
+        companyId,
         assignedTo: userId,
         isDeleted: false,
         status: { $nin: ['completed', 'rejected', 'cancelled'] }
@@ -1534,7 +1627,10 @@ export const tasksController = {
   async getComments(req, res) {
     try {
       const { id } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false })
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false })
         .populate('comments.userId', 'name avatar email');
       if (!task) return sendError(res, 'Task not found', 404);
       // Ensure the requesting user is assigned to, assigned by, or is admin/HR
@@ -1557,7 +1653,9 @@ export const tasksController = {
       const { id } = req.params;
       const { text } = req.body;
       if (!text?.trim()) return sendError(res, 'Comment text is required', 400);
-      const task = await tasksService.addComment(id, req.user.id, text, req.user.name || 'Unknown');
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const task = await tasksService.addComment(id, req.user.id, text, req.user.name || 'Unknown', companyId);
       notifyTaskUpdated(task, req.user.id);
       sendSuccess(res, { comments: task.comments }, 'Comment added');
     } catch (error) {
@@ -1568,7 +1666,10 @@ export const tasksController = {
   async deleteComment(req, res) {
     try {
       const { id, commentId } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false });
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
       if (!task) return sendError(res, 'Task not found', 404);
       const comment = task.comments.id(commentId);
       if (!comment) return sendError(res, 'Comment not found', 404);
@@ -1592,7 +1693,10 @@ export const tasksController = {
   async reopenTask(req, res) {
     try {
       const { id } = req.params;
-      const task = await Task.findOne({ _id: id, isDeleted: false })
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+
+      const task = await Task.findOne({ _id: id, companyId, isDeleted: false })
         .populate('assignedTo', 'name email')
         .populate('assignedBy', 'name email');
       if (!task) return sendError(res, 'Task not found', 404);

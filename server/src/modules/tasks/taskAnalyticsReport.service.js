@@ -23,18 +23,12 @@ function getDepartmentName(task, assignee) {
   );
 }
 
-function buildTaskQuery({ companyUserIds, fromDate, toDate, departmentId }) {
+function buildTaskQuery({ companyId, fromDate, toDate, departmentId }) {
   const query = {
+    companyId,
     isDeleted: false,
     createdAt: { $gte: fromDate, $lte: toDate },
   };
-
-  if (companyUserIds.length > 0) {
-    query.$or = [
-      { assignedBy: { $in: companyUserIds } },
-      { assignedTo: { $in: companyUserIds } },
-    ];
-  }
 
   if (departmentId) query.department = departmentId;
   return query;
@@ -113,6 +107,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     theme = "light",
   } = options;
 
+  if (!companyId) {
+    throw new Error("Company context is required");
+  }
+
   const generatedAt = new Date();
   const period = normalizeReportPeriod({ from, to, dateRange });
 
@@ -127,9 +125,8 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       : [],
   ]);
 
-  const companyUserIds = companyUsers.map((user) => user._id);
   const tasks = await Task.find(buildTaskQuery({
-    companyUserIds,
+    companyId,
     fromDate: period.fromDate,
     toDate: period.toDate,
     departmentId,

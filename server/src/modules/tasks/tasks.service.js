@@ -7,13 +7,20 @@ import { ROLES } from '../../middleware/roles.js';
 import { deleteTaskAttachmentFile } from './taskAttachment.service.js';
 
 export const tasksService = {
+  requireCompanyId(companyId) {
+    if (!companyId) {
+      throw new Error('Company context is required');
+    }
+    return new mongoose.Types.ObjectId(companyId);
+  },
+
   async getCompanyUserIds(companyId) {
     if (!companyId) return [];
     const users = await User.find({ companyId }).select('_id').lean();
     return users.map((u) => u._id);
   },
   // Get my tasks (assigned to current user)
-  async getMyTasks(userId, filters = {}) {
+  async getMyTasks(userId, filters = {}, companyId) {
     try {
       console.log('🔍 [getMyTasks] Fetching tasks for userId:', userId, 'Type:', typeof userId);
       
@@ -31,7 +38,11 @@ export const tasksService = {
         throw new Error(`Invalid user ID format: ${userId}`);
       }
       
-      const query = { assignedTo: { $in: [userObjectId] }, isDeleted: false };
+      const query = {
+        companyId: this.requireCompanyId(companyId),
+        assignedTo: { $in: [userObjectId] },
+        isDeleted: false
+      };
       
       // Status filter
       if (filters.status) {
@@ -82,7 +93,7 @@ export const tasksService = {
       
       // Debug: Check if any tasks exist at all for debugging
       if (tasks.length === 0) {
-        const allTasks = await Task.find({ isDeleted: false }).select('assignedTo title -_id');
+        const allTasks = await Task.find({ companyId: query.companyId, isDeleted: false }).select('assignedTo title -_id');
         console.log('⚠️ [getMyTasks] No tasks found for this user. Total tasks in DB:', allTasks.length);
         if (allTasks.length > 0) {
           console.log('📊 [getMyTasks] Sample assignedTo values:', allTasks.slice(0, 5).map(t => ({
@@ -102,14 +113,7 @@ export const tasksService = {
 
   // Get all tasks (admin/HR only)
   async getAllTasks(filters = {}, companyId) {
-    const query = { isDeleted: false };
-    const companyUserIds = await this.getCompanyUserIds(companyId);
-    if (companyUserIds.length > 0) {
-      query.$or = [
-        { assignedBy: { $in: companyUserIds } },
-        { assignedTo: { $in: companyUserIds } }
-      ];
-    }
+    const query = { companyId: this.requireCompanyId(companyId), isDeleted: false };
     
     // Status filter
     if (filters.status) query.status = filters.status;
@@ -161,6 +165,7 @@ export const tasksService = {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       // IMPORTANT: Exclude tasks assigned to self - only show tasks assigned to OTHERS
       const query = { 
+        companyId: this.requireCompanyId(companyId),
         assignedBy: userObjectId, 
         assignedTo: { $nin: [userObjectId] },  // Exclude self-assigned tasks
         isDeleted: false 
@@ -186,11 +191,6 @@ export const tasksService = {
       
       console.log('📋 [getAssignedByUser] Query object:', JSON.stringify(query, null, 2));
       
-      if (companyId) {
-        const companyUserIds = await this.getCompanyUserIds(companyId);
-        query.assignedTo = { $in: companyUserIds, $nin: [userObjectId] };
-      }
-
       const tasks = await Task.find(query)
         .populate('assignedTo', 'name email avatar')
         .populate('assignedBy', 'name email avatar')
@@ -206,7 +206,7 @@ export const tasksService = {
       
       // Debug: Check if any tasks exist
       if (tasks.length === 0) {
-        const allTasks = await Task.find({ isDeleted: false }).select('assignedBy assignedTo title -_id');
+        const allTasks = await Task.find({ companyId: query.companyId, isDeleted: false }).select('assignedBy assignedTo title -_id');
         console.log('⚠️ [getAssignedByUser] No tasks found assigned to others. Total tasks in DB:', allTasks.length);
         if (allTasks.length > 0) {
           console.log('📊 [getAssignedByUser] Sample assignedBy values:', allTasks.slice(0, 5).map(t => ({
@@ -227,6 +227,8 @@ export const tasksService = {
 
   // Create new task
   async createTask(data, assignedById) {
+    const companyObjectId = this.requireCompanyId(data.companyId);
+
     // Validate required fields
     if (!data.title || typeof data.title !== 'string') {
       throw new Error('Task title is required and must be a string');
@@ -261,6 +263,9 @@ export const tasksService = {
         console.error('❌ [createTask] User not found:', uid);
         throw new Error(`Assigned user not found: ${uid}`);
       }
+      if (found.companyId?.toString() !== companyObjectId.toString()) {
+        throw new Error('Cannot assign tasks to users from another company');
+      }
       console.log('✅ [createTask] User validated:', found.email);
     }
 
@@ -269,12 +274,18 @@ export const tasksService = {
     if (!assignedByUser) {
       throw new Error('Current user not found');
     }
+    if (assignedByUser.companyId?.toString() !== companyObjectId.toString()) {
+      throw new Error('Assigned by user does not belong to this company');
+    }
 
     // Validate department if provided
     if (data.department) {
       const dept = await Department.findById(data.department);
       if (!dept) {
         throw new Error('Department not found');
+      }
+      if (dept.companyId?.toString() !== companyObjectId.toString()) {
+        throw new Error('Department does not belong to this company');
       }
     }
 
@@ -310,6 +321,7 @@ export const tasksService = {
     const taskData = {
       title: data.title.trim(),
       description: data.description?.trim() || '',
+      companyId: companyObjectId,
       assignedTo: assignedToObjectIds,
       assignedBy: new mongoose.Types.ObjectId(assignedById),
       department: data.department ? new mongoose.Types.ObjectId(data.department) : null,
@@ -368,7 +380,7 @@ export const tasksService = {
   },
 
   // Update task status (complete/mark in-progress)
-  async updateTaskStatus(taskId, userId, status, completionData = {}) {
+  async updateTaskStatus(taskId, userId, status, completionData = {}, companyId) {
     const validStatuses = ['pending', 'in-progress', 'paused', 'on-hold', 'completed', 'rejected', 'cancelled'];
     
     if (!validStatuses.includes(status)) {
@@ -377,6 +389,7 @@ export const tasksService = {
     
     const task = await Task.findOne({ 
       _id: new mongoose.Types.ObjectId(taskId), 
+      companyId: this.requireCompanyId(companyId),
       assignedTo: new mongoose.Types.ObjectId(userId),
       isDeleted: false
     });
@@ -424,8 +437,9 @@ export const tasksService = {
   },
 
   // Update task (admin/HR only - full edit)
-  async updateTask(taskId, data) {
-    const task = await Task.findById(new mongoose.Types.ObjectId(taskId));
+  async updateTask(taskId, data, companyId) {
+    const companyObjectId = this.requireCompanyId(companyId);
+    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), companyId: companyObjectId });
     if (!task || task.isDeleted) {
       throw new Error('Task not found');
     }
@@ -440,6 +454,9 @@ export const tasksService = {
       for (const uid of assignedToArray) {
         const user = await User.findById(uid);
         if (!user) throw new Error(`Assigned user not found: ${uid}`);
+        if (user.companyId?.toString() !== companyObjectId.toString()) {
+          throw new Error('Cannot assign tasks to users from another company');
+        }
       }
       
       // Convert to ObjectIds
@@ -450,6 +467,9 @@ export const tasksService = {
     if (data.department && data.department !== task.department?.toString()) {
       const dept = await Department.findById(data.department);
       if (!dept) throw new Error('Department not found');
+      if (dept.companyId?.toString() !== companyObjectId.toString()) {
+        throw new Error('Department does not belong to this company');
+      }
     }
     
     // Validate priority
@@ -538,8 +558,11 @@ export const tasksService = {
   },
 
   // Delete task (admin/HR only - soft delete)
-  async deleteTask(taskId) {
-    const task = await Task.findById(new mongoose.Types.ObjectId(taskId));
+  async deleteTask(taskId, companyId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId)
+    });
     if (!task) {
       throw new Error('Task not found');
     }
@@ -556,9 +579,10 @@ export const tasksService = {
   },
 
   // Get task stats for dashboard (with all priorities and statuses)
-  async getTaskStats(userId) {
+  async getTaskStats(userId, companyId) {
     const userObjectId = new mongoose.Types.ObjectId(userId);
     const tasks = await Task.find({
+      companyId: this.requireCompanyId(companyId),
       assignedTo: userObjectId,
       isDeleted: false,
     }).select('status priority assignedBy estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
@@ -634,8 +658,9 @@ export const tasksService = {
   },
 
   // Get recent pending/in-progress tasks for dashboard
-  async getDashboardTasks(userId, limit = 5) {
+  async getDashboardTasks(userId, limit = 5, companyId) {
     return await Task.find({ 
+      companyId: this.requireCompanyId(companyId),
       assignedTo: new mongoose.Types.ObjectId(userId),
       isDeleted: false,
       status: { $in: ['pending', 'in-progress', 'due-soon', 'paused'] } 
@@ -647,8 +672,12 @@ export const tasksService = {
   },
 
   // Get task by ID
-  async getTaskById(taskId) {
-    return await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false })
+  async getTaskById(taskId, companyId) {
+    return await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId),
+      isDeleted: false
+    })
       .populate('assignedTo', 'name email avatar department')
       .populate('assignedBy', 'name email avatar')
       .populate('department', 'name')
@@ -656,8 +685,11 @@ export const tasksService = {
   },
 
   // Add comment to task
-  async addComment(taskId, userId, comment, userName = 'Unknown') {
-    const task = await Task.findById(new mongoose.Types.ObjectId(taskId));
+  async addComment(taskId, userId, comment, userName = 'Unknown', companyId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId)
+    });
     if (!task || task.isDeleted) {
       throw new Error('Task not found');
     }
@@ -676,13 +708,14 @@ export const tasksService = {
   },
 
   // Update task progress
-  async updateProgress(taskId, userId, progress) {
+  async updateProgress(taskId, userId, progress, companyId) {
     if (progress < 0 || progress > 100) {
       throw new Error('Progress must be between 0 and 100');
     }
     
     const task = await Task.findOne({
       _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId),
       assignedTo: new mongoose.Types.ObjectId(userId),
       isDeleted: false
     });
@@ -703,6 +736,7 @@ export const tasksService = {
 
   // Get all tasks analytics (admin/HR only)
   async getAllTasksAnalytics(opts = {}, companyId) {
+    const companyObjectId = this.requireCompanyId(companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
 
@@ -735,13 +769,10 @@ export const tasksService = {
       toDate = now;
     }
 
-    const companyUserIds = await this.getCompanyUserIds(companyId);
     const query = {
+      companyId: companyObjectId,
       isDeleted: false,
       createdAt: { $gte: fromDate, $lte: toDate },
-      ...(companyUserIds.length > 0
-        ? { $or: [{ assignedBy: { $in: companyUserIds } }, { assignedTo: { $in: companyUserIds } }] }
-        : {})
     };
 
     const allTasks = await Task.find(query).select('status priority assignedBy assignedTo extensionRequests estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
@@ -853,6 +884,7 @@ export const tasksService = {
 
   // Get team performance analytics (admin/HR only)
   async getTeamPerformanceAnalytics(opts = {}, companyId) {
+    const companyObjectId = this.requireCompanyId(companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
     const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
@@ -882,6 +914,7 @@ export const tasksService = {
     if (!hasExplicitFromTo) toDate = now;
 
     const taskQueryBase = {
+      companyId: companyObjectId,
       isDeleted: false,
       createdAt: { $gte: fromDate, $lte: toDate }
     };
@@ -1004,7 +1037,7 @@ export const tasksService = {
         const inProgress = await Task.countDocuments({
           assignedTo: userId,
           status: { $in: ['in-progress', 'paused', 'on-hold', 'due-soon', 'extended', 'overdue'] },
-          isDeleted: false
+          ...taskQueryBase
         });
 
         // Calculate average completion time using active worked duration
@@ -1078,7 +1111,7 @@ export const tasksService = {
   },
 
   // Diagnostic function to debug why tasks aren't showing
-  async getTasksDiagnostics(userId) {
+  async getTasksDiagnostics(userId, companyId) {
     console.log('🔍 [DIAGNOSTICS] Starting diagnostic check for user:', userId);
     
     const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -1089,18 +1122,20 @@ export const tasksService = {
     console.log('👤 [DIAGNOSTICS] User exists:', userExists, user ? user.email : 'N/A');
     
     // Check 2: Total tasks in database
-    const totalTasksInDB = await Task.countDocuments({ isDeleted: false });
+    const companyObjectId = this.requireCompanyId(companyId);
+    const totalTasksInDB = await Task.countDocuments({ companyId: companyObjectId, isDeleted: false });
     console.log('📊 [DIAGNOSTICS] Total tasks in DB:', totalTasksInDB);
     
     // Check 3: Tasks assigned to this user
     const myTasksCount = await Task.countDocuments({
+      companyId: companyObjectId,
       assignedTo: userObjectId,
       isDeleted: false
     });
     console.log('👥 [DIAGNOSTICS] Tasks assigned to this user:', myTasksCount);
     
     // Check 4: Get sample of all tasks to see assignedTo values
-    const sampleTasks = await Task.find({ isDeleted: false })
+    const sampleTasks = await Task.find({ companyId: companyObjectId, isDeleted: false })
       .select('title assignedTo -_id')
       .limit(5);
     console.log('📋 [DIAGNOSTICS] Sample tasks:', sampleTasks.map(t => ({
@@ -1110,7 +1145,7 @@ export const tasksService = {
     
     // Check 5: Find who tasks are actually assigned to
     const assignmentDistribution = await Task.aggregate([
-      { $match: { isDeleted: false } },
+      { $match: { companyId: companyObjectId, isDeleted: false } },
       { $group: { _id: '$assignedTo', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 }
@@ -1119,6 +1154,7 @@ export const tasksService = {
     
     // Check 6: Tasks created by this user
     const tasksByMe = await Task.countDocuments({
+      companyId: companyObjectId,
       assignedBy: userObjectId,
       isDeleted: false
     });
@@ -1126,6 +1162,7 @@ export const tasksService = {
     
     // Check 7: Get actual my tasks to see what we're returning
     const myTasks = await Task.find({
+      companyId: companyObjectId,
       assignedTo: userObjectId,
       isDeleted: false
     }).select('title status priority dueDate');
@@ -1160,8 +1197,12 @@ export const tasksService = {
   // ─── WORKFLOW MANAGEMENT ───────────────────────────────────────────────────────────
 
   // Hold task - timer FREEZES, not employee fault, dueDate auto-extends on resume
-  async holdTask(taskId, userId, holdReason) {
-    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false }).populate('assignedTo', 'name email');
+  async holdTask(taskId, userId, holdReason, companyId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email');
     if (!task) throw new Error('Task not found');
     const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
     if (!isAssignee) throw new Error('Only assigned users can hold this task');
@@ -1208,8 +1249,12 @@ export const tasksService = {
   },
 
   // Resume task from ON_HOLD - extends dueDate by hold duration
-  async resumeTaskFromHold(taskId, userId) {
-    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false }).populate('assignedTo', 'name email');
+  async resumeTaskFromHold(taskId, userId, companyId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId),
+      isDeleted: false
+    }).populate('assignedTo', 'name email');
     if (!task) throw new Error('Task not found');
     const isAssignee = task.assignedTo?.some(a => a?._id?.toString() === userId || a?.toString() === userId);
     if (!isAssignee) throw new Error('Only assigned users can resume this task');
@@ -1250,9 +1295,11 @@ export const tasksService = {
   },
 
   // Reassign task to another user
-  async reassignTask(taskId, assigneeIds, reasonText, performedById) {
+  async reassignTask(taskId, assigneeIds, reasonText, performedById, companyId) {
+    const companyObjectId = this.requireCompanyId(companyId);
     const task = await Task.findOne({
       _id: new mongoose.Types.ObjectId(taskId),
+      companyId: companyObjectId,
       isDeleted: false
     }).populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email');
@@ -1278,12 +1325,18 @@ export const tasksService = {
       if (newAssignee.isDeleted) {
         throw new Error(`Cannot assign to a deleted user: ${newAssignee.email}`);
       }
+      if (newAssignee.companyId?.toString() !== companyObjectId.toString()) {
+        throw new Error('Cannot assign tasks to users from another company');
+      }
       newAssignees.push(newAssignee);
     }
 
     const performer = await User.findById(new mongoose.Types.ObjectId(performedById));
     if (!performer) {
       throw new Error('Performer not found');
+    }
+    if (performer.companyId?.toString() !== companyObjectId.toString()) {
+      throw new Error('Performer does not belong to this company');
     }
 
     // Store old assignee info for history
@@ -1322,8 +1375,12 @@ export const tasksService = {
   },
 
   // Get task timeline (activity history)
-  async getTaskTimeline(taskId) {
-    const task = await Task.findOne({ _id: new mongoose.Types.ObjectId(taskId), isDeleted: false })
+  async getTaskTimeline(taskId, companyId) {
+    const task = await Task.findOne({
+      _id: new mongoose.Types.ObjectId(taskId),
+      companyId: this.requireCompanyId(companyId),
+      isDeleted: false
+    })
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
       .populate('completedBy', 'name email')
@@ -1453,10 +1510,11 @@ export const tasksService = {
   },
 
   // Check user workload (count active tasks)
-  async checkWorkload(userId) {
+  async checkWorkload(userId, companyId) {
     const userObjectId = new mongoose.Types.ObjectId(userId);
     
     const activeTasks = await Task.countDocuments({
+      companyId: this.requireCompanyId(companyId),
       assignedTo: { $in: [userObjectId] },
       isDeleted: false,
       status: { $in: ['pending', 'in-progress', 'on-hold'] }
@@ -1497,7 +1555,7 @@ export const tasksService = {
   },
 
   // Get task completion trends for last N days
-  async getTaskCompletionTrends(userId, days = 7) {
+  async getTaskCompletionTrends(userId, days = 7, companyId) {
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - days);
@@ -1505,6 +1563,7 @@ export const tasksService = {
 
     // For admin/HR, get all tasks. For employees, get only their tasks
     const query = {
+      companyId: this.requireCompanyId(companyId),
       isDeleted: false,
       status: 'completed',
       completedAt: { $gte: startDate, $lte: now }
@@ -1589,7 +1648,7 @@ export const tasksService = {
       endOfDay.setHours(23, 59, 59, 999);
       
       // Find all users with incomplete tasks
-      const users = await User.find({ isDeleted: false }).select('_id name email');
+      const users = await User.find({ isDeleted: false, companyId: { $ne: null } }).select('_id name email companyId');
       
       let remindersCount = 0;
       const reminders = [];
@@ -1597,6 +1656,7 @@ export const tasksService = {
       for (const user of users) {
         // Get incomplete tasks for this user
         const incompleteTasks = await Task.find({
+          companyId: user.companyId,
           assignedTo: user._id,
           isDeleted: false,
           status: { $nin: ['completed', 'rejected', 'cancelled'] }

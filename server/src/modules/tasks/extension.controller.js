@@ -33,17 +33,27 @@ const logExtensionActivity = (req, { description, task, targetUserId, targetUser
   }).catch(() => {});
 };
 
+function requireCompanyContext(req, res) {
+  if (!req.user?.companyId) {
+    sendError(res, 'Company context is required', 400);
+    return null;
+  }
+  return req.user.companyId;
+}
+
 export const extensionController = {
   // Request extension
   async requestExtension(req, res) {
     try {
       const { taskId, additionalHours, additionalMinutes, reason } = req.body;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
 
       if (!taskId || !reason?.trim()) {
         return sendError(res, 'Task ID and reason are required', 400);
       }
 
-      const task = await Task.findById(taskId).populate('assignedTo').populate('assignedBy', '_id name');
+      const task = await Task.findOne({ _id: taskId, companyId }).populate('assignedTo').populate('assignedBy', '_id name');
       if (!task) return sendError(res, 'Task not found', 404);
 
       const isAssignedUser = task.assignedTo?.some(u => u._id.toString() === req.user.id);
@@ -137,11 +147,16 @@ export const extensionController = {
     try {
       const { extensionId } = req.params;
       const { approvalNotes } = req.body;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
 
       const extensionRequest = await ExtensionRequest.findById(extensionId)
         .populate('taskId')
         .populate('requestedBy', '_id name email');
       if (!extensionRequest) return sendError(res, 'Extension request not found', 404);
+      if (extensionRequest.taskId?.companyId?.toString() !== companyId.toString()) {
+        return sendError(res, 'Extension request not found', 404);
+      }
       if (extensionRequest.status !== 'pending') return sendError(res, `Extension request is already ${extensionRequest.status}`, 400);
       
       // Allow: 1) The person who is the requestedFrom (task assigner), 2) HR/ADMIN users
@@ -160,7 +175,7 @@ export const extensionController = {
       await extensionRequest.save();
 
       // Update task: extend time + reset status to in-progress
-      const task = await Task.findById(extensionRequest.taskId._id || extensionRequest.taskId);
+      const task = await Task.findOne({ _id: extensionRequest.taskId._id || extensionRequest.taskId, companyId });
       if (task) {
         const additionalMinutes = extensionRequest.additionalHoursRequested * 60 + extensionRequest.additionalMinutesRequested;
         task.estimatedTotalMinutes = (task.estimatedTotalMinutes || 0) + additionalMinutes;
@@ -214,6 +229,8 @@ export const extensionController = {
     try {
       const { extensionId } = req.params;
       const { rejectionReason } = req.body;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
 
       if (!rejectionReason?.trim()) return sendError(res, 'Rejection reason is required', 400);
 
@@ -221,6 +238,9 @@ export const extensionController = {
         .populate('taskId')
         .populate('requestedBy', '_id name email');
       if (!extensionRequest) return sendError(res, 'Extension request not found', 404);
+      if (extensionRequest.taskId?.companyId?.toString() !== companyId.toString()) {
+        return sendError(res, 'Extension request not found', 404);
+      }
       if (extensionRequest.status !== 'pending') return sendError(res, `Extension request is already ${extensionRequest.status}`, 400);
       
       // Allow: 1) The person who is the requestedFrom (task assigner), 2) HR/ADMIN users
@@ -238,7 +258,7 @@ export const extensionController = {
       await extensionRequest.save();
 
       // Reset task status back to overdue
-      const task = await Task.findById(extensionRequest.taskId._id || extensionRequest.taskId);
+      const task = await Task.findOne({ _id: extensionRequest.taskId._id || extensionRequest.taskId, companyId });
       if (task) {
         task.status = 'overdue';
         task.approvalStatus = 'rejected';
@@ -280,21 +300,25 @@ export const extensionController = {
   async getPendingForApproval(req, res) {
     try {
       const { page = 1, limit = 10 } = req.query;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const role = (req.user.role || '').toUpperCase();
       const isHROrAdmin = role === 'HR' || role === 'ADMIN';
+      const companyTaskIds = await Task.find({ companyId, isDeleted: false }).distinct('_id');
 
       // HR/Admin also see self-assigned task extension requests
       // A self-assigned task is where requestedBy === requestedFrom
       const query = isHROrAdmin
         ? {
             status: 'pending',
+            taskId: { $in: companyTaskIds },
             $or: [
               { requestedFrom: req.user.id },
               { $expr: { $eq: ['$requestedBy', '$requestedFrom'] } }
             ]
           }
-        : { requestedFrom: req.user.id, status: 'pending' };
+        : { requestedFrom: req.user.id, status: 'pending', taskId: { $in: companyTaskIds } };
 
       const [requests, total] = await Promise.all([
         ExtensionRequest.find(query)
@@ -320,11 +344,19 @@ export const extensionController = {
   async getAllExtensionRequests(req, res) {
     try {
       const { status, userId, taskId, page = 1, limit = 20 } = req.query;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const companyTaskIds = await Task.find({ companyId, isDeleted: false }).distinct('_id');
 
-      let query = {};
+      let query = { taskId: { $in: companyTaskIds } };
       if (status) query.status = status;
       if (userId) query.requestedBy = userId;
-      if (taskId) query.taskId = taskId;
+      if (taskId) {
+        if (!companyTaskIds.some(id => id.toString() === taskId)) {
+          return sendError(res, 'Task not found', 404);
+        }
+        query.taskId = taskId;
+      }
 
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -361,8 +393,12 @@ export const extensionController = {
   async getMyExtensionRequests(req, res) {
     try {
       const { status, page = 1, limit = 10 } = req.query;
+      const companyId = requireCompanyContext(req, res);
+      if (!companyId) return;
+      const companyTaskIds = await Task.find({ companyId, isDeleted: false }).distinct('_id');
 
       let query = {
+        taskId: { $in: companyTaskIds },
         $or: [
           { requestedBy: req.user.id },
           { requestedFrom: req.user.id }

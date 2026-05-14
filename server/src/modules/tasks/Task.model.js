@@ -17,6 +17,13 @@ const taskSchema = new mongoose.Schema(
       default: ''
     },
 
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      required: true,
+      index: true
+    },
+
     // Assignment (supports multiple assignees)
     assignedTo: [{
       type: mongoose.Schema.Types.ObjectId,
@@ -543,6 +550,10 @@ taskSchema.index({ priority: 1, executionStatus: 1 });
 taskSchema.index({ createdAt: -1 });
 taskSchema.index({ startedAt: 1, completedAt: 1 });
 taskSchema.index({ lastActivityAt: -1 });
+taskSchema.index({ companyId: 1, status: 1 });
+taskSchema.index({ companyId: 1, assignedTo: 1 });
+taskSchema.index({ companyId: 1, assignedBy: 1 });
+taskSchema.index({ companyId: 1, dueDate: 1 });
 
 // Query helper to exclude deleted tasks
 taskSchema.query.active = function() {
