@@ -403,14 +403,24 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
     
     // Filter by selected member
     if (selectedMember !== 'all') {
-      g = groups.filter(x => {
-        if (x.tasks.length === 0) return false;
-        // Check if any task has this member assigned
-        return x.id === selectedMember || x.tasks.some(task => 
-          Array.isArray(task.assignedTo) && 
-          task.assignedTo.some(a => String(a._id || a) === String(selectedMember))
-        );
+      const taskMap = new Map();
+      groups.forEach((group) => {
+        (group.tasks || []).forEach((task) => {
+          const isAssignedToSelected = Array.isArray(task.assignedTo) &&
+            task.assignedTo.some((assignee) => String(assignee?._id || assignee) === String(selectedMember));
+
+          if (isAssignedToSelected && task?._id) {
+            taskMap.set(String(task._id), task);
+          }
+        });
       });
+
+      const selectedMemberRecord = members.find((member) => String(member._id) === String(selectedMember));
+      g = [{
+        id: selectedMember,
+        name: selectedMemberRecord?.name || 'Employee',
+        tasks: Array.from(taskMap.values()),
+      }];
     }
     
     // Filter by search text (only if not already filtered by employee selection from search)
@@ -428,7 +438,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
     }
     
     return g;
-  }, [groups, selectedMember, search]);
+  }, [groups, selectedMember, search, members]);
 
   const dailyAnalytics = useMemo(() => {
     const taskMap = new Map();
