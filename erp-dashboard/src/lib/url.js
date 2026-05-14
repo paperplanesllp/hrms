@@ -1,7 +1,9 @@
 const DEFAULT_DEV_SERVER_ORIGIN = "http://localhost:5000";
+const isLocalhostUrl = (value = "") => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(value.trim());
 
 const normalizeApiBaseUrl = (value) => {
-  const candidate = (value || "").trim();
+  const rawCandidate = (value || "").trim();
+  const candidate = import.meta.env.PROD && isLocalhostUrl(rawCandidate) ? "" : rawCandidate;
   const fallbackBase = import.meta.env.DEV
     ? `${DEFAULT_DEV_SERVER_ORIGIN}/api`
     : `${window.location.origin}/api`;
@@ -10,7 +12,8 @@ const normalizeApiBaseUrl = (value) => {
 };
 
 const normalizeServerBaseUrl = (value, apiBaseUrl) => {
-  const candidate = (value || "").trim();
+  const rawCandidate = (value || "").trim();
+  const candidate = import.meta.env.PROD && isLocalhostUrl(rawCandidate) ? "" : rawCandidate;
   if (candidate) {
     return candidate.replace(/\/$/, "");
   }
@@ -19,7 +22,8 @@ const normalizeServerBaseUrl = (value, apiBaseUrl) => {
 };
 
 const normalizeSocketBaseUrl = (value, serverBaseUrl) => {
-  const candidate = (value || "").trim();
+  const rawCandidate = (value || "").trim();
+  const candidate = import.meta.env.PROD && isLocalhostUrl(rawCandidate) ? "" : rawCandidate;
   if (candidate) {
     return candidate.replace(/\/$/, "");
   }

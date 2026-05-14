@@ -10,7 +10,7 @@ let io;
 
 const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
-  if (!raw) return "/socket.io/";
+  if (!raw) return "/api/socket.io/";
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 };

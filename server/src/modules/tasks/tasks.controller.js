@@ -624,12 +624,13 @@ export const tasksController = {
       console.error('Error exporting task analytics PDF:', error);
       if (!res.headersSent) {
         const isPuppeteerInstallIssue = /Could not find Chrome|Could not find Chromium|executable/i.test(error.message || '');
+        const isBadRequest = /employeeId|Employee not found|Company context/i.test(error.message || '');
         sendError(
           res,
           isPuppeteerInstallIssue
             ? 'PDF renderer is not available. Install Puppeteer browser dependencies or set PUPPETEER_EXECUTABLE_PATH.'
             : error.message,
-          500
+          isBadRequest ? 400 : 500
         );
       }
     }

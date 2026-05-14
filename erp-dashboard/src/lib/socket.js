@@ -19,7 +19,12 @@ const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
   if (!raw) return "/api/socket.io/";
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
-  return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
+  const normalized = withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
+  const sameOriginSocket = !import.meta.env.VITE_SOCKET_URL || SOCKET_BASE_URL === window.location.origin;
+  if (import.meta.env.PROD && sameOriginSocket && normalized === "/socket.io/") {
+    return "/api/socket.io/";
+  }
+  return normalized;
 };
 
 const getResolvedSocketPath = () => normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH);

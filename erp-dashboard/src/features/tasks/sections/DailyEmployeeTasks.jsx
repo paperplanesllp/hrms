@@ -82,11 +82,7 @@ const groupByAssignee = (tasks) => {
     const assignees = Array.isArray(t.assignedTo) ? t.assignedTo : (t.assignedTo ? [t.assignedTo] : []);
     
     if (assignees.length === 0) {
-      // Task not assigned to anyone
-      const key = 'unassigned';
-      const name = 'Unassigned';
-      if (!map[key]) map[key] = { id: key, name, tasks: [] };
-      map[key].tasks.push(t);
+      return;
     } else {
       // Add task to each assignee's group
       assignees.forEach((assignee) => {
@@ -233,7 +229,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
         ...(isCustomRange
           ? { from: customFrom, to: customTo, dateRange: 'custom' }
           : { from: date, to: date, dateRange: 'daily' }),
-        ...(selectedMember !== 'all' && selectedMember !== 'unassigned'
+        ...(selectedMember !== 'all'
           ? { employeeId: selectedMember }
           : {}),
       };
@@ -267,9 +263,23 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
       toast({ title: 'PDF downloaded', message: fileName, type: 'success' });
     } catch (err) {
       console.error('PDF download failed', err);
+      let message = err?.message || 'Could not download PDF';
+      const responseData = err?.response?.data;
+      if (responseData instanceof Blob) {
+        const text = await responseData.text();
+        if (text) {
+          try {
+            message = JSON.parse(text)?.message || text;
+          } catch {
+            message = text;
+          }
+        }
+      } else if (responseData?.message) {
+        message = responseData.message;
+      }
       toast({
         title: 'PDF download failed',
-        message: err?.response?.data?.message || err?.message || 'Could not download PDF',
+        message,
         type: 'error',
       });
     } finally {
@@ -346,15 +356,8 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
       };
     });
     
-    // Add unassigned group if it exists
-    const unassignedGroup = groups.find(g => g.name === 'Unassigned');
-    if (unassignedGroup && unassignedGroup.tasks.length > 0) {
-      map['unassigned'] = { _id: 'unassigned', name: 'Unassigned', count: unassignedGroup.tasks.length };
-    }
-    
     // Count tasks for each member directly from grouped assignees
     groups.forEach(g => {
-      if (g.name === 'Unassigned') return; // Already handled above
       const key = String(g.id || '');
       if (!key) return;
 
@@ -376,8 +379,6 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
     const arr = Object.values(map);
     
     arr.sort((a, b) => {
-      if (a._id === 'unassigned') return 1; // unassigned goes to end
-      if (b._id === 'unassigned') return -1;
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       return b.count - a.count;
     });
@@ -389,7 +390,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
     if (search && search.trim()) {
       const q = search.toLowerCase().trim();
       const matchedMember = members.find(m => 
-        m.name.toLowerCase().includes(q) && m._id !== 'unassigned'
+        m.name.toLowerCase().includes(q)
       );
       if (matchedMember) {
         setSelectedMember(matchedMember._id);
@@ -402,19 +403,14 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
     
     // Filter by selected member
     if (selectedMember !== 'all') {
-      if (selectedMember === 'unassigned') {
-        g = groups.filter(x => x.name === 'Unassigned');
-      } else {
-        g = groups.filter(x => {
-          if (x.name === 'Unassigned') return false;
-          if (x.tasks.length === 0) return false;
-          // Check if any task has this member assigned
-          return x.id === selectedMember || x.tasks.some(task => 
-            Array.isArray(task.assignedTo) && 
-            task.assignedTo.some(a => String(a._id || a) === String(selectedMember))
-          );
-        });
-      }
+      g = groups.filter(x => {
+        if (x.tasks.length === 0) return false;
+        // Check if any task has this member assigned
+        return x.id === selectedMember || x.tasks.some(task => 
+          Array.isArray(task.assignedTo) && 
+          task.assignedTo.some(a => String(a._id || a) === String(selectedMember))
+        );
+      });
     }
     
     // Filter by search text (only if not already filtered by employee selection from search)

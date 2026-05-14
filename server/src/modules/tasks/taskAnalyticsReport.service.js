@@ -262,8 +262,8 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     const isOverdue = metrics.isOverdue || task.status === "overdue";
     const isPending = !isCompleted && !isOverdue;
     const activeHours = toHoursFromMs(metrics.activeWorkedMs);
-    const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [null];
-    const perAssigneeHours = assignees.length > 0 ? activeHours / assignees.length : activeHours;
+    const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [];
+    const perAssigneeHours = assignees.length > 0 ? activeHours / assignees.length : 0;
 
     if (isCompleted) completedTasks += 1;
     else if (isOverdue) overdueTasks += 1;
@@ -276,10 +276,15 @@ export async function buildTaskAnalyticsReportData(options = {}) {
 
     workedHours += activeHours;
 
+    if (assignees.length === 0) {
+      continue;
+    }
+
     for (const assignee of assignees) {
-      const assigneeId = getId(assignee) || "unassigned";
+      const assigneeId = getId(assignee);
+      if (!assigneeId) continue;
       if (!employeeMap.has(assigneeId)) {
-        employeeMap.set(assigneeId, createEmptyEmployeeRow(assignee || { name: "Unassigned" }));
+        employeeMap.set(assigneeId, createEmptyEmployeeRow(assignee));
       }
 
       const employeeRow = employeeMap.get(assigneeId);
