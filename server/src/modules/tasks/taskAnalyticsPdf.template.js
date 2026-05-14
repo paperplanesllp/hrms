@@ -5,6 +5,11 @@ import {
   formatDateTime,
   formatHours,
   formatPercent,
+  formatDuration,
+  formatDays,
+  getStatusLabel,
+  getPriorityLabel,
+  getStatusTone,
 } from "./taskAnalyticsPdf.utils.js";
 
 function statusBadge(value, tone) {
@@ -173,7 +178,132 @@ function renderTaskDetails(tasks) {
   `;
 }
 
-export function renderTaskAnalyticsPdfHtml(report) {
+function renderRiskTasks(riskTasks) {
+  if (!riskTasks || riskTasks.length === 0) {
+    return `<section class="empty-panel">No overdue or at-risk tasks in this period.</section>`;
+  }
+
+  return `
+    <table class="risk-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Employee</th>
+          <th style="width:25%">Task Title</th>
+          <th style="width:10%">Status</th>
+          <th style="width:10%">Priority</th>
+          <th style="width:10%">Due Date</th>
+          <th style="width:10%">Overdue By</th>
+          <th style="width:15%">Hours</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${riskTasks.map((task) => `
+          <tr>
+            <td><strong>${escapeHtml(task.employeeName)}</strong></td>
+            <td>${escapeHtml(task.title)}</td>
+            <td>${statusBadge(task.status, getStatusTone(task.status))}</td>
+            <td>${escapeHtml(getPriorityLabel(task.priority))}</td>
+            <td>${escapeHtml(formatDate(task.dueDate))}</td>
+            <td class="${task.daysOverdue > 0 ? "alert-cell" : ""}">${escapeHtml(formatDays(task.daysOverdue))}</td>
+            <td>${escapeHtml(formatHours(task.workedHours))} / ${escapeHtml(formatHours(task.estimatedHours))}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderEmployeeTaskDetails(employeeDetails) {
+  if (!employeeDetails || employeeDetails.length === 0) {
+    return "";
+  }
+
+  return employeeDetails.map((employee) => `
+    <div class="page-break"></div>
+    <section class="employee-section">
+      <div class="employee-header">
+        <div class="employee-avatar">${escapeHtml(employee.initials || "HR")}</div>
+        <div class="employee-header-content">
+          <h2>${escapeHtml(employee.employeeName)}</h2>
+          <p class="employee-dept">${escapeHtml(employee.department)}</p>
+        </div>
+        <div class="performance-badge badge-${getPerformanceTone(employee.performanceLabel)}">
+          ${escapeHtml(employee.performanceLabel || "Good")}
+        </div>
+      </div>
+
+      <div class="employee-metrics">
+        <div class="emp-metric">
+          <span class="emp-metric-label">Total Tasks</span>
+          <span class="emp-metric-value">${employee.totalTasks}</span>
+        </div>
+        <div class="emp-metric">
+          <span class="emp-metric-label">Completed</span>
+          <span class="emp-metric-value success">${employee.completed}</span>
+        </div>
+        <div class="emp-metric">
+          <span class="emp-metric-label">Pending</span>
+          <span class="emp-metric-value warning">${employee.pending}</span>
+        </div>
+        <div class="emp-metric">
+          <span class="emp-metric-label">Overdue</span>
+          <span class="emp-metric-value ${employee.overdue > 0 ? "danger" : ""}">${employee.overdue}</span>
+        </div>
+        <div class="emp-metric">
+          <span class="emp-metric-label">Productivity</span>
+          <span class="emp-metric-value">${formatPercent(employee.productivity)}</span>
+        </div>
+        <div class="emp-metric">
+          <span class="emp-metric-label">Worked Hours</span>
+          <span class="emp-metric-value">${escapeHtml(formatHours(employee.workedHours))}</span>
+        </div>
+      </div>
+
+      ${employee.tasks && employee.tasks.length > 0 ? `
+        <section class="emp-tasks-panel">
+          <h3>Task Details (${employee.tasks.length} tasks)</h3>
+          <table class="emp-task-table">
+            <thead>
+              <tr>
+                <th style="width:25%">Task Title</th>
+                <th style="width:35%">Description</th>
+                <th style="width:8%">Status</th>
+                <th style="width:8%">Priority</th>
+                <th style="width:12%">Time (Est/Worked)</th>
+                <th style="width:12%">Due Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${employee.tasks.slice(0, 20).map((task) => `
+                <tr>
+                  <td><strong>${escapeHtml(task.title)}</strong></td>
+                  <td class="task-desc">${escapeHtml((task.description || "").substring(0, 80))}</td>
+                  <td>${statusBadge(getStatusLabel(task.status), getStatusTone(task.status))}</td>
+                  <td>${escapeHtml(getPriorityLabel(task.priority))}</td>
+                  <td>${escapeHtml(formatHours(task.estimatedHours))} / ${escapeHtml(formatHours(task.workedHours))}</td>
+                  <td>${escapeHtml(formatDate(task.dueDate))}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      ` : ""}
+    </section>
+  `).join("");
+}
+
+function getPerformanceTone(label) {
+  const tones = {
+    "Excellent": "success",
+    "Good": "info",
+    "Needs Attention": "warning",
+    "Critical": "danger",
+    "No Activity": "muted",
+  };
+  return tones[label] || "muted";
+}
+
+function renderTaskAnalyticsPdfHtml(report) {
   const isDark = report.theme === "dark";
   const css = `
     * { box-sizing: border-box; }
@@ -262,6 +392,9 @@ export function renderTaskAnalyticsPdfHtml(report) {
     .metric-green { background: #10b981; }
     .metric-amber { background: #f59e0b; }
     .metric-red { background: #ef4444; }
+    .metric-info { background: #0ea5e9; }
+    .metric-warning { background: #eab308; }
+    .metric-purple { background: #a855f7; }
     .metric-label { margin: 0; color: ${isDark ? "#94a3b8" : "#64748b"}; font-weight: 700; text-transform: uppercase; font-size: 10px; }
     .metric-card h2 { margin: 10px 0 4px; font-size: 25px; letter-spacing: 0; }
     .metric-detail { margin: 0; color: ${isDark ? "#9fb0c7" : "#64748b"}; }
@@ -308,6 +441,8 @@ export function renderTaskAnalyticsPdfHtml(report) {
     .badge-warning { color: #92400e; background: #fef3c7; }
     .badge-danger { color: #b91c1c; background: #fee2e2; }
     .badge-muted { color: #475569; background: #e2e8f0; }
+    .badge-info { color: #1e40af; background: #dbeafe; }
+    .badge-purple { background: #e9d5ff; color: #6b21a8; }
     .productivity-cell span { display: inline-block; min-width: 34px; font-weight: 800; }
     .progress {
       display: inline-block;
@@ -324,6 +459,9 @@ export function renderTaskAnalyticsPdfHtml(report) {
     .progress-green { background: #10b981; }
     .progress-amber { background: #f59e0b; }
     .progress-red { background: #ef4444; }
+    .progress-info { background: #0ea5e9; }
+    .progress-warning { background: #eab308; }
+    .progress-purple { background: #a855f7; }
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -521,6 +659,191 @@ export function renderTaskAnalyticsPdfHtml(report) {
       margin-bottom: 2px;
     }
     
+    /* Risk & Overdue Task Styles */
+    .risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .risk-table thead {
+      background: #ef4444;
+    }
+    .risk-table th {
+      padding: 10px 8px;
+      text-align: left;
+      color: white;
+      font-weight: 700;
+      font-size: 10px;
+    }
+    .risk-table td {
+      padding: 8px;
+      border-bottom: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+    }
+    .risk-table tbody tr:nth-child(odd) { background: ${isDark ? "rgba(30,41,59,.58)" : "#ffffff"}; }
+    .risk-table tbody tr:nth-child(even) { background: ${isDark ? "rgba(15,23,42,.48)" : "#f8fafc"}; }
+    .alert-cell {
+      color: #b91c1c;
+      font-weight: 700;
+    }
+    
+    /* Employee Section Styles */
+    .employee-section {
+      margin: 20px 0;
+      padding: 20px;
+      border-radius: 18px;
+      background: ${isDark ? "rgba(15,23,42,.82)" : "rgba(255,255,255,.84)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.18)" : "rgba(226,232,240,.88)"};
+      page-break-inside: avoid;
+    }
+    .employee-header {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+    }
+    .employee-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2563eb 0%, #0f766e 100%);
+      color: white;
+      font-weight: 900;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .employee-header-content {
+      flex: 1;
+    }
+    .employee-header-content h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .employee-dept {
+      margin: 4px 0 0;
+      font-size: 11px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .performance-badge {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .performance-badge.badge-success { background: #d1fae5; color: #047857; }
+    .performance-badge.badge-info { background: #dbeafe; color: #1e40af; }
+    .performance-badge.badge-warning { background: #fef3c7; color: #92400e; }
+    .performance-badge.badge-danger { background: #fee2e2; color: #b91c1c; }
+    .performance-badge.badge-muted { background: #e2e8f0; color: #475569; }
+    
+    .employee-metrics {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .emp-metric {
+      padding: 10px;
+      border-radius: 8px;
+      background: ${isDark ? "rgba(148,163,184,.08)" : "rgba(226,232,240,.5)"};
+      text-align: center;
+    }
+    .emp-metric-label {
+      display: block;
+      font-size: 9px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .emp-metric-value {
+      display: block;
+      font-size: 16px;
+      font-weight: 800;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .emp-metric-value.success { color: #10b981; }
+    .emp-metric-value.warning { color: #f59e0b; }
+    .emp-metric-value.danger { color: #ef4444; }
+    
+    .emp-tasks-panel {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+    }
+    .emp-tasks-panel h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .emp-task-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    .emp-task-table thead {
+      background: ${isDark ? "rgba(30,41,59,.8)" : "#f1f5f9"};
+    }
+    .emp-task-table th {
+      padding: 8px;
+      text-align: left;
+      color: ${isDark ? "#cbd5e1" : "#334155"};
+      font-weight: 700;
+      border-bottom: 2px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+    }
+    .emp-task-table td {
+      padding: 8px;
+      border-bottom: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+    }
+    .emp-task-table tbody tr:nth-child(odd) { background: ${isDark ? "rgba(30,41,59,.3)" : "rgba(255,255,255,.5)"}; }
+    .task-desc { color: ${isDark ? "#9fb0c7" : "#64748b"}; }
+    
+    /* Color Tones */
+    .badge-purple { background: #e9d5ff; color: #6b21a8; }
+    .badge-success { color: #047857; background: #d1fae5; }
+    .badge-warning { color: #92400e; background: #fef3c7; }
+    .badge-danger { color: #b91c1c; background: #fee2e2; }
+    .badge-muted { color: #475569; background: #e2e8f0; }
+    .badge-info { color: #1e40af; background: #dbeafe; }
+    
+    /* Summary Grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .summary-stat {
+      padding: 12px;
+      border-radius: 8px;
+      background: ${isDark ? "rgba(148,163,184,.08)" : "rgba(226,232,240,.5)"};
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .summary-label {
+      display: block;
+      font-size: 9px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .summary-value {
+      display: block;
+      font-size: 20px;
+      font-weight: 900;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    
     .page-break { break-before: page; page-break-before: always; }
     @page { size: A4; margin: 12mm; }
   `;
@@ -574,14 +897,39 @@ export function renderTaskAnalyticsPdfHtml(report) {
           ` : ""}
 
           <section class="metrics">
-            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", `${report.summary.activeEmployees} active employees`)}
-            ${metricCard("Completed", String(report.summary.completedTasks), "green", `${formatPercent(report.summary.completionRate)} completion rate`)}
-            ${metricCard("Pending", String(report.summary.pendingTasks), "amber", "Open workload")}
-            ${metricCard("Overdue", String(report.summary.overdueTasks), "red", "Needs attention")}
-            ${metricCard("Worked Hours", formatHours(report.summary.workedHours), "blue", "Tracked active work")}
-            ${metricCard("Productivity", formatPercent(report.summary.productivity), "green", "Completed vs assigned")}
-            ${metricCard("Departments", String(report.summary.departments), "amber", "With task activity")}
-            ${metricCard("Report Period", formatDate(report.period.fromDate), "red", `to ${formatDate(report.period.toDate)}`)}
+            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", `${report.summary.totalEmployees} active employees`)}
+            ${metricCard("Completed", String(report.summary.completedTasks), "green", `${formatPercent(report.summary.onTimeCompletionRate)} on time`)}
+            ${metricCard("In Progress", String(report.summary.inProgressTasks), "info", "Active workload")}
+            ${metricCard("Pending", String(report.summary.pendingTasks), "amber", "To be started")}
+            ${metricCard("Paused", String(report.summary.pausedTasks), "warning", "On hold")}
+            ${metricCard("Overdue", String(report.summary.overdueTasks), "red", "Immediate attention")}
+            ${metricCard("Extension Req.", String(report.summary.extensionRequestedTasks), "purple", "Awaiting approval")}
+            ${metricCard("Worked Hours", formatHours(report.summary.workedHours), "blue", "Total tracked time")}
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <h2>Executive Summary</h2>
+              <p>Key metrics and performance indicators</p>
+            </div>
+            <div class="summary-grid">
+              <div class="summary-stat">
+                <span class="summary-label">Completion Rate</span>
+                <span class="summary-value">${formatPercent(report.summary.completionRate)}</span>
+              </div>
+              <div class="summary-stat">
+                <span class="summary-label">On-Time Completion</span>
+                <span class="summary-value">${formatPercent(report.summary.onTimeCompletionRate)}</span>
+              </div>
+              <div class="summary-stat">
+                <span class="summary-label">Avg Hours/Task</span>
+                <span class="summary-value">${report.summary.completedTasks > 0 ? formatHours(report.summary.totalTaskHours / report.summary.completedTasks) : "N/A"}</span>
+              </div>
+              <div class="summary-stat">
+                <span class="summary-label">Productivity</span>
+                <span class="summary-value">${formatPercent(report.summary.productivity)}</span>
+              </div>
+            </div>
           </section>
 
           <section class="panel">
@@ -624,6 +972,16 @@ export function renderTaskAnalyticsPdfHtml(report) {
             </section>
           </section>
 
+          ${report.riskTasks && report.riskTasks.length > 0 ? `
+            <section class="panel page-break">
+              <div class="section-title">
+                <h2>Overdue & At-Risk Tasks</h2>
+                <p>${report.riskTasks.length} tasks requiring immediate attention</p>
+              </div>
+              ${renderRiskTasks(report.riskTasks)}
+            </section>
+          ` : ""}
+
           <section class="panel page-break">
             <div class="section-title">
               <h2>Department Analytics</h2>
@@ -631,6 +989,10 @@ export function renderTaskAnalyticsPdfHtml(report) {
             </div>
             <div class="department-list">${renderDepartmentCards(report.departments)}</div>
           </section>
+
+          ${report.employeeDetails && report.employeeDetails.length > 0 ? `
+            ${renderEmployeeTaskDetails(report.employeeDetails)}
+          ` : ""}
         </main>
       </body>
     </html>

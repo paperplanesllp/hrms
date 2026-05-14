@@ -11,6 +11,28 @@ import {
 
 const COMPLETED_STATUSES = new Set(["completed"]);
 const CLOSED_STATUSES = new Set(["completed", "rejected", "cancelled"]);
+const IN_PROGRESS_STATUSES = new Set(["in-progress", "in_progress", "paused", "on-hold", "due-soon", "extended", "under-review"]);
+const ACTIVE_STATUSES = new Set(["new", "pending", "in-progress", "in_progress", "paused", "on-hold", "due-soon", "under-review", "extension_requested", "overdue", "extended"]);
+const RISK_STATUSES = new Set(["overdue", "extension_requested"]);
+
+// Status category mappings
+const STATUS_CATEGORIES = {
+  "completed": "completed",
+  "pending": "pending",
+  "new": "pending",
+  "in-progress": "in_progress",
+  "in_progress": "in_progress",
+  "paused": "paused",
+  "on-hold": "on_hold",
+  "hold": "on_hold",
+  "due-soon": "in_progress",
+  "extended": "in_progress",
+  "under-review": "in_progress",
+  "extension_requested": "extension_requested",
+  "overdue": "overdue",
+  "rejected": "closed",
+  "cancelled": "closed",
+};
 
 function getId(value) {
   return value?._id?.toString?.() || value?.toString?.() || "";
@@ -160,7 +182,214 @@ function buildInsights({ summary, employees, departments }) {
     insights.push(`${riskiestDepartment.department} needs attention with ${riskiestDepartment.overdue} overdue task${riskiestDepartment.overdue === 1 ? "" : "s"}.`);
   }
 
+  // Add new insights
+  if (summary.extensionRequestedTasks > 0) {
+    insights.push(`${summary.extensionRequestedTasks} task${summary.extensionRequestedTasks === 1 ? " has" : "s have"} requested extension. Review extension requests for approval.`);
+  }
+
+  const lateCompletedCount = employees.reduce((sum, emp) => sum + (emp.completedLate || 0), 0);
+  if (lateCompletedCount > 0) {
+    const latePercentage = Math.round((lateCompletedCount / summary.completedTasks) * 100) || 0;
+    insights.push(`${lateCompletedCount} tasks (${latePercentage}%) completed late. Review blockers and resource constraints.`);
+  }
+
+  const avgTaskTime = summary.completedTasks > 0 ? (summary.totalTaskHours / summary.completedTasks).toFixed(1) : 0;
+  insights.push(`Average task completion time is ${avgTaskTime} hours per task across all completed work.`);
+
+  if (summary.totalPausedHours > 0) {
+    insights.push(`${(summary.totalPausedHours).toFixed(1)} hours of work time was paused or on-hold. Investigate bottlenecks.`);
+  }
+
   return insights;
+}
+
+/**
+ * Calculate detailed task metrics for PDF reporting
+ * Handles on-time vs late completion, overdue duration, pause time, etc.
+ */
+function calculateDetailedTaskMetrics(task, now = new Date()) {
+  const dueDate = task.dueDate || task.dueAt;
+  const completedAt = task.completedAt;
+  const isCompleted = COMPLETED_STATUSES.has(task.status);
+  const isClosed = CLOSED_STATUSES.has(task.status);
+  
+  // Calculate worked hours
+  const activeMs = task.totalActiveTimeInSeconds ? task.totalActiveTimeInSeconds * 1000 : 
+                   (task.totalWorkedMilliseconds || 0);
+  const pausedMs = task.totalPausedTimeInSeconds ? task.totalPausedTimeInSeconds * 1000 : 
+                   (task.totalPausedMilliseconds || 0);
+  const workedHours = activeMs / (1000 * 60 * 60);
+  const pausedHours = pausedMs / (1000 * 60 * 60);
+  
+  // Calculate due/overdue metrics
+  let daysOverdue = 0;
+  let isOnTime = null;
+  let isLate = false;
+  
+  if (dueDate) {
+    const dueDateObj = new Date(dueDate);
+    dueDateObj.setHours(23, 59, 59, 999);
+    
+    if (isCompleted && completedAt) {
+      const completedDate = new Date(completedAt);
+      isOnTime = completedDate <= dueDateObj;
+      isLate = !isOnTime;
+      if (isLate) {
+        daysOverdue = Math.ceil((completedDate - dueDateObj) / (1000 * 60 * 60 * 24));
+      }
+    } else if (!isCompleted && now > dueDateObj) {
+      // Currently overdue
+      daysOverdue = Math.ceil((now - dueDateObj) / (1000 * 60 * 60 * 24));
+    }
+  }
+  
+  // Calculate estimated hours
+  const estimatedMs = (task.estimatedHours || 0) * 60 * 60 * 1000 + 
+                      (task.estimatedMinutes || 0) * 60 * 1000;
+  const estimatedHours = estimatedMs / (1000 * 60 * 60);
+  
+  // Calculate category
+  const statusCategory = STATUS_CATEGORIES[task.status] || "pending";
+  
+  return {
+    workedHours: Number(workedHours.toFixed(2)),
+    pausedHours: Number(pausedHours.toFixed(2)),
+    estimatedHours: Number(estimatedHours.toFixed(2)),
+    daysOverdue,
+    isOnTime: isOnTime === null ? null : isOnTime,
+    isLate,
+    statusCategory,
+    progress: task.progress || 0,
+  };
+}
+
+/**
+ * Group tasks by employee with detailed breakdown
+ */
+function groupTasksByEmployee(tasks, employees, companyUserIds) {
+  const employeeTasksMap = new Map();
+  
+  // Initialize employee task lists
+  for (const user of employees) {
+    const userId = getId(user);
+    if (!employeeTasksMap.has(userId)) {
+      employeeTasksMap.set(userId, {
+        employee: user,
+        tasks: [],
+        tasksByStatus: {
+          completed: [],
+          pending: [],
+          in_progress: [],
+          paused: [],
+          on_hold: [],
+          extension_requested: [],
+          overdue: [],
+          closed: [],
+        },
+      });
+    }
+  }
+  
+  // Assign tasks to employees
+  for (const task of tasks) {
+    const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [];
+    
+    for (const assignee of assignees) {
+      const assigneeId = getId(assignee);
+      if (!assigneeId) continue;
+      
+      if (!employeeTasksMap.has(assigneeId)) {
+        employeeTasksMap.set(assigneeId, {
+          employee: assignee,
+          tasks: [],
+          tasksByStatus: {
+            completed: [],
+            pending: [],
+            in_progress: [],
+            paused: [],
+            on_hold: [],
+            extension_requested: [],
+            overdue: [],
+            closed: [],
+          },
+        });
+      }
+      
+      const category = STATUS_CATEGORIES[task.status] || "pending";
+      const metrics = calculateDetailedTaskMetrics(task);
+      
+      const taskData = {
+        _id: task._id?.toString?.() || "",
+        title: task.title || "Untitled Task",
+        description: task.description || "",
+        status: task.status,
+        category,
+        priority: task.priority || "MEDIUM",
+        dueDate: task.dueDate || task.dueAt,
+        completedAt: task.completedAt,
+        createdAt: task.createdAt,
+        startedAt: task.startedAt,
+        assignedBy: typeof task.assignedBy === "object" ? task.assignedBy?.name : (task.assignedBy || "System"),
+        ...metrics,
+      };
+      
+      const employeeData = employeeTasksMap.get(assigneeId);
+      employeeData.tasks.push(taskData);
+      
+      if (employeeData.tasksByStatus[category]) {
+        employeeData.tasksByStatus[category].push(taskData);
+      }
+    }
+  }
+  
+  return employeeTasksMap;
+}
+
+/**
+ * Identify overdue and risk tasks for summary section
+ */
+function extractRiskTasks(tasks) {
+  const now = new Date();
+  const riskTasks = [];
+  
+  for (const task of tasks) {
+    const metrics = calculateDetailedTaskMetrics(task, now);
+    
+    if (RISK_STATUSES.has(task.status) || metrics.isLate || metrics.daysOverdue > 0) {
+      const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [];
+      
+      for (const assignee of assignees) {
+        riskTasks.push({
+          taskId: task._id?.toString?.() || "",
+          title: task.title || "Untitled Task",
+          status: task.status,
+          employeeName: assignee?.name || "Unknown",
+          departmentName: assignee?.departmentId?.name || "Unassigned",
+          dueDate: task.dueDate || task.dueAt,
+          daysOverdue: metrics.daysOverdue,
+          daysOverdueLabel: metrics.daysOverdue > 0 ? `${metrics.daysOverdue} days` : "0 days",
+          workedHours: metrics.workedHours,
+          estimatedHours: metrics.estimatedHours,
+          priority: task.priority || "MEDIUM",
+          isOverdue: metrics.daysOverdue > 0,
+          isExtensionRequested: task.status === "extension_requested",
+        });
+      }
+    }
+  }
+  
+  return riskTasks.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0)).slice(0, 20);
+}
+
+/**
+ * Calculate performance label based on productivity and overdue count
+ */
+function getPerformanceLabel(productivity, overdueTasks, totalTasks) {
+  if (totalTasks === 0) return "No Activity";
+  if (productivity >= 85 && overdueTasks === 0) return "Excellent";
+  if (productivity >= 70 && overdueTasks <= 1) return "Good";
+  if (productivity >= 50 || overdueTasks <= 2) return "Needs Attention";
+  return "Critical";
 }
 
 function getInitials(name = "") {
@@ -243,8 +472,9 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   }
 
   const tasks = await Task.find(query)
-    .select("title status assignedTo assignedBy department dueAt dueDate completedAt createdAt priority progress estimatedHours estimatedMinutes totalWorkedMilliseconds totalActiveTimeInSeconds totalPausedMilliseconds totalPausedTimeInSeconds currentSessionStartTime isRunning isPaused isOnHold startedAt extensionRequests completedOnTime")
+    .select("title description status assignedTo assignedBy department dueAt dueDate completedAt createdAt startedAt priority progress estimatedHours estimatedMinutes totalWorkedMilliseconds totalActiveTimeInSeconds totalPausedMilliseconds totalPausedTimeInSeconds currentSessionStartTime isRunning isPaused isOnHold extensionRequests completedOnTime")
     .populate("assignedTo", "name email departmentId")
+    .populate("assignedTo.departmentId", "name")
     .populate("department", "name")
     .sort({ createdAt: -1 })
     .lean({ virtuals: false });
@@ -319,11 +549,25 @@ export async function buildTaskAnalyticsReportData(options = {}) {
 
   const employees = Array.from(employeeMap.values())
     .filter((row) => row.totalTasks > 0)
-    .map((row) => ({
-      ...row,
-      workedHours: Number(row.workedHours.toFixed(2)),
-      productivity: row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
-    }))
+    .map((row) => {
+      const metrics = calculateDetailedTaskMetrics({}, new Date());
+      return {
+        ...row,
+        workedHours: Number(row.workedHours.toFixed(2)),
+        productivity: row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
+        performanceLabel: getPerformanceLabel(
+          row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
+          row.overdue,
+          row.totalTasks
+        ),
+        completedOnTime: row.completedOnTime || 0,
+        completedLate: row.completed - (row.completedOnTime || 0),
+        extensionRequested: 0,
+        inProgress: 0,
+        paused: 0,
+        onHold: 0,
+      };
+    })
     .sort((a, b) => b.productivity - a.productivity || b.totalTasks - a.totalTasks || a.employeeName.localeCompare(b.employeeName));
 
   const departments = Array.from(departmentMap.values())
@@ -334,18 +578,72 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     }))
     .sort((a, b) => b.totalTasks - a.totalTasks || a.department.localeCompare(b.department));
 
+  // Count additional metrics
+  let inProgressTasks = 0;
+  let pausedTasks = 0;
+  let onHoldTasks = 0;
+  let extensionRequestedTasks = 0;
+  let completedOnTimeCount = 0;
+  let completedLateCount = 0;
+  let totalTaskHours = 0;
+  let totalPausedHours = 0;
+
+  for (const task of tasks) {
+    const detailed = calculateDetailedTaskMetrics(task, now);
+    
+    if (task.status === "in-progress" || task.status === "in_progress") inProgressTasks++;
+    if (task.status === "paused") pausedTasks++;
+    if (task.status === "on-hold" || task.status === "hold") onHoldTasks++;
+    if (task.status === "extension_requested") extensionRequestedTasks++;
+    if (COMPLETED_STATUSES.has(task.status)) {
+      totalTaskHours += detailed.workedHours;
+      if (detailed.isOnTime === true) completedOnTimeCount++;
+      if (detailed.isLate === true) completedLateCount++;
+    }
+    totalPausedHours += detailed.pausedHours;
+  }
+
   const totalTasks = tasks.length;
   const summary = {
+    totalEmployees: employees.length,
     totalTasks,
     completedTasks,
     pendingTasks,
+    inProgressTasks,
+    pausedTasks,
+    onHoldTasks,
     overdueTasks,
+    extensionRequestedTasks,
+    completedOnTimeCount,
+    completedLateCount,
     workedHours: Number(workedHours.toFixed(2)),
+    totalTaskHours: Number(totalTaskHours.toFixed(2)),
+    totalPausedHours: Number(totalPausedHours.toFixed(2)),
     completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+    onTimeCompletionRate: completedTasks > 0 ? Math.round((completedOnTimeCount / completedTasks) * 100) : 0,
     productivity: totalTasks > 0 ? Math.round(clampNumber((completedTasks / totalTasks) * 100)) : 0,
     activeEmployees: employees.length,
     departments: departments.length,
   };
+
+  // Group tasks by employee
+  const employeeTasksMap = groupTasksByEmployee(tasks, companyUsers, companyUserIds);
+  
+  // Extract risk tasks
+  const riskTasks = extractRiskTasks(tasks);
+  
+  // Build employee details with full task breakdown
+  const employeeDetails = [];
+  for (const [employeeId, employeeData] of employeeTasksMap) {
+    const empRow = employees.find((e) => e.employeeId === employeeId);
+    if (empRow && employeeData.tasks.length > 0) {
+      employeeDetails.push({
+        ...empRow,
+        tasks: employeeData.tasks,
+        tasksByStatus: employeeData.tasksByStatus,
+      });
+    }
+  }
 
   // Get member info if filtered by employee
   let memberInfo = null;
@@ -361,24 +659,8 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     }
   }
 
-  // Get task details (up to 10 most recent)
-  const taskDetails = tasks.slice(0, 10).map((task) => {
-    const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [];
-    const assignedByName = typeof task.assignedBy === "object" ? task.assignedBy?.name : "System";
-    
-    return {
-      title: task.title || "Untitled Task",
-      description: task.description || "",
-      status: task.status || "pending",
-      priority: task.priority || "medium",
-      dueDate: task.dueDate || task.dueAt,
-      assignedBy: assignedByName || "System",
-      progress: task.progress || 0,
-    };
-  });
-
   return {
-    reportTitle: "Task Analytics Report",
+    reportTitle: "Monthly Task Analytics Report",
     brand: {
       productName: "TheHRSaathi",
       companyName: company?.name || "TheHRSaathi",
@@ -389,16 +671,27 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     period,
     generatedAt,
     generatedBy: generatedBy?.name || "System",
+    generatedByEmail: generatedBy?.email || "",
     theme: theme === "dark" ? "dark" : "light",
     summary,
     employees,
+    employeeDetails,
     departments,
+    riskTasks,
     charts: {
       taskCompletion: chartBuckets,
       total: Math.max(totalTasks, 1),
+      byStatus: {
+        completed: completedTasks,
+        pending: pendingTasks,
+        inProgress: inProgressTasks,
+        paused: pausedTasks,
+        onHold: onHoldTasks,
+        overdue: overdueTasks,
+        extensionRequested: extensionRequestedTasks,
+      },
     },
     insights: buildInsights({ summary, employees, departments }),
     memberInfo,
-    taskDetails,
   };
 }
