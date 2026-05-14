@@ -188,7 +188,18 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
       console.log('✅ [DailyEmployeeTasks] After normalization, sample assignedTo:', normalizedTasks[0]?.assignedTo);
       console.log('✅ [DailyEmployeeTasks] Tasks with assignees:', normalizedTasks.filter(t => t.assignedTo?.length > 0).length);
       
-      const grouped = groupByAssignee(normalizedTasks);
+      const groupedById = new Map(groupByAssignee(normalizedTasks).map(group => [String(group.id), group]));
+      userList.forEach((user) => {
+        const role = String(user?.role || '').toUpperCase();
+        const id = String(user?._id || user?.id || '');
+        if (role !== 'USER' || !id || groupedById.has(id)) return;
+        groupedById.set(id, {
+          id,
+          name: user?.name || user?.userName || 'Unknown User',
+          tasks: [],
+        });
+      });
+      const grouped = Array.from(groupedById.values());
       console.log('🧩 [DailyEmployeeTasks] Grouped by assignee:');
       grouped.forEach(g => console.log(`  - ${g.name}: ${g.tasks.length} task(s)`));
       
@@ -338,9 +349,9 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
           if (x.name === 'Unassigned') return false;
           if (x.tasks.length === 0) return false;
           // Check if any task has this member assigned
-          return x.tasks.some(task => 
+          return x.id === selectedMember || x.tasks.some(task => 
             Array.isArray(task.assignedTo) && 
-            task.assignedTo.some(a => (a._id || a) === selectedMember)
+            task.assignedTo.some(a => String(a._id || a) === String(selectedMember))
           );
         });
       }

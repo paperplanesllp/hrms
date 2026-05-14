@@ -24,14 +24,75 @@ function getDepartmentName(task, assignee) {
 }
 
 function buildTaskQuery({ companyId, fromDate, toDate, departmentId }) {
+  const activeStatuses = [
+    "new",
+    "pending",
+    "in-progress",
+    "in_progress",
+    "paused",
+    "on-hold",
+    "due-soon",
+    "under-review",
+    "extension_requested",
+    "overdue",
+    "extended",
+  ];
+
   const query = {
     companyId,
     isDeleted: false,
-    createdAt: { $gte: fromDate, $lte: toDate },
+    $and: [{
+      $or: [
+        { dueDate: { $gte: fromDate, $lte: toDate } },
+        { dueAt: { $gte: fromDate, $lte: toDate } },
+        { startedAt: { $gte: fromDate, $lte: toDate } },
+        { completedAt: { $gte: fromDate, $lte: toDate } },
+        { updatedAt: { $gte: fromDate, $lte: toDate } },
+        { createdAt: { $gte: fromDate, $lte: toDate } },
+        {
+          status: { $in: activeStatuses },
+          createdAt: { $lte: toDate },
+          $or: [
+            { completedAt: null },
+            { completedAt: { $exists: false } },
+            { completedAt: { $gte: fromDate } },
+          ],
+        },
+      ],
+    }],
   };
 
   if (departmentId) query.department = departmentId;
   return query;
+}
+
+function buildLegacySafeTaskQuery({ companyId, companyUserIds, fromDate, toDate, departmentId }) {
+  const baseQuery = buildTaskQuery({ companyId, fromDate, toDate, departmentId });
+  if (!companyUserIds.length) return baseQuery;
+
+  const { companyId: scopedCompanyId, ...rest } = baseQuery;
+  return {
+    ...rest,
+    $and: [
+      ...(rest.$and || []),
+      {
+        $or: [
+          { companyId: scopedCompanyId },
+          {
+            $and: [
+              { $or: [{ companyId: { $exists: false } }, { companyId: null }] },
+              {
+                $or: [
+                  { assignedBy: { $in: companyUserIds } },
+                  { assignedTo: { $in: companyUserIds } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function createEmptyEmployeeRow(user) {
@@ -104,6 +165,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     to,
     dateRange,
     departmentId,
+    employeeId,
     theme = "light",
   } = options;
 
@@ -117,7 +179,11 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   const [company, companyUsers] = await Promise.all([
     companyId ? Company.findById(companyId).select("name contactEmail contactPhone address").lean() : null,
     companyId
-      ? User.find({ companyId, approvalStatus: "APPROVED" })
+      ? User.find({
+          companyId,
+          approvalStatus: "APPROVED",
+          ...(employeeId && employeeId !== "all" ? { _id: employeeId } : {}),
+        })
           .select("_id name email departmentId role")
           .populate("departmentId", "name")
           .sort({ name: 1 })
@@ -125,17 +191,41 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       : [],
   ]);
 
-  const tasks = await Task.find(buildTaskQuery({
+  const companyUserIds = companyUsers.map((user) => user._id);
+  const query = buildLegacySafeTaskQuery({
     companyId,
+    companyUserIds,
     fromDate: period.fromDate,
     toDate: period.toDate,
     departmentId,
-  }))
+  });
+  if (employeeId && employeeId !== "all") {
+    query.assignedTo = employeeId;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[TASK_PDF_ANALYTICS]", {
+      companyId: String(companyId),
+      employeeId: options.employeeId || "all",
+      startDate: period.fromDate,
+      endDate: period.toDate,
+      query: JSON.stringify(query),
+    });
+  }
+
+  const tasks = await Task.find(query)
     .select("title status assignedTo assignedBy department dueAt dueDate completedAt createdAt priority progress estimatedHours estimatedMinutes totalWorkedMilliseconds totalActiveTimeInSeconds totalPausedMilliseconds totalPausedTimeInSeconds currentSessionStartTime isRunning isPaused isOnHold startedAt extensionRequests completedOnTime")
     .populate("assignedTo", "name email departmentId")
     .populate("department", "name")
     .sort({ createdAt: -1 })
     .lean({ virtuals: false });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[TASK_PDF_ANALYTICS_RESULT]", {
+      taskCount: tasks.length,
+      employeeSummaryCount: companyUsers.length,
+    });
+  }
 
   const now = new Date();
   const employeeMap = new Map(companyUsers.map((user) => [getId(user), createEmptyEmployeeRow(user)]));

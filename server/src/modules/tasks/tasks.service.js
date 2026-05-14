@@ -19,6 +19,83 @@ export const tasksService = {
     const users = await User.find({ companyId }).select('_id').lean();
     return users.map((u) => u._id);
   },
+
+  async buildCompanyTaskScope(companyId) {
+    const companyObjectId = this.requireCompanyId(companyId);
+    const companyUserIds = await this.getCompanyUserIds(companyObjectId);
+    const legacyMissingCompanyId = [
+      { companyId: { $exists: false } },
+      { companyId: null },
+    ];
+
+    return {
+      companyObjectId,
+      companyUserIds,
+      taskScope: companyUserIds.length > 0
+        ? {
+            $or: [
+              { companyId: companyObjectId },
+              {
+                $and: [
+                  { $or: legacyMissingCompanyId },
+                  {
+                    $or: [
+                      { assignedBy: { $in: companyUserIds } },
+                      { assignedTo: { $in: companyUserIds } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : { companyId: companyObjectId },
+    };
+  },
+
+  buildTaskPeriodOverlapFilter(filters = {}) {
+    if (!filters.from && !filters.to) return null;
+
+    const fromDate = filters.from ? new Date(filters.from) : new Date(0);
+    const toDate = filters.to ? new Date(filters.to) : new Date();
+    if (Number.isNaN(fromDate.getTime())) fromDate.setTime(0);
+    if (Number.isNaN(toDate.getTime())) toDate.setTime(Date.now());
+    toDate.setHours(23, 59, 59, 999);
+
+    const activeStatuses = [
+      'new',
+      'pending',
+      'in-progress',
+      'in_progress',
+      'paused',
+      'on-hold',
+      'due-soon',
+      'under-review',
+      'extension_requested',
+      'overdue',
+      'extended',
+    ];
+
+    return {
+      $or: [
+        { dueDate: { $gte: fromDate, $lte: toDate } },
+        { dueAt: { $gte: fromDate, $lte: toDate } },
+        { startedAt: { $gte: fromDate, $lte: toDate } },
+        { completedAt: { $gte: fromDate, $lte: toDate } },
+        { updatedAt: { $gte: fromDate, $lte: toDate } },
+        { createdAt: { $gte: fromDate, $lte: toDate } },
+        {
+          status: { $in: activeStatuses },
+          createdAt: { $lte: toDate },
+          $or: [
+            { completedAt: null },
+            { completedAt: { $exists: false } },
+            { completedAt: { $gte: fromDate } },
+          ],
+        },
+      ],
+    };
+  },
+
   // Get my tasks (assigned to current user)
   async getMyTasks(userId, filters = {}, companyId) {
     try {
@@ -38,8 +115,9 @@ export const tasksService = {
         throw new Error(`Invalid user ID format: ${userId}`);
       }
       
+      const { taskScope } = await this.buildCompanyTaskScope(companyId);
       const query = {
-        companyId: this.requireCompanyId(companyId),
+        ...taskScope,
         assignedTo: { $in: [userObjectId] },
         isDeleted: false
       };
@@ -55,17 +133,8 @@ export const tasksService = {
       }
       
       // Date range - handle correctly without conflicts
-      if (filters.from || filters.to) {
-        query.dueDate = {};
-        if (filters.from) {
-          query.dueDate.$gte = new Date(filters.from);
-        }
-        if (filters.to) {
-          const endDate = new Date(filters.to);
-          endDate.setHours(23, 59, 59, 999);
-          query.dueDate.$lte = endDate;
-        }
-      }
+      const periodFilter = this.buildTaskPeriodOverlapFilter(filters);
+      if (periodFilter) query.$and = [...(query.$and || []), periodFilter];
       
       // Search by title or description
       if (filters.search) {
@@ -93,7 +162,7 @@ export const tasksService = {
       
       // Debug: Check if any tasks exist at all for debugging
       if (tasks.length === 0) {
-        const allTasks = await Task.find({ companyId: query.companyId, isDeleted: false }).select('assignedTo title -_id');
+        const allTasks = await Task.find({ ...taskScope, isDeleted: false }).select('assignedTo title -_id');
         console.log('⚠️ [getMyTasks] No tasks found for this user. Total tasks in DB:', allTasks.length);
         if (allTasks.length > 0) {
           console.log('📊 [getMyTasks] Sample assignedTo values:', allTasks.slice(0, 5).map(t => ({
@@ -113,36 +182,41 @@ export const tasksService = {
 
   // Get all tasks (admin/HR only)
   async getAllTasks(filters = {}, companyId) {
-    const query = { companyId: this.requireCompanyId(companyId), isDeleted: false };
+    const { taskScope, companyObjectId } = await this.buildCompanyTaskScope(companyId);
+    const query = { ...taskScope, isDeleted: false };
     
     // Status filter
     if (filters.status) query.status = filters.status;
     
     // Department filter
     if (filters.department) query.department = new mongoose.Types.ObjectId(filters.department);
+
+    if (filters.employeeId && filters.employeeId !== 'all') {
+      query.assignedTo = new mongoose.Types.ObjectId(filters.employeeId);
+    }
     
     // Priority filter
     if (filters.priority) query.priority = filters.priority;
     
-    // Date range - handle correctly without conflicts
-    if (filters.from || filters.to) {
-      query.dueDate = {};
-      if (filters.from) {
-        query.dueDate.$gte = new Date(filters.from);
-      }
-      if (filters.to) {
-        const endDate = new Date(filters.to);
-        endDate.setHours(23, 59, 59, 999);
-        query.dueDate.$lte = endDate;
-      }
-    }
+    const periodFilter = this.buildTaskPeriodOverlapFilter(filters);
+    if (periodFilter) query.$and = [...(query.$and || []), periodFilter];
     
     // Search
     if (filters.search) {
-      query.$or = [
+      query.$and = [...(query.$and || []), { $or: [
         { title: { $regex: filters.search, $options: 'i' } },
         { description: { $regex: filters.search, $options: 'i' } }
-      ];
+      ] }];
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TASK_ANALYTICS_LIST]', {
+        companyId: companyObjectId.toString(),
+        employeeId: filters.employeeId || 'all',
+        from: filters.from || null,
+        to: filters.to || null,
+        query: JSON.stringify(query),
+      });
     }
     
     return await Task.find(query)
@@ -164,8 +238,9 @@ export const tasksService = {
       
       const userObjectId = new mongoose.Types.ObjectId(userId);
       // IMPORTANT: Exclude tasks assigned to self - only show tasks assigned to OTHERS
+      const { taskScope } = await this.buildCompanyTaskScope(companyId);
       const query = { 
-        companyId: this.requireCompanyId(companyId),
+        ...taskScope,
         assignedBy: userObjectId, 
         assignedTo: { $nin: [userObjectId] },  // Exclude self-assigned tasks
         isDeleted: false 
@@ -183,10 +258,10 @@ export const tasksService = {
       
       // Search by title or description
       if (filters.search) {
-        query.$or = [
+        query.$and = [...(query.$and || []), { $or: [
           { title: { $regex: filters.search, $options: 'i' } },
           { description: { $regex: filters.search, $options: 'i' } }
-        ];
+        ] }];
       }
       
       console.log('📋 [getAssignedByUser] Query object:', JSON.stringify(query, null, 2));
@@ -206,7 +281,7 @@ export const tasksService = {
       
       // Debug: Check if any tasks exist
       if (tasks.length === 0) {
-        const allTasks = await Task.find({ companyId: query.companyId, isDeleted: false }).select('assignedBy assignedTo title -_id');
+        const allTasks = await Task.find({ ...taskScope, isDeleted: false }).select('assignedBy assignedTo title -_id');
         console.log('⚠️ [getAssignedByUser] No tasks found assigned to others. Total tasks in DB:', allTasks.length);
         if (allTasks.length > 0) {
           console.log('📊 [getAssignedByUser] Sample assignedBy values:', allTasks.slice(0, 5).map(t => ({
@@ -736,7 +811,7 @@ export const tasksService = {
 
   // Get all tasks analytics (admin/HR only)
   async getAllTasksAnalytics(opts = {}, companyId) {
-    const companyObjectId = this.requireCompanyId(companyId);
+    const { taskScope, companyObjectId } = await this.buildCompanyTaskScope(companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
 
@@ -769,13 +844,31 @@ export const tasksService = {
       toDate = now;
     }
 
+    const periodFilter = this.buildTaskPeriodOverlapFilter({ from: fromDate, to: toDate });
     const query = {
-      companyId: companyObjectId,
+      ...taskScope,
       isDeleted: false,
-      createdAt: { $gte: fromDate, $lte: toDate },
+      ...(opts.employeeId && opts.employeeId !== 'all'
+        ? { assignedTo: new mongoose.Types.ObjectId(opts.employeeId) }
+        : {}),
+      ...(periodFilter ? { $and: [periodFilter] } : {}),
     };
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TASK_ANALYTICS_ALL]', {
+        companyId: companyObjectId.toString(),
+        employeeId: opts.employeeId || 'all',
+        startDate: fromDate,
+        endDate: toDate,
+        query: JSON.stringify(query),
+      });
+    }
+
     const allTasks = await Task.find(query).select('status priority assignedBy assignedTo extensionRequests estimatedTotalMinutes estimatedHours estimatedMinutes startedAt completedAt isRunning isPaused isOnHold currentSessionStartTime totalActiveTimeInSeconds totalWorkedMilliseconds totalPausedMilliseconds totalPausedTimeInSeconds pausedDurationMs pauseEntries holdEntries totalHoldTimeInSeconds');
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TASK_ANALYTICS_ALL_RESULT]', { taskCount: allTasks.length });
+    }
 
     let runningTasks = 0;
     let pausedTasks = 0;
@@ -816,7 +909,7 @@ export const tasksService = {
         else completedLateTasks += 1;
         avgActiveCompletionAccumulator += metrics.activeWorkedMs || 0;
         avgActiveCompletionSamples += 1;
-      } else if (['in-progress', 'due-soon', 'extended', 'overdue'].includes(status)) {
+      } else if (['in-progress', 'in_progress', 'due-soon', 'extended', 'overdue', 'extension_requested'].includes(status)) {
         inProgressTasks += 1;
       } else if (['paused', 'on-hold'].includes(status)) {
         // tracked above in paused/on-hold buckets
@@ -884,7 +977,7 @@ export const tasksService = {
 
   // Get team performance analytics (admin/HR only)
   async getTeamPerformanceAnalytics(opts = {}, companyId) {
-    const companyObjectId = this.requireCompanyId(companyId);
+    const { taskScope, companyObjectId } = await this.buildCompanyTaskScope(companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
     const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
@@ -913,17 +1006,34 @@ export const tasksService = {
     }
     if (!hasExplicitFromTo) toDate = now;
 
+    const periodFilter = this.buildTaskPeriodOverlapFilter({ from: fromDate, to: toDate });
     const taskQueryBase = {
-      companyId: companyObjectId,
+      ...taskScope,
       isDeleted: false,
-      createdAt: { $gte: fromDate, $lte: toDate }
+      ...(periodFilter ? { $and: [periodFilter] } : {}),
     };
 
     // Get all users with tasks
-    const teamMembers = await User.find({
+    const memberQuery = {
       role: { $in: [ROLES.USER, ROLES.HR] },
       companyId
-    }).select('_id name userName email');
+    };
+    if (opts.employeeId && opts.employeeId !== 'all') {
+      memberQuery._id = new mongoose.Types.ObjectId(opts.employeeId);
+    }
+
+    const teamMembers = await User.find(memberQuery).select('_id name userName email');
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TASK_TEAM_ANALYTICS]', {
+        companyId: companyObjectId.toString(),
+        employeeId: opts.employeeId || 'all',
+        startDate: fromDate,
+        endDate: toDate,
+        query: JSON.stringify(taskQueryBase),
+        employeeSummaryCount: teamMembers.length,
+      });
+    }
     
     const performance = await Promise.all(
       teamMembers.map(async (member) => {
@@ -948,14 +1058,25 @@ export const tasksService = {
           ...taskQueryBase
         });
 
+        const completedTasksCount = await Task.countDocuments({
+          assignedTo: userId,
+          status: 'completed',
+          ...taskQueryBase
+        });
+
         const overdueCount = await Task.countDocuments({
           assignedTo: userId,
           ...taskQueryBase,
           startedAt: { $ne: null },
           status: { $nin: ['completed', 'rejected', 'cancelled'] },
-          $or: [
-            { dueAt: { $lt: new Date() } },
-            { dueAt: null, dueDate: { $lt: new Date() } }
+          $and: [
+            ...(taskQueryBase.$and || []),
+            {
+              $or: [
+                { dueAt: { $lt: new Date() } },
+                { dueAt: null, dueDate: { $lt: new Date() } }
+              ]
+            }
           ]
         });
 
@@ -977,6 +1098,18 @@ export const tasksService = {
         const rejectedTasks = await Task.countDocuments({
           assignedTo: userId,
           status: 'rejected',
+          ...taskQueryBase
+        });
+
+        const pending = await Task.countDocuments({
+          assignedTo: userId,
+          status: { $in: ['new', 'pending', 'extension_requested'] },
+          ...taskQueryBase
+        });
+
+        const paused = await Task.countDocuments({
+          assignedTo: userId,
+          status: { $in: ['paused', 'on-hold'] },
           ...taskQueryBase
         });
 
@@ -1031,12 +1164,12 @@ export const tasksService = {
           }
         ]);
 
-        const completed = completedOnTime + completedLate;
+        const completed = completedTasksCount;
 
         // Count in-progress tasks
         const inProgress = await Task.countDocuments({
           assignedTo: userId,
-          status: { $in: ['in-progress', 'paused', 'on-hold', 'due-soon', 'extended', 'overdue'] },
+          status: { $in: ['in-progress', 'in_progress', 'paused', 'on-hold', 'due-soon', 'extended', 'overdue', 'extension_requested'] },
           ...taskQueryBase
         });
 
@@ -1096,6 +1229,8 @@ export const tasksService = {
           overdueWithoutRequest: metrics.overdueWithoutRequest,
           completed,
           inProgress,
+          pending,
+          paused,
           avgCompletionTime,
           performanceScore,
           classification: performance.classification,
@@ -1104,9 +1239,14 @@ export const tasksService = {
       })
     );
 
-    // Filter out users with no tasks and sort by performance score
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[TASK_TEAM_ANALYTICS_RESULT]', {
+        taskCount: performance.reduce((sum, member) => sum + (member.totalTasks || 0), 0),
+        employeeSummaryCount: performance.length,
+      });
+    }
+
     return performance
-      .filter(member => member.totalTasks > 0)
       .sort((a, b) => b.performanceScore - a.performanceScore);
   },
 

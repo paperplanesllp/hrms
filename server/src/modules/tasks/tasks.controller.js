@@ -96,6 +96,7 @@ export const tasksController = {
       const filters = {
         status: req.query.status,
         department: req.query.department,
+        employeeId: req.query.employeeId,
         priority: req.query.priority,
         from: req.query.from,
         to: req.query.to,
@@ -511,7 +512,7 @@ export const tasksController = {
       const to = req.query.to;
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
-      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to }, companyId);
+      const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to, employeeId: req.query.employeeId }, companyId);
       sendSuccess(res, analytics, 'Analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -526,7 +527,7 @@ export const tasksController = {
       const to = req.query.to;
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
-      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to }, companyId);
+      const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to, employeeId: req.query.employeeId }, companyId);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
       sendError(res, error.message, 400);
@@ -562,6 +563,7 @@ export const tasksController = {
         to: req.query.to,
         dateRange: req.query.dateRange || 'month',
         departmentId: req.query.department,
+        employeeId: req.query.employeeId,
         theme: req.query.theme || 'light',
       });
 
