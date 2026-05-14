@@ -112,6 +112,67 @@ function renderInsights(insights) {
   `).join("");
 }
 
+function renderMemberHeader(memberInfo, companyInfo) {
+  if (!memberInfo) return "";
+  
+  return `
+    <section class="member-header">
+      <div class="member-avatar">${escapeHtml(memberInfo.initials || "HR")}</div>
+      <div class="member-details">
+        <div class="member-info">
+          <h3>${escapeHtml(memberInfo.name)}</h3>
+          <p class="member-designation">${escapeHtml(memberInfo.department || "Team Member")}</p>
+        </div>
+        <div class="member-company">
+          <p class="company-label">Company</p>
+          <p class="company-name">${escapeHtml(companyInfo?.companyName || "TheHRSaathi")}</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderTaskDetails(tasks) {
+  if (!tasks || tasks.length === 0) {
+    return `<section class="empty-panel">No task details available for this period.</section>`;
+  }
+
+  const limitedTasks = tasks.slice(0, 10);
+  return `
+    <section class="task-details-list">
+      ${limitedTasks.map((task, index) => {
+        const taskStatusColor = task.status === "completed" ? "success" : 
+                               task.status === "overdue" ? "danger" : 
+                               task.status === "in-progress" ? "info" : "warning";
+        const taskStatusLabel = task.status ? task.status.charAt(0).toUpperCase() + task.status.slice(1) : "Pending";
+        
+        return `
+          <div class="task-card">
+            <div class="task-header">
+              <div class="task-title-section">
+                <span class="task-number">${String(index + 1).padStart(2, "0")}</span>
+                <h4>${escapeHtml(task.title || "Untitled Task")}</h4>
+              </div>
+              <span class="task-status badge-${taskStatusColor}">${escapeHtml(taskStatusLabel)}</span>
+            </div>
+            ${task.description ? `<p class="task-description">${escapeHtml(task.description)}</p>` : ""}
+            <div class="task-meta">
+              <span class="meta-item">
+                <strong>Assigned By:</strong> ${escapeHtml(task.assignedBy || "System")}
+              </span>
+              <span class="meta-item">
+                <strong>Due:</strong> ${escapeHtml(formatDate(task.dueDate) || "N/A")}
+              </span>
+              ${task.priority ? `<span class="meta-item"><strong>Priority:</strong> ${escapeHtml(task.priority)}</span>` : ""}
+            </div>
+            ${task.progress ? `<div class="progress"><div class="progress-fill progress-blue" style="width:${clampNumber(task.progress)}%"></div></div>` : ""}
+          </div>
+        `;
+      }).join("")}
+    </section>
+  `;
+}
+
 export function renderTaskAnalyticsPdfHtml(report) {
   const isDark = report.theme === "dark";
   const css = `
@@ -312,6 +373,154 @@ export function renderTaskAnalyticsPdfHtml(report) {
     }
     .insights p { margin: 0; }
     .empty-row { text-align: center; color: ${isDark ? "#94a3b8" : "#64748b"}; padding: 28px; }
+    
+    /* Member Header Styles */
+    .member-header {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      padding: 20px;
+      margin: 16px 0;
+      border-radius: 18px;
+      background: ${isDark ? "rgba(15,23,42,.82)" : "rgba(255,255,255,.84)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.18)" : "rgba(226,232,240,.88)"};
+      box-shadow: 0 14px 32px ${isDark ? "rgba(0,0,0,.28)" : "rgba(15,23,42,.08)"};
+      page-break-inside: avoid;
+    }
+    .member-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2563eb 0%, #0f766e 100%);
+      color: white;
+      font-weight: 900;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .member-details {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      gap: 20px;
+    }
+    .member-info h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .member-designation {
+      margin: 4px 0 0;
+      font-size: 11px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .member-company {
+      text-align: right;
+    }
+    .company-label {
+      margin: 0;
+      font-size: 10px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .company-name {
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    
+    /* Task Details Styles */
+    .task-details-list {
+      margin: 16px 0;
+      page-break-inside: avoid;
+    }
+    .task-card {
+      padding: 14px;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      background: ${isDark ? "rgba(30,41,59,.58)" : "#ffffff"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+      page-break-inside: avoid;
+    }
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .task-title-section {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      flex: 1;
+    }
+    .task-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+      font-size: 10px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .task-card h4 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .task-status {
+      display: inline-flex;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 700;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .task-status.badge-success { background: #d1fae5; color: #047857; }
+    .task-status.badge-warning { background: #fef3c7; color: #92400e; }
+    .task-status.badge-danger { background: #fee2e2; color: #b91c1c; }
+    .task-status.badge-info { background: #dbeafe; color: #1e40af; }
+    
+    .task-description {
+      margin: 8px 0;
+      font-size: 11px;
+      color: ${isDark ? "#9fb0c7" : "#64748b"};
+      line-height: 1.4;
+    }
+    .task-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+      font-size: 10px;
+    }
+    .meta-item {
+      color: ${isDark ? "#9fb0c7" : "#64748b"};
+    }
+    .meta-item strong {
+      color: ${isDark ? "#cbd5e1" : "#334155"};
+      font-weight: 600;
+      display: block;
+      margin-bottom: 2px;
+    }
+    
     .page-break { break-before: page; page-break-before: always; }
     @page { size: A4; margin: 12mm; }
   `;
@@ -351,6 +560,18 @@ export function renderTaskAnalyticsPdfHtml(report) {
               </div>
             </div>
           </header>
+
+          ${renderMemberHeader(report.memberInfo, report.brand)}
+
+          ${report.taskDetails && report.taskDetails.length > 0 ? `
+            <section class="panel">
+              <div class="section-title">
+                <h2>Task Details</h2>
+                <p>Recent tasks and their descriptions</p>
+              </div>
+              ${renderTaskDetails(report.taskDetails)}
+            </section>
+          ` : ""}
 
           <section class="metrics">
             ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", `${report.summary.activeEmployees} active employees`)}

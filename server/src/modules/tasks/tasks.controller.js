@@ -611,7 +611,11 @@ export const tasksController = {
       });
 
       const pdfBuffer = await generateTaskAnalyticsPdfBuffer(reportData);
-      const fileName = createDownloadFileName(reportData.brand.companyName, reportData.generatedAt);
+      const fileName = createDownloadFileName(
+        reportData.brand.companyName, 
+        reportData.generatedAt,
+        reportData.memberInfo?.name
+      );
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Length', pdfBuffer.length);

@@ -98,11 +98,24 @@ export function normalizeReportPeriod({ from, to, dateRange = "month" } = {}) {
   };
 }
 
-export function createDownloadFileName(companyName = "TheHRSaathi", generatedAt = new Date()) {
+export function createDownloadFileName(companyName = "TheHRSaathi", generatedAt = new Date(), memberName = null) {
   const safeCompany = String(companyName || "TheHRSaathi")
     .replace(/[^a-z0-9]+/gi, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "TheHRSaathi";
+    .slice(0, 30) || "TheHRSaathi";
+  
+  const safeMember = memberName
+    ? String(memberName)
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 20)
+    : null;
+  
   const date = generatedAt.toISOString().slice(0, 10);
+  
+  if (safeMember) {
+    return `${safeCompany}-${safeMember}-task-analytics-${date}.pdf`;
+  }
+  
   return `${safeCompany}-task-analytics-${date}.pdf`;
 }

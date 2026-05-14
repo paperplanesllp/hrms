@@ -163,6 +163,15 @@ function buildInsights({ summary, employees, departments }) {
   return insights;
 }
 
+function getInitials(name = "") {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "HR";
+}
+
 export async function buildTaskAnalyticsReportData(options = {}) {
   const {
     companyId,
@@ -338,6 +347,36 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     departments: departments.length,
   };
 
+  // Get member info if filtered by employee
+  let memberInfo = null;
+  if (employeeObjectId) {
+    const member = companyUsers.find((u) => u._id.toString() === employeeObjectId.toString());
+    if (member) {
+      memberInfo = {
+        name: member.name,
+        department: member.departmentId?.name || "Team Member",
+        initials: getInitials(member.name),
+        email: member.email,
+      };
+    }
+  }
+
+  // Get task details (up to 10 most recent)
+  const taskDetails = tasks.slice(0, 10).map((task) => {
+    const assignees = Array.isArray(task.assignedTo) && task.assignedTo.length > 0 ? task.assignedTo : [];
+    const assignedByName = typeof task.assignedBy === "object" ? task.assignedBy?.name : "System";
+    
+    return {
+      title: task.title || "Untitled Task",
+      description: task.description || "",
+      status: task.status || "pending",
+      priority: task.priority || "medium",
+      dueDate: task.dueDate || task.dueAt,
+      assignedBy: assignedByName || "System",
+      progress: task.progress || 0,
+    };
+  });
+
   return {
     reportTitle: "Task Analytics Report",
     brand: {
@@ -359,5 +398,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       total: Math.max(totalTasks, 1),
     },
     insights: buildInsights({ summary, employees, departments }),
+    memberInfo,
+    taskDetails,
   };
 }
