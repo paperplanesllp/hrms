@@ -470,26 +470,6 @@ export default function TaskReportsSection() {
             customTo={dateRange === 'period' ? periodTo : null}
             title={dateRange === 'period' ? `Period Tasks: ${periodFrom} → ${periodTo}` : 'Daily Employee Tasks'}
           />
-          {/* Export PDF Button for Period section */}
-          {dateRange === 'period' && (
-            <div className="absolute top-0 right-0">
-              <Button 
-                variant="primary" 
-                size="sm" 
-                leftIcon={<Download className="w-4 h-4" />}
-                onClick={() => {
-                  const element = document.getElementById('daily-employee-tasks-section');
-                  if (element) {
-                    exportElementAsPDF(element, `task-report-period-${periodFrom}-to-${periodTo}-${new Date().getTime()}.pdf`);
-                  } else {
-                    toast({ title: 'Export failed', message: 'Could not find the tasks section to export', type: 'error' });
-                  }
-                }}
-              >
-                Export PDF
-              </Button>
-            </div>
-          )}
         </div>
       )}
 

@@ -20,6 +20,25 @@ export const tasksService = {
     return users.map((u) => u._id);
   },
 
+  async resolveCompanyEmployeeId(employeeId, companyId) {
+    if (!employeeId || employeeId === 'all') return null;
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      throw new Error('Invalid employeeId');
+    }
+
+    const companyObjectId = this.requireCompanyId(companyId);
+    const employee = await User.findOne({
+      _id: new mongoose.Types.ObjectId(employeeId),
+      companyId: companyObjectId,
+    }).select('_id').lean();
+
+    if (!employee) {
+      throw new Error('Employee not found in this company');
+    }
+
+    return employee._id;
+  },
+
   async buildCompanyTaskScope(companyId) {
     const companyObjectId = this.requireCompanyId(companyId);
     const companyUserIds = await this.getCompanyUserIds(companyObjectId);
@@ -41,7 +60,12 @@ export const tasksService = {
                   {
                     $or: [
                       { assignedBy: { $in: companyUserIds } },
-                      { assignedTo: { $in: companyUserIds } },
+                      {
+                        $and: [
+                          { $or: [{ assignedBy: { $exists: false } }, { assignedBy: null }] },
+                          { assignedTo: { $in: companyUserIds } },
+                        ],
+                      },
                     ],
                   },
                 ],
@@ -191,8 +215,9 @@ export const tasksService = {
     // Department filter
     if (filters.department) query.department = new mongoose.Types.ObjectId(filters.department);
 
-    if (filters.employeeId && filters.employeeId !== 'all') {
-      query.assignedTo = new mongoose.Types.ObjectId(filters.employeeId);
+    const employeeObjectId = await this.resolveCompanyEmployeeId(filters.employeeId, companyId);
+    if (employeeObjectId) {
+      query.assignedTo = employeeObjectId;
     }
     
     // Priority filter
@@ -812,6 +837,7 @@ export const tasksService = {
   // Get all tasks analytics (admin/HR only)
   async getAllTasksAnalytics(opts = {}, companyId) {
     const { taskScope, companyObjectId } = await this.buildCompanyTaskScope(companyId);
+    const employeeObjectId = await this.resolveCompanyEmployeeId(opts.employeeId, companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
 
@@ -848,9 +874,7 @@ export const tasksService = {
     const query = {
       ...taskScope,
       isDeleted: false,
-      ...(opts.employeeId && opts.employeeId !== 'all'
-        ? { assignedTo: new mongoose.Types.ObjectId(opts.employeeId) }
-        : {}),
+      ...(employeeObjectId ? { assignedTo: employeeObjectId } : {}),
       ...(periodFilter ? { $and: [periodFilter] } : {}),
     };
 
@@ -978,6 +1002,7 @@ export const tasksService = {
   // Get team performance analytics (admin/HR only)
   async getTeamPerformanceAnalytics(opts = {}, companyId) {
     const { taskScope, companyObjectId } = await this.buildCompanyTaskScope(companyId);
+    const employeeObjectId = await this.resolveCompanyEmployeeId(opts.employeeId, companyId);
     const dateRange = opts?.dateRange || 'month';
     const now = new Date();
     const hasExplicitFromTo = Boolean(opts?.from || opts?.to);
@@ -1018,8 +1043,8 @@ export const tasksService = {
       role: { $in: [ROLES.USER, ROLES.HR] },
       companyId
     };
-    if (opts.employeeId && opts.employeeId !== 'all') {
-      memberQuery._id = new mongoose.Types.ObjectId(opts.employeeId);
+    if (employeeObjectId) {
+      memberQuery._id = employeeObjectId;
     }
 
     const teamMembers = await User.find(memberQuery).select('_id name userName email');

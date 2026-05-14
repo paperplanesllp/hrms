@@ -48,6 +48,21 @@ function requireCompanyContext(req, res) {
   return req.user.companyId;
 }
 
+async function findTaskInCompanyScope(taskId, companyId) {
+  const { taskScope } = await tasksService.buildCompanyTaskScope(companyId);
+  return Task.findOne({
+    _id: taskId,
+    ...taskScope,
+    isDeleted: false,
+  });
+}
+
+function ensureTaskCompanyId(task, companyId) {
+  if (task && !task.companyId) {
+    task.companyId = companyId;
+  }
+}
+
 export const tasksController = {
   // Get my tasks
   async getMyTasks(req, res) {
@@ -512,6 +527,15 @@ export const tasksController = {
       const to = req.query.to;
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[TASK_ANALYTICS_REQUEST]', {
+          companyId: String(companyId),
+          employeeId: req.query.employeeId || 'all',
+          dateRange,
+          from: from || null,
+          to: to || null,
+        });
+      }
       const analytics = await tasksService.getAllTasksAnalytics({ dateRange, from, to, employeeId: req.query.employeeId }, companyId);
       sendSuccess(res, analytics, 'Analytics fetched successfully');
     } catch (error) {
@@ -527,6 +551,15 @@ export const tasksController = {
       const to = req.query.to;
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[TASK_TEAM_ANALYTICS_REQUEST]', {
+          companyId: String(companyId),
+          employeeId: req.query.employeeId || 'all',
+          dateRange,
+          from: from || null,
+          to: to || null,
+        });
+      }
       const performance = await tasksService.getTeamPerformanceAnalytics({ dateRange, from, to, employeeId: req.query.employeeId }, companyId);
       sendSuccess(res, performance, 'Team performance analytics fetched successfully');
     } catch (error) {
@@ -554,6 +587,16 @@ export const tasksController = {
     try {
       if (!req.user.companyId) {
         return sendError(res, 'Company context is required to export task analytics', 400);
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[TASK_PDF_EXPORT_REQUEST]', {
+          companyId: String(req.user.companyId),
+          employeeId: req.query.employeeId || 'all',
+          dateRange: req.query.dateRange || 'month',
+          from: req.query.from || null,
+          to: req.query.to || null,
+        });
       }
 
       const reportData = await buildTaskAnalyticsReportData({
@@ -772,8 +815,9 @@ export const tasksController = {
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
 
-      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
+      const task = await findTaskInCompanyScope(id, companyId);
       if (!task) return sendError(res, 'Task not found', 404);
+      ensureTaskCompanyId(task, companyId);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can start this task', 403);
@@ -860,8 +904,9 @@ export const tasksController = {
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
 
-      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
+      const task = await findTaskInCompanyScope(id, companyId);
       if (!task) return sendError(res, 'Task not found', 404);
+      ensureTaskCompanyId(task, companyId);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can pause this task', 403);
@@ -918,8 +963,9 @@ export const tasksController = {
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
 
-      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
+      const task = await findTaskInCompanyScope(id, companyId);
       if (!task) return sendError(res, 'Task not found', 404);
+      ensureTaskCompanyId(task, companyId);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can resume this task', 403);
@@ -992,8 +1038,9 @@ export const tasksController = {
       const companyId = requireCompanyContext(req, res);
       if (!companyId) return;
 
-      const task = await Task.findOne({ _id: id, companyId, isDeleted: false });
+      const task = await findTaskInCompanyScope(id, companyId);
       if (!task) return sendError(res, 'Task not found', 404);
+      ensureTaskCompanyId(task, companyId);
 
       if (!task.assignedTo.some(a => a.toString() === req.user.id)) {
         return sendError(res, 'Only an assignee can complete this task', 403);

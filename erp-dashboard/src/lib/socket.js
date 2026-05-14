@@ -17,7 +17,7 @@ const MAX_RECONNECTION_ATTEMPTS = 5;
 
 const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
-  if (!raw) return "/socket.io/";
+  if (!raw) return "/api/socket.io/";
   const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
   return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 };
@@ -115,7 +115,7 @@ export const initializeSocket = () => {
       token: auth.accessToken
     },
     autoConnect: true,
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
     upgrade: true,
     reconnection: true,
     reconnectionDelay: 1500,

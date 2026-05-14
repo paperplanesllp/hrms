@@ -29,7 +29,7 @@ export const initializeSocket = (server) => {
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
     },
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     allowEIO3: false,
     pingInterval: 25000,
     pingTimeout: 60000,
@@ -38,7 +38,7 @@ export const initializeSocket = (server) => {
 
   console.log("[Socket.IO] Server initialized", {
     path: socketPath,
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
   });
 
   io.engine.on("connection_error", (err) => {

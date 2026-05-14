@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Task } from "./Task.model.js";
 import { User } from "../users/User.model.js";
 import { Company } from "../companies/Company.model.js";
@@ -84,7 +85,12 @@ function buildLegacySafeTaskQuery({ companyId, companyUserIds, fromDate, toDate,
               {
                 $or: [
                   { assignedBy: { $in: companyUserIds } },
-                  { assignedTo: { $in: companyUserIds } },
+                  {
+                    $and: [
+                      { $or: [{ assignedBy: { $exists: false } }, { assignedBy: null }] },
+                      { assignedTo: { $in: companyUserIds } },
+                    ],
+                  },
                 ],
               },
             ],
@@ -175,6 +181,20 @@ export async function buildTaskAnalyticsReportData(options = {}) {
 
   const generatedAt = new Date();
   const period = normalizeReportPeriod({ from, to, dateRange });
+  let employeeObjectId = null;
+
+  if (employeeId && employeeId !== "all") {
+    if (!mongoose.Types.ObjectId.isValid(employeeId)) {
+      throw new Error("Invalid employeeId");
+    }
+
+    const employee = await User.findOne({ _id: employeeId, companyId }).select("_id").lean();
+    if (!employee) {
+      throw new Error("Employee not found in this company");
+    }
+
+    employeeObjectId = employee._id;
+  }
 
   const [company, companyUsers] = await Promise.all([
     companyId ? Company.findById(companyId).select("name contactEmail contactPhone address").lean() : null,
@@ -182,7 +202,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       ? User.find({
           companyId,
           approvalStatus: "APPROVED",
-          ...(employeeId && employeeId !== "all" ? { _id: employeeId } : {}),
+          ...(employeeObjectId ? { _id: employeeObjectId } : {}),
         })
           .select("_id name email departmentId role")
           .populate("departmentId", "name")
@@ -199,8 +219,8 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     toDate: period.toDate,
     departmentId,
   });
-  if (employeeId && employeeId !== "all") {
-    query.assignedTo = employeeId;
+  if (employeeObjectId) {
+    query.assignedTo = employeeObjectId;
   }
 
   if (process.env.NODE_ENV !== "production") {

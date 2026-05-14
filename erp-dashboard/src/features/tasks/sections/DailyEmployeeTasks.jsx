@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Card from '../../../components/ui/Card.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { Download, Calendar, RefreshCw, Search, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -8,7 +8,6 @@ import { getTaskStatusMessage, getStatusMessageStyles } from '../utils/taskStatu
 import TaskDetailsModal from '../components/TaskDetailsModal.jsx';
 import ModalBase from '../../../components/ui/Modal.jsx';
 import { toast } from '../../../store/toastStore.js';
-import { exportDailyTasksAsPDF } from '../utils/exportReports.js';
 
 // Helper function to get dates with offset
 const getDateWithOffset = (offsetDays = 0) => {
@@ -122,9 +121,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
   const [deleteConfirmTask, setDeleteConfirmTask] = useState(null); // Task pending deletion
   const [deleting, setDeleting] = useState({}); // Track deletion state
   const [selectedTaskDetails, setSelectedTaskDetails] = useState(null); // Task details modal state
-  
-  // Ref for PDF export
-  const tasksContainerRef = useRef(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Determine if we're using custom date range (for Period section)
   const isCustomRange = customFrom && customTo;
@@ -216,6 +213,69 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
   useEffect(() => { 
     load(); 
   }, [load, customFrom, customTo]);
+
+  const getPdfFileName = (response, fallback) => {
+    const disposition = response?.headers?.['content-disposition'] || '';
+    const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+    if (!match?.[1]) return fallback;
+    try {
+      return decodeURIComponent(match[1].replace(/"/g, '').trim());
+    } catch {
+      return match[1].replace(/"/g, '').trim();
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloadingPdf(true);
+      const params = {
+        theme: 'light',
+        ...(isCustomRange
+          ? { from: customFrom, to: customTo, dateRange: 'custom' }
+          : { from: date, to: date, dateRange: 'daily' }),
+        ...(selectedMember !== 'all' && selectedMember !== 'unassigned'
+          ? { employeeId: selectedMember }
+          : {}),
+      };
+
+      const response = await api.get('/tasks/analytics/export/pdf', {
+        params,
+        responseType: 'blob',
+      });
+
+      const contentType = response.headers?.['content-type'] || 'application/pdf';
+      if (!contentType.includes('application/pdf')) {
+        throw new Error('Server did not return a PDF file');
+      }
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      if (!blob.size) {
+        throw new Error('Downloaded PDF is empty');
+      }
+
+      const dateLabel = isCustomRange ? `${customFrom}-to-${customTo}` : date;
+      const fileName = getPdfFileName(response, `task-analytics-${dateLabel}.pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+
+      toast({ title: 'PDF downloaded', message: fileName, type: 'success' });
+    } catch (err) {
+      console.error('PDF download failed', err);
+      toast({
+        title: 'PDF download failed',
+        message: err?.response?.data?.message || err?.message || 'Could not download PDF',
+        type: 'error',
+      });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   // Handle delete task
   const handleDeleteTask = async (taskId) => {
@@ -582,18 +642,10 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
             size="sm"
             variant="primary"
             leftIcon={<Download className="w-3 h-3" />}
-            onClick={() => {
-              const dateLabel = isCustomRange ? `${customFrom} → ${customTo}` : date;
-              exportDailyTasksAsPDF(
-                filteredGroups,
-                dailyAnalytics,
-                dateLabel,
-                `daily-tasks-${dateLabel.replace(/[^\w-]/g, '_')}.pdf`
-              );
-            }}
-            disabled={loading || filteredGroups.length === 0}
+            onClick={handleDownloadPdf}
+            disabled={loading || downloadingPdf}
           >
-            Download PDF
+            {downloadingPdf ? 'Downloading...' : 'Download PDF'}
           </Button>
         </div>
       </div>
