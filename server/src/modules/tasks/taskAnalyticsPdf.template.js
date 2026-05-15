@@ -213,7 +213,7 @@ function renderRiskTasks(riskTasks) {
   `;
 }
 
-function renderEmployeeTaskDetails(employeeDetails) {
+function renderEmployeeTaskDetails(employeeDetails, maxTasksPerEmployee = 100) {
   if (!employeeDetails || employeeDetails.length === 0) {
     return "";
   }
@@ -265,29 +265,56 @@ function renderEmployeeTaskDetails(employeeDetails) {
           <table class="emp-task-table">
             <thead>
               <tr>
-                <th style="width:25%">Task Title</th>
-                <th style="width:35%">Description</th>
-                <th style="width:8%">Status</th>
-                <th style="width:8%">Priority</th>
-                <th style="width:12%">Time (Est/Worked)</th>
-                <th style="width:12%">Due Date</th>
+                <th style="width:10%">Task Title</th>
+                <th style="width:12%">Description</th>
+                <th style="width:5%">Status</th>
+                <th style="width:4%">Priority</th>
+                <th style="width:5%">Assigned By</th>
+                <th style="width:5%">Assigned To</th>
+                <th style="width:5%">Start Date</th>
+                <th style="width:5%">Due Date</th>
+                <th style="width:5%">Completed Date</th>
+                <th style="width:4%">Est. Time</th>
+                <th style="width:4%">Worked</th>
+                <th style="width:4%">Paused</th>
+                <th style="width:4%">Hold</th>
+                <th style="width:4%">Pending</th>
+                <th style="width:4%">Overdue</th>
+                <th style="width:5%">Extension</th>
+                <th style="width:11%">Remarks</th>
               </tr>
             </thead>
             <tbody>
-              ${employee.tasks.slice(0, 20).map((task) => `
+              ${employee.tasks.slice(0, maxTasksPerEmployee).map((task) => `
                 <tr>
                   <td><strong>${escapeHtml(task.title)}</strong></td>
-                  <td class="task-desc">${escapeHtml((task.description || "").substring(0, 80))}</td>
+                  <td class="task-desc">${escapeHtml((task.description || "").substring(0, 100))}${task.description && task.description.length > 100 ? "..." : ""}</td>
                   <td>${statusBadge(getStatusLabel(task.status), getStatusTone(task.status))}</td>
                   <td>${escapeHtml(getPriorityLabel(task.priority))}</td>
-                  <td>${escapeHtml(formatHours(task.estimatedHours))} / ${escapeHtml(formatHours(task.workedHours))}</td>
+                  <td>${escapeHtml(task.assignedBy || "System")}</td>
+                  <td>${escapeHtml(task.assignedTo || employee.employeeName)}</td>
+                  <td>${escapeHtml(formatDate(task.startedAt))}</td>
                   <td>${escapeHtml(formatDate(task.dueDate))}</td>
+                  <td>${escapeHtml(formatDate(task.completedAt))}</td>
+                  <td>${escapeHtml(formatHours(task.estimatedHours))}</td>
+                  <td>${escapeHtml(formatHours(task.workedHours))}</td>
+                  <td>${escapeHtml(formatHours(task.pausedHours))}</td>
+                  <td>${escapeHtml(formatHours(task.holdHours))}</td>
+                  <td>${escapeHtml(formatHours(task.pendingHours))}</td>
+                  <td>${task.isOverdue ? statusBadge(`${task.daysOverdue}d`, "danger") : statusBadge("No", "success")}</td>
+                  <td>${task.extensionRequested ? statusBadge("Requested", "warning") : 
+                        task.extensionStatus === "approved" ? statusBadge("Approved", "success") :
+                        task.extensionStatus === "rejected" ? statusBadge("Rejected", "danger") :
+                        statusBadge("None", "muted")}</td>
+                  <td class="task-remarks">${escapeHtml((task.remarks || "").substring(0, 80))}${task.remarks && task.remarks.length > 80 ? "..." : ""}</td>
                 </tr>
               `).join("")}
             </tbody>
           </table>
         </section>
-      ` : ""}
+      ` : `
+        <section class="empty-panel">No tasks found for this employee in the selected period.</section>
+      `}
     </section>
   `).join("");
 }
@@ -788,24 +815,48 @@ function renderTaskAnalyticsPdfHtml(report) {
     .emp-task-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 7px;
+      margin-top: 8px;
     }
     .emp-task-table thead {
       background: ${isDark ? "rgba(30,41,59,.8)" : "#f1f5f9"};
     }
     .emp-task-table th {
-      padding: 8px;
+      padding: 4px 2px;
       text-align: left;
       color: ${isDark ? "#cbd5e1" : "#334155"};
       font-weight: 700;
       border-bottom: 2px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .emp-task-table td {
-      padding: 8px;
+      padding: 4px 2px;
       border-bottom: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "#e9eef6"};
+      vertical-align: top;
+      word-break: break-word;
+      line-height: 1.2;
     }
-    .emp-task-table tbody tr:nth-child(odd) { background: ${isDark ? "rgba(30,41,59,.3)" : "rgba(255,255,255,.5)"}; }
-    .task-desc { color: ${isDark ? "#9fb0c7" : "#64748b"}; }
+    .emp-task-table tbody tr { 
+      page-break-inside: avoid; 
+      break-inside: avoid;
+    }
+    .emp-task-table thead { 
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    .task-desc { 
+      color: ${isDark ? "#9fb0c7" : "#64748b"}; 
+      max-width: 120px;
+      word-wrap: break-word;
+    }
+    .task-remarks { 
+      color: ${isDark ? "#9fb0c7" : "#64748b"}; 
+      max-width: 100px;
+      word-wrap: break-word;
+      font-size: 6px;
+    }
     
     /* Color Tones */
     .badge-purple { background: #e9d5ff; color: #6b21a8; }
@@ -991,10 +1042,12 @@ function renderTaskAnalyticsPdfHtml(report) {
           </section>
 
           ${report.employeeDetails && report.employeeDetails.length > 0 ? `
-            ${renderEmployeeTaskDetails(report.employeeDetails)}
+            ${renderEmployeeTaskDetails(report.employeeDetails, report.maxTasksPerEmployee || 100)}
           ` : ""}
         </main>
       </body>
     </html>
   `;
 }
+
+export { renderTaskAnalyticsPdfHtml };

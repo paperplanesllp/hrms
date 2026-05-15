@@ -15,6 +15,9 @@ const IN_PROGRESS_STATUSES = new Set(["in-progress", "in_progress", "paused", "o
 const ACTIVE_STATUSES = new Set(["new", "pending", "in-progress", "in_progress", "paused", "on-hold", "due-soon", "under-review", "extension_requested", "overdue", "extended"]);
 const RISK_STATUSES = new Set(["overdue", "extension_requested"]);
 
+// PDF Export Configuration
+const MAX_TASKS_PER_EMPLOYEE_IN_PDF = 100;
+
 // Status category mappings
 const STATUS_CATEGORIES = {
   "completed": "completed",
@@ -330,7 +333,21 @@ function groupTasksByEmployee(tasks, employees, companyUserIds) {
         createdAt: task.createdAt,
         startedAt: task.startedAt,
         assignedBy: typeof task.assignedBy === "object" ? task.assignedBy?.name : (task.assignedBy || "System"),
-        ...metrics,
+        assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(a => typeof a === "object" ? a.name : a).join(", ") : "",
+        estimatedHours: metrics.estimatedHours,
+        workedHours: metrics.workedHours,
+        pausedHours: metrics.pausedHours,
+        holdHours: (task.totalHoldTimeInSeconds || 0) / 3600,
+        pendingHours: Math.max(0, metrics.estimatedHours - metrics.workedHours),
+        daysOverdue: metrics.daysOverdue,
+        isOverdue: metrics.daysOverdue > 0,
+        extensionStatus: task.extensionRequests?.length > 0 ? 
+          (task.extensionRequests[task.extensionRequests.length - 1]?.approvalStatus || "none") : "none",
+        extensionRequested: task.status === "extension_requested",
+        remarks: task.remarks?.length > 0 ? 
+          task.remarks.map(r => r.text).join("; ") : 
+          (task.comments?.length > 0 ? task.comments.map(c => c.text).join("; ") : ""),
+        progress: task.progress || 0,
       };
       
       const employeeData = employeeTasksMap.get(assigneeId);
@@ -673,6 +690,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     generatedBy: generatedBy?.name || "System",
     generatedByEmail: generatedBy?.email || "",
     theme: theme === "dark" ? "dark" : "light",
+    maxTasksPerEmployee: MAX_TASKS_PER_EMPLOYEE_IN_PDF,
     summary,
     employees,
     employeeDetails,
