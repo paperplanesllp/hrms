@@ -15,7 +15,7 @@ import { Megaphone, Calendar, User, Shield, Newspaper, Edit2, Trash2, Plus, Cloc
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null;
   
-  // 1. If it's already a full URL, return it
+  // 1. If it's already a full URL, return it as-is
   if (imagePath.startsWith('http')) return imagePath;
 
   // 2. Convert Windows backslashes (\) to URL forward slashes (/)
@@ -33,9 +33,17 @@ const getImageUrl = (imagePath) => {
     cleanPath = '/' + cleanPath;
   }
 
-  // Return relative path so Vite proxy can intercept it
-  // /uploads/news/filename.jpg → proxied to http://localhost:5000/uploads/news/filename.jpg
-  return cleanPath;
+  // 5. Build full backend URL for reliability
+  // Extract base URL from VITE_API_BASE_URL (e.g., http://localhost:5000/api → http://localhost:5000)
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+  const baseUrl = apiBaseUrl.replace(/\/api$/, ''); // Remove /api suffix
+  const imageUrl = `${baseUrl}${cleanPath}`;
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('📸 Image URL:', { original: imagePath, clean: cleanPath, final: imageUrl });
+  }
+  
+  return imageUrl;
 };
 
 export default function NewsPage() {
@@ -222,26 +230,41 @@ export default function NewsPage() {
                     alt={heroNews.title}
                     className="absolute inset-0 z-10 object-cover w-full h-full opacity-60"
                     onError={(e) => {
+                      console.error('❌ Hero image failed to load:', getImageUrl(heroNews.imageUrl), e);
                       // Fallback when image fails to load (404 or other error)
                       e.target.style.display = 'none';
                       const fallback = e.target.parentElement?.querySelector('.image-fallback');
-                      if (fallback) fallback.style.display = 'flex';
+                      if (fallback) {
+                        fallback.style.display = 'flex';
+                      }
+                      // Ensure gradient overlay is still visible
+                      const gradient = e.target.parentElement?.querySelector('.hero-gradient');
+                      if (gradient) {
+                        gradient.style.zIndex = '15';
+                      }
                     }}
                   />
-                  <div className="absolute inset-0 z-20 bg-gradient-to-r from-black via-black/90 to-black/65"></div>
+                  <div className="hero-gradient absolute inset-0 z-20 bg-gradient-to-r from-black via-black/90 to-black/65"></div>
                   <div 
-                    className="image-fallback absolute inset-0 z-10 items-center justify-center bg-[#242B1E]" 
+                    className="image-fallback absolute inset-0 z-10 items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black" 
                     style={{ display: 'none' }}
                   >
-                    <div className="flex flex-col items-center gap-3">
-                      <Megaphone className="w-24 h-24 text-white/60" />
-                      <p className="text-sm text-white/50">Image unavailable</p>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-32 h-32 rounded-full bg-white/10 flex items-center justify-center">
+                        <Megaphone className="w-16 h-16 text-white/40" />
+                      </div>
+                      <p className="text-sm font-medium text-white/50">Unable to load image</p>
                     </div>
                   </div>
                 </>
               ) : (
-                <div className="absolute inset-0 bg-[#242B1E] flex items-center justify-center">
-                  <Megaphone className="w-24 h-24 text-white/60" />
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-32 h-32 rounded-full bg-white/10 flex items-center justify-center">
+                      <Megaphone className="w-16 h-16 text-white/40" />
+                    </div>
+                    <p className="text-sm font-medium text-white/50">No image available</p>
+                  </div>
                 </div>
               )}
               
@@ -356,6 +379,7 @@ export default function NewsPage() {
                           alt={item.title}
                           className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
                           onError={(e) => {
+                            console.error('❌ Grid image failed to load:', getImageUrl(item.imageUrl), e);
                             e.target.style.display = 'none';
                             const fallback = e.target.parentElement?.querySelector('.grid-image-fallback');
                             if (fallback) fallback.style.display = 'flex';
