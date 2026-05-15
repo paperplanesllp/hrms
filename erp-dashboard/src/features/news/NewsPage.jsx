@@ -214,13 +214,13 @@ export default function NewsPage() {
         <>
           {/* Featured News - Latest */}
           {heroNews && (
-            <div className="relative overflow-hidden rounded-[3rem] aspect-video lg:aspect-auto lg:h-[500px]">
+            <div className="relative min-h-[560px] overflow-hidden rounded-[2rem] bg-black shadow-2xl">
               {heroNews.imageUrl ? (
                 <>
                   <img
                     src={getImageUrl(heroNews.imageUrl)}
                     alt={heroNews.title}
-                    className="relative z-10 object-cover w-full h-full"
+                    className="absolute inset-0 z-10 object-cover w-full h-full opacity-35"
                     onError={(e) => {
                       // Fallback when image fails to load (404 or other error)
                       e.target.style.display = 'none';
@@ -228,7 +228,7 @@ export default function NewsPage() {
                       if (fallback) fallback.style.display = 'flex';
                     }}
                   />
-                  <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                  <div className="absolute inset-0 z-20 bg-gradient-to-r from-black via-black/90 to-black/65"></div>
                   <div 
                     className="image-fallback absolute inset-0 z-10 items-center justify-center bg-[#242B1E]" 
                     style={{ display: 'none' }}
@@ -240,19 +240,19 @@ export default function NewsPage() {
                   </div>
                 </>
               ) : (
-                <div className="w-full h-full bg-[#242B1E] flex items-center justify-center">
+                <div className="absolute inset-0 bg-[#242B1E] flex items-center justify-center">
                   <Megaphone className="w-24 h-24 text-white/60" />
                 </div>
               )}
               
-              <div className="absolute inset-0 z-30 flex flex-col justify-end p-8 lg:p-12">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-12 h-12 bg-white/20 rounded-2xl">
+              <div className="relative z-30 flex flex-col min-h-[560px] p-6 sm:p-8 lg:p-12">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 bg-white/15 rounded-2xl">
                       <Megaphone className="w-6 h-6 text-white" />
                     </div>
-                    <div>
-                      <Badge className="mb-2 text-white bg-white/20 border-white/30">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="text-white bg-white/15 border-white/25">
                         Featured News
                       </Badge>
                       {heroNews.isPolicyUpdate && (
@@ -288,10 +288,18 @@ export default function NewsPage() {
                   )}
                 </div>
                 
-                <h1 className="mb-4 text-4xl font-bold leading-tight text-white lg:text-5xl">{heroNews.title}</h1>
-                <p className="mb-6 text-xl leading-relaxed text-gray-200 whitespace-pre-line">{heroNews.body}</p>
+                <div className="max-w-5xl">
+                  <h1 className="mb-6 text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
+                    {heroNews.title}
+                  </h1>
+                  <div className="max-h-[48vh] overflow-y-auto pr-2 sm:pr-4 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent">
+                    <p className="text-base leading-8 text-gray-100 whitespace-pre-line sm:text-lg lg:text-xl">
+                      {heroNews.body}
+                    </p>
+                  </div>
+                </div>
                 
-                <div className="flex items-center gap-6 text-white/80">
+                <div className="flex flex-wrap items-center gap-5 mt-8 text-white/85">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
                     <span className="text-sm font-medium">
