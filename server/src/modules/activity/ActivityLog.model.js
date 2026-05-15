@@ -51,6 +51,7 @@ const activityLogSchema = new mongoose.Schema(
         "TASK_CREATE",
         "TASK_UPDATE",
         "TASK_STATUS_CHANGE",
+        "TASK_COMPLETION",
         "TASK_DELETE",
         "HR_ACTION",
         "ADMIN_ACTION",
