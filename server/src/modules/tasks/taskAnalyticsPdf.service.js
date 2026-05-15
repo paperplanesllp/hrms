@@ -32,8 +32,8 @@ export async function generateTaskAnalyticsPdfBuffer(reportData) {
     const page = await browser.newPage();
 
     await page.setViewport({
-      width: 1240,
-      height: 1754,
+      width: 1440,
+      height: 1024,
       deviceScaleFactor: 2,
     });
     await page.setContent(html, {
@@ -44,11 +44,12 @@ export async function generateTaskAnalyticsPdfBuffer(reportData) {
 
     const pdf = await page.pdf({
       format: "A4",
+      landscape: true,
       printBackground: true,
       preferCSSPageSize: true,
       displayHeaderFooter: true,
       margin: {
-        top: "10mm",
+        top: "12mm",
         right: "10mm",
         bottom: "16mm",
         left: "10mm",
@@ -56,7 +57,7 @@ export async function generateTaskAnalyticsPdfBuffer(reportData) {
       headerTemplate: "<div></div>",
       footerTemplate: `
         <div style="width:100%;font-family:Arial,sans-serif;font-size:9px;color:#64748b;padding:0 12mm;display:flex;justify-content:space-between;">
-          <span>TheHRSaathi Task Analytics</span>
+          <span>TheHRSaathi Employee Task Performance</span>
           <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
         </div>
       `,

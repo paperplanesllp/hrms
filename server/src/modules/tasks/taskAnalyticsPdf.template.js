@@ -117,6 +117,89 @@ function renderInsights(insights) {
   `).join("");
 }
 
+function formatMinutesLabel(minutes) {
+  const mins = Number(minutes) || 0;
+  const hours = Math.floor(mins / 60);
+  const remainder = mins % 60;
+  if (hours > 0) {
+    return `${hours}h ${remainder}m`;
+  }
+  return `${remainder}m`;
+}
+
+function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
+  if (!employeeDetails || employeeDetails.length === 0) {
+    return `<section class="empty-panel">No tasks found for the selected employee in this period.</section>`;
+  }
+
+  return employeeDetails.map((employee) => `
+    <section class="employee-section">
+      <div class="employee-header">
+        <div class="employee-avatar">${escapeHtml(employee.initials || "HR")}</div>
+        <div class="employee-header-content">
+          <h2>${escapeHtml(employee.employeeName)}</h2>
+          <p class="employee-dept">${escapeHtml(employee.department)}</p>
+        </div>
+        <div class="performance-badge badge-${getPerformanceTone(employee.performanceLabel)}">
+          ${escapeHtml(employee.performanceLabel || "Good")}
+        </div>
+      </div>
+      <div class="task-card-stats">
+        <div class="task-stat"><span>Total Tasks</span><strong>${employee.totalTasks}</strong></div>
+        <div class="task-stat task-stat-success"><span>Completed</span><strong>${employee.completed}</strong></div>
+        <div class="task-stat task-stat-warning"><span>Pending</span><strong>${employee.pending}</strong></div>
+        <div class="task-stat task-stat-danger"><span>Overdue</span><strong>${employee.overdue}</strong></div>
+        <div class="task-stat"><span>Productivity</span><strong>${formatPercent(employee.productivity)}</strong></div>
+        <div class="task-stat"><span>Worked Hours</span><strong>${escapeHtml(formatHours(employee.workedHours))}</strong></div>
+      </div>
+
+      <div class="task-card-list">
+        ${employee.tasks.slice(0, maxTasksPerEmployee).map((task, index) => {
+          const tone = task.timeStatusLabel === "Overdue" ? "danger" : task.timeStatusLabel === "Hold/Paused" ? "purple" : task.timeStatusLabel === "Pending" ? "warning" : "success";
+          const statusTone = getStatusTone(task.status);
+          return `
+            <article class="task-card">
+              <div class="task-header">
+                <div class="task-title-section">
+                  <span class="task-number">${String(index + 1).padStart(2, "0")}</span>
+                  <div>
+                    <h4>${escapeHtml(task.title || "Untitled Task")}</h4>
+                    <p class="task-description">${escapeHtml(task.description || "No short description provided.")}</p>
+                  </div>
+                </div>
+                <div class="task-badges">
+                  ${statusBadge(getStatusLabel(task.status), statusTone)}
+                  ${statusBadge(getPriorityLabel(task.priority), task.priority === "HIGH" || task.priority === "URGENT" ? "danger" : "info")}
+                </div>
+              </div>
+              <div class="task-progress-row">
+                <span>Progress ${clampNumber(task.progress)}%</span>
+                ${progressBar(task.progress, tone)}
+              </div>
+              <div class="task-metrics-grid">
+                <div><strong>Assigned By</strong><span>${escapeHtml(task.assignedBy || "System")}</span></div>
+                <div><strong>Assigned To</strong><span>${escapeHtml(task.assignedTo || employee.employeeName)}</span></div>
+                <div><strong>Start Date</strong><span>${escapeHtml(formatDate(task.startedAt) || "N/A")}</span></div>
+                <div><strong>Due Date</strong><span>${escapeHtml(formatDate(task.dueDate) || "N/A")}</span></div>
+                <div><strong>Completed Date</strong><span>${escapeHtml(formatDate(task.completedAt) || "N/A")}</span></div>
+                <div><strong>Estimated</strong><span>${escapeHtml(formatMinutesLabel(task.estimatedMinutes))}</span></div>
+                <div><strong>Worked</strong><span>${escapeHtml(formatMinutesLabel(task.workedMinutes))}</span></div>
+                <div><strong>Hold</strong><span>${escapeHtml(formatMinutesLabel(task.holdMinutes))}</span></div>
+                <div><strong>Pending</strong><span>${escapeHtml(formatMinutesLabel(task.pendingMinutes))}</span></div>
+                <div><strong>Completion</strong><span>${escapeHtml(task.completionResultLabel)}</span></div>
+                <div><strong>Time Status</strong><span>${escapeHtml(task.timeStatusLabel)}</span></div>
+                <div><strong>Extension</strong><span>${task.extensionRequested ? (task.extensionApproved ? "Approved" : "Requested") : "None"}</span></div>
+              </div>
+              ${task.remarks ? `<div class="task-notes"><strong>Remarks</strong><p>${escapeHtml(task.remarks)}</p></div>` : ""}
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}).join("");
+}
+
 function renderMemberHeader(memberInfo, companyInfo) {
   if (!memberInfo) return "";
   
@@ -894,9 +977,124 @@ function renderTaskAnalyticsPdfHtml(report) {
       font-weight: 900;
       color: ${isDark ? "#e5eefb" : "#172033"};
     }
-    
+    .hero-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 20px 0 0;
+    }
+    .hero-card {
+      background: ${isDark ? "rgba(9,20,36,.88)" : "rgba(255,255,255,.88)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.18)" : "rgba(226,232,240,.88)"};
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 22px 40px ${isDark ? "rgba(0,0,0,.22)" : "rgba(15,23,42,.08)"};
+      page-break-inside: avoid;
+    }
+    .hero-card h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+    }
+    .hero-card p {
+      margin: 0;
+      font-size: 14px;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+      line-height: 1.4;
+    }
+    .task-card-stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .task-stat {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: ${isDark ? "rgba(30,41,59,.72)" : "rgba(249,250,251,.92)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.16)" : "rgba(226,232,240,.88)"};
+      font-size: 11px;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .task-stat span {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-size: 9px;
+    }
+    .task-stat strong {
+      font-size: 16px;
+      line-height: 1.2;
+    }
+    .task-card-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .task-card {
+      padding: 18px;
+      border-radius: 18px;
+      background: ${isDark ? "rgba(15,23,42,.88)" : "rgba(255,255,255,.96)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.18)" : "rgba(226,232,240,.88)"};
+      page-break-inside: avoid;
+    }
+    .task-title-section {
+      display: grid;
+      gap: 8px;
+    }
+    .task-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .task-progress-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin: 14px 0;
+      font-size: 10px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+    }
+    .task-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .task-metrics-grid div {
+      background: ${isDark ? "rgba(30,41,59,.6)" : "rgba(248,250,252,.85)"};
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 10px;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .task-metrics-grid strong {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: ${isDark ? "#94a3b8" : "#475569"};
+      text-transform: uppercase;
+    }
+    .task-notes {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: ${isDark ? "rgba(30,41,59,.5)" : "rgba(249,250,251,.9)"};
+      color: ${isDark ? "#cbd5e1" : "#334155"};
+      font-size: 10px;
+      line-height: 1.45;
+    }
+    .task-notes p { margin: 0; }
     .page-break { break-before: page; page-break-before: always; }
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4 landscape; margin: 12mm; }
   `;
 
   return `
@@ -926,7 +1124,7 @@ function renderTaskAnalyticsPdfHtml(report) {
                 </div>
               </div>
               <h1>${escapeHtml(report.reportTitle)}</h1>
-              <p class="subtitle">Executive task performance, productivity, overdue exposure, and department execution summary.</p>
+              <p class="subtitle">Selected employee task analytics with premium formatting, timeline clarity, and productivity intelligence.</p>
               <div class="report-meta">
                 <div class="meta-pill"><span>Date Range</span><strong>${escapeHtml(report.period.label)}</strong></div>
                 <div class="meta-pill"><span>Generated</span><strong>${escapeHtml(formatDateTime(report.generatedAt))}</strong></div>
@@ -937,31 +1135,36 @@ function renderTaskAnalyticsPdfHtml(report) {
 
           ${renderMemberHeader(report.memberInfo, report.brand)}
 
-          ${report.taskDetails && report.taskDetails.length > 0 ? `
-            <section class="panel">
-              <div class="section-title">
-                <h2>Task Details</h2>
-                <p>Recent tasks and their descriptions</p>
-              </div>
-              ${renderTaskDetails(report.taskDetails)}
-            </section>
-          ` : ""}
+          <section class="hero-summary">
+            <div class="hero-card">
+              <h3>Employee</h3>
+              <p>${escapeHtml(report.memberInfo.employeeName || "Selected Employee")}</p>
+            </div>
+            <div class="hero-card">
+              <h3>Report Period</h3>
+              <p>${escapeHtml(report.period.label)}</p>
+            </div>
+            <div class="hero-card">
+              <h3>Report Focus</h3>
+              <p>Employee-specific task analytics and performance insights</p>
+            </div>
+          </section>
 
           <section class="metrics">
-            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", `${report.summary.totalEmployees} active employees`)}
+            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", "Selected employee total")}
             ${metricCard("Completed", String(report.summary.completedTasks), "green", `${formatPercent(report.summary.onTimeCompletionRate)} on time`)}
-            ${metricCard("In Progress", String(report.summary.inProgressTasks), "info", "Active workload")}
-            ${metricCard("Pending", String(report.summary.pendingTasks), "amber", "To be started")}
-            ${metricCard("Paused", String(report.summary.pausedTasks), "warning", "On hold")}
-            ${metricCard("Overdue", String(report.summary.overdueTasks), "red", "Immediate attention")}
-            ${metricCard("Extension Req.", String(report.summary.extensionRequestedTasks), "purple", "Awaiting approval")}
-            ${metricCard("Worked Hours", formatHours(report.summary.workedHours), "blue", "Total tracked time")}
+            ${metricCard("In Progress", String(report.summary.inProgressTasks), "info", "Active work")}
+            ${metricCard("Pending", String(report.summary.pendingTasks), "amber", "Queued tasks")}
+            ${metricCard("Overdue", String(report.summary.overdueTasks), "red", "At-risk tasks")}
+            ${metricCard("Worked Hours", formatHours(report.summary.workedHours), "purple", "Tracked effort")}
+            ${metricCard("Paused", String(report.summary.pausedTasks), "warning", "Currently held")}
+            ${metricCard("Extensions", String(report.summary.extensionRequestedTasks), "purple", "Action required")}
           </section>
 
           <section class="panel">
             <div class="section-title">
               <h2>Executive Summary</h2>
-              <p>Key metrics and performance indicators</p>
+              <p>Key employee performance metrics</p>
             </div>
             <div class="summary-grid">
               <div class="summary-stat">
@@ -969,11 +1172,11 @@ function renderTaskAnalyticsPdfHtml(report) {
                 <span class="summary-value">${formatPercent(report.summary.completionRate)}</span>
               </div>
               <div class="summary-stat">
-                <span class="summary-label">On-Time Completion</span>
+                <span class="summary-label">On-Time Delivery</span>
                 <span class="summary-value">${formatPercent(report.summary.onTimeCompletionRate)}</span>
               </div>
               <div class="summary-stat">
-                <span class="summary-label">Avg Hours/Task</span>
+                <span class="summary-label">Average Time/Task</span>
                 <span class="summary-value">${report.summary.completedTasks > 0 ? formatHours(report.summary.totalTaskHours / report.summary.completedTasks) : "N/A"}</span>
               </div>
               <div class="summary-stat">
@@ -983,33 +1186,11 @@ function renderTaskAnalyticsPdfHtml(report) {
             </div>
           </section>
 
-          <section class="panel">
-            <div class="section-title">
-              <h2>Employee Performance</h2>
-              <p>${report.employees.length} employee rows</p>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:20%">Employee Name</th>
-                  <th style="width:16%">Department</th>
-                  <th style="width:10%">Total Tasks</th>
-                  <th style="width:10%">Completed</th>
-                  <th style="width:9%">Pending</th>
-                  <th style="width:9%">Overdue</th>
-                  <th style="width:11%">Worked Hours</th>
-                  <th style="width:15%">Productivity %</th>
-                </tr>
-              </thead>
-              <tbody>${renderEmployeeRows(report.employees)}</tbody>
-            </table>
-          </section>
-
           <section class="grid-2">
             <section class="panel">
               <div class="section-title">
                 <h2>Task Completion</h2>
-                <p>Status mix</p>
+                <p>Status distribution</p>
               </div>
               ${renderCompletionChart(report.charts)}
             </section>
@@ -1017,7 +1198,7 @@ function renderTaskAnalyticsPdfHtml(report) {
             <section class="panel">
               <div class="section-title">
                 <h2>AI Insights</h2>
-                <p>Generated from report metrics</p>
+                <p>Actionable observations for this employee</p>
               </div>
               <ul class="insights">${renderInsights(report.insights)}</ul>
             </section>
@@ -1035,15 +1216,19 @@ function renderTaskAnalyticsPdfHtml(report) {
 
           <section class="panel page-break">
             <div class="section-title">
+              <h2>Detailed Task Breakdown</h2>
+              <p>Selected employee tasks with time, status, and completion detail</p>
+            </div>
+            ${renderTaskCards(report.employeeDetails, report.maxTasksPerEmployee || 100)}
+          </section>
+
+          <section class="panel page-break">
+            <div class="section-title">
               <h2>Department Analytics</h2>
               <p>Completion, pending work, and overdue load</p>
             </div>
             <div class="department-list">${renderDepartmentCards(report.departments)}</div>
           </section>
-
-          ${report.employeeDetails && report.employeeDetails.length > 0 ? `
-            ${renderEmployeeTaskDetails(report.employeeDetails, report.maxTasksPerEmployee || 100)}
-          ` : ""}
         </main>
       </body>
     </html>

@@ -49,6 +49,51 @@ function getDepartmentName(task, assignee) {
   );
 }
 
+function getReportTypeLabel(dateRange) {
+  switch (dateRange) {
+    case "week":
+      return "Weekly";
+    case "quarter":
+      return "Quarterly";
+    case "year":
+      return "Yearly";
+    case "custom":
+      return "Custom";
+    case "daily":
+      return "Daily";
+    case "month":
+    default:
+      return "Monthly";
+  }
+}
+
+function getTimeStatusLabel(task, metrics) {
+  if (metrics.isOverdue) return "Overdue";
+  if (metrics.isOnHold || metrics.isPaused) return "Hold/Paused";
+  if (task.status === "pending" || task.status === "new") return "Pending";
+  if (metrics.completedOnTime === false && COMPLETED_STATUSES.has(task.status)) return "Time Exceeded";
+  return "On Track";
+}
+
+function getCompletionResultLabel(task, metrics, lateByMinutes) {
+  if (!COMPLETED_STATUSES.has(task.status)) return "Not Completed";
+  if (metrics.completedOnTime) return "Completed On Time";
+  if (lateByMinutes > 0) return `Completed Late by ${lateByMinutes}m`;
+  return "Completed Late";
+}
+
+function getEstimatedTotalMinutes(task) {
+  const hours = Number(task?.estimatedHours) || 0;
+  const minutes = Number(task?.estimatedMinutes) || 0;
+  return Math.max(0, Math.round(hours * 60 + minutes));
+}
+
+function hasApprovedExtension(task) {
+  return Array.isArray(task?.extensionRequests)
+    ? task.extensionRequests.some((request) => request?.approvalStatus === "approved")
+    : false;
+}
+
 function buildTaskQuery({ companyId, fromDate, toDate, departmentId }) {
   const activeStatuses = [
     "new",
@@ -321,6 +366,17 @@ function groupTasksByEmployee(tasks, employees, companyUserIds) {
       const category = STATUS_CATEGORIES[task.status] || "pending";
       const metrics = calculateDetailedTaskMetrics(task);
       
+      const estimatedMinutes = getEstimatedTotalMinutes(task);
+      const workedMinutes = Math.round(metrics.workedHours * 60);
+      const holdMinutes = Math.round(metrics.holdHours * 60);
+      const pendingMinutes = Math.max(0, metrics.remainingMs !== null ? Math.round(metrics.remainingMs / 60000) : 0);
+      const isTimeExceeded = metrics.estimatedMs > 0 && metrics.activeWorkedMs > metrics.estimatedMs;
+      const completedLate = metrics.isLate === true;
+      const completedOnTime = metrics.completedOnTime === true;
+      const lateByMinutes = completedLate && task.completedAt && metrics.effectiveDueAt
+        ? Math.max(0, Math.ceil((new Date(task.completedAt).getTime() - new Date(metrics.effectiveDueAt).getTime()) / 60000))
+        : 0;
+
       const taskData = {
         _id: task._id?.toString?.() || "",
         title: task.title || "Untitled Task",
@@ -334,16 +390,27 @@ function groupTasksByEmployee(tasks, employees, companyUserIds) {
         startedAt: task.startedAt,
         assignedBy: typeof task.assignedBy === "object" ? task.assignedBy?.name : (task.assignedBy || "System"),
         assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(a => typeof a === "object" ? a.name : a).join(", ") : "",
+        estimatedMinutes,
+        workedMinutes,
+        holdMinutes,
+        pendingMinutes,
         estimatedHours: metrics.estimatedHours,
         workedHours: metrics.workedHours,
         pausedHours: metrics.pausedHours,
-        holdHours: (task.totalHoldTimeInSeconds || 0) / 3600,
+        holdHours: metrics.holdHours,
         pendingHours: Math.max(0, metrics.estimatedHours - metrics.workedHours),
         daysOverdue: metrics.daysOverdue,
         isOverdue: metrics.daysOverdue > 0,
+        isTimeExceeded,
+        completedLate,
+        completedOnTime,
+        lateByMinutes,
+        completionResultLabel: getCompletionResultLabel(task, metrics, lateByMinutes),
+        timeStatusLabel: getTimeStatusLabel(task, metrics),
         extensionStatus: task.extensionRequests?.length > 0 ? 
           (task.extensionRequests[task.extensionRequests.length - 1]?.approvalStatus || "none") : "none",
-        extensionRequested: task.status === "extension_requested",
+        extensionRequested: task.status === "extension_requested" || Array.isArray(task.extensionRequests) && task.extensionRequests.length > 0,
+        extensionApproved: hasApprovedExtension(task),
         remarks: task.remarks?.length > 0 ? 
           task.remarks.map(r => r.text).join("; ") : 
           (task.comments?.length > 0 ? task.comments.map(c => c.text).join("; ") : ""),
@@ -602,6 +669,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   let extensionRequestedTasks = 0;
   let completedOnTimeCount = 0;
   let completedLateCount = 0;
+  let timeExceededTasks = 0;
   let totalTaskHours = 0;
   let totalPausedHours = 0;
 
@@ -616,6 +684,9 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       totalTaskHours += detailed.workedHours;
       if (detailed.isOnTime === true) completedOnTimeCount++;
       if (detailed.isLate === true) completedLateCount++;
+    }
+    if (detailed.estimatedHours > 0 && detailed.workedHours > detailed.estimatedHours) {
+      timeExceededTasks++;
     }
     totalPausedHours += detailed.pausedHours;
   }
@@ -633,12 +704,14 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     extensionRequestedTasks,
     completedOnTimeCount,
     completedLateCount,
+    timeExceededTasks,
     workedHours: Number(workedHours.toFixed(2)),
     totalTaskHours: Number(totalTaskHours.toFixed(2)),
     totalPausedHours: Number(totalPausedHours.toFixed(2)),
     completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
     onTimeCompletionRate: completedTasks > 0 ? Math.round((completedOnTimeCount / completedTasks) * 100) : 0,
     productivity: totalTasks > 0 ? Math.round(clampNumber((completedTasks / totalTasks) * 100)) : 0,
+    avgTaskTime: completedTasks > 0 ? Number((totalTaskHours / completedTasks).toFixed(2)) : 0,
     activeEmployees: employees.length,
     departments: departments.length,
   };
@@ -676,8 +749,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     }
   }
 
+  const taskDetails = employeeDetails.flatMap((employee) => employee.tasks || []);
+
   return {
-    reportTitle: "Monthly Task Analytics Report",
+    reportTitle: "Employee Task Performance Report",
     brand: {
       productName: "TheHRSaathi",
       companyName: company?.name || "TheHRSaathi",
@@ -686,6 +761,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       address: company?.address || "",
     },
     period,
+    reportType: getReportTypeLabel(period.dateRange),
     generatedAt,
     generatedBy: generatedBy?.name || "System",
     generatedByEmail: generatedBy?.email || "",
@@ -694,6 +770,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     summary,
     employees,
     employeeDetails,
+    taskDetails,
     departments,
     riskTasks,
     charts: {
