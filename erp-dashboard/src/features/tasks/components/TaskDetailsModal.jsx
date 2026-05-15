@@ -70,8 +70,43 @@ const formatToISTDate = (dateString) => {
   }
 };
 
+const getTaskRemarksText = (task) => {
+  if (!task) return '';
+
+  if (typeof task.completionRemarks === 'string' && task.completionRemarks.trim()) {
+    return task.completionRemarks.trim();
+  }
+
+  if (typeof task.completionRemark === 'string' && task.completionRemark.trim()) {
+    return task.completionRemark.trim();
+  }
+
+  if (typeof task.completionNotes === 'string' && task.completionNotes.trim()) {
+    return task.completionNotes.trim();
+  }
+
+  if (Array.isArray(task.remarks)) {
+    return task.remarks
+      .map((remark) => typeof remark === 'string' ? remark : remark?.text)
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (typeof task.remarks === 'string' && task.remarks.trim()) {
+    return task.remarks.trim();
+  }
+
+  if (typeof task.notes === 'string' && task.notes.trim()) {
+    return task.notes.trim();
+  }
+
+  return '';
+};
+
 export default function TaskDetailsModal({ task, isOpen, onClose }) {
   if (!task) return null;
+
+  const remarksText = getTaskRemarksText(task);
 
   // Calculate time metrics
   const activeSeconds = calcActiveSeconds(task);
@@ -270,15 +305,17 @@ export default function TaskDetailsModal({ task, isOpen, onClose }) {
         </div>
 
         {/* Remarks/Notes */}
-        {(task.remarks || task.completionRemark || task.notes || task.completionNotes) && (
+        {remarksText && (
           <div>
             <div className="flex items-center gap-2 mb-2">
               <MessageSquare className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-              <h3 className="font-semibold text-slate-900 dark:text-white">Remarks</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white">
+                {task.status === 'completed' ? 'Completion Remarks' : 'Remarks'}
+              </h3>
             </div>
             <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700">
-              <p className="text-teal-900 dark:text-teal-200 text-sm leading-relaxed">
-                {task.completionRemark || task.completionNotes || task.remarks || task.notes}
+              <p className="text-teal-900 dark:text-teal-200 text-sm leading-relaxed whitespace-pre-wrap">
+                {remarksText}
               </p>
             </div>
           </div>

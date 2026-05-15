@@ -59,6 +59,41 @@ export default function TaskDetailsModal({
   // Get current user for permission checks
   const currentUser = useAuthStore((s) => s.user);
 
+  const getGeneralRemarksText = () => {
+    if (!task) return '';
+
+    if (typeof task.completionRemarks === 'string' && task.completionRemarks.trim()) {
+      return task.completionRemarks.trim();
+    }
+
+    if (typeof task.completionRemark === 'string' && task.completionRemark.trim()) {
+      return task.completionRemark.trim();
+    }
+
+    if (typeof task.completionNotes === 'string' && task.completionNotes.trim()) {
+      return task.completionNotes.trim();
+    }
+
+    if (Array.isArray(task.remarks)) {
+      return task.remarks
+        .map((remark) => typeof remark === 'string' ? remark : remark?.text)
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    if (typeof task.remarks === 'string' && task.remarks.trim()) {
+      return task.remarks.trim();
+    }
+
+    if (typeof task.notes === 'string' && task.notes.trim()) {
+      return task.notes.trim();
+    }
+
+    return '';
+  };
+
+  const generalRemarksText = getGeneralRemarksText();
+
   useEffect(() => {
     setTaskAttachments(task?.attachments || []);
   }, [task?._id, task?.attachments]);
@@ -203,9 +238,9 @@ export default function TaskDetailsModal({
   const handleCompleteTask = async () => {
     const remarkLength = completionRemark.trim().length;
     
-    if (remarkLength < 10) {
+    if (remarkLength < 25) {
       toast({ 
-        title: `Remark must be at least 10 characters (currently ${remarkLength})`, 
+        title: `Remark must be at least 25 characters (currently ${remarkLength})`, 
         type: 'error' 
       });
       return;
@@ -213,7 +248,8 @@ export default function TaskDetailsModal({
 
     setIsProcessing(true);
     try {
-      // Call the proper complete endpoint with completion remark
+      // Call the proper complete endpoint with completion remark.
+      // Avoid a second status-only PATCH because completion requires remarks.
       await api.post(`/tasks/${task._id}/complete`, {
         completionRemark: completionRemark.trim()
       });
@@ -227,9 +263,7 @@ export default function TaskDetailsModal({
       setShowCompleteModal(false);
       setCompletionRemark('');
       
-      if (onStatusChange) {
-        await onStatusChange(task._id, 'completed');
-      }
+      onClose?.();
     } catch (error) {
       console.error('Error completing task:', error);
       toast({ 
@@ -545,7 +579,7 @@ export default function TaskDetailsModal({
           )}
 
           {/* Completion Summary - Show for completed tasks with permission check */}
-          {task.status === 'completed' && task.completionRemarks && canViewCompletionRemarks() && (
+          {task.status === 'completed' && generalRemarksText && canViewCompletionRemarks() && (
             <div className="p-4 rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="text-green-600 dark:text-green-400" size={20} />
@@ -601,7 +635,7 @@ export default function TaskDetailsModal({
               <div>
                 <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-2">Work Summary</p>
                 <p className="text-sm text-green-900 dark:text-green-100 leading-relaxed bg-white dark:bg-slate-800/50 p-3 rounded border border-green-200 dark:border-green-700">
-                  {task.completionRemarks}
+                  {generalRemarksText}
                 </p>
               </div>
             </div>
@@ -715,10 +749,10 @@ export default function TaskDetailsModal({
             </div>
           </div>
 
-          {/* Remarks */}
+          {/* Tags */}
           {task.tags && task.tags.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Remarks</h3>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Tags</h3>
               <div className="flex flex-wrap gap-2">
                 {task.tags.map((tag, idx) => (
                   <span
