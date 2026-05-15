@@ -127,6 +127,37 @@ function formatMinutesLabel(minutes) {
   return `${remainder}m`;
 }
 
+function renderTimeline(timeline = []) {
+  if (!timeline.length) return `<div class="timeline-empty">No lifecycle events recorded.</div>`;
+  return `
+    <div class="task-timeline">
+      ${timeline.map((event) => `
+        <div class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div>
+            <strong>${escapeHtml(event.label)}</strong>
+            <span>${escapeHtml(formatDateTime(event.at))}</span>
+            ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function completionBadge(task) {
+  const label = task.completionStatus || task.completionResultLabel || "In progress";
+  const lower = label.toLowerCase();
+  const tone = lower.includes("late") || lower.includes("overdue")
+    ? "danger"
+    : lower.includes("approaching")
+      ? "warning"
+      : lower.includes("on time")
+        ? "success"
+        : "info";
+  return statusBadge(label, tone);
+}
+
 function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
   if (!employeeDetails || employeeDetails.length === 0) {
     return `<section class="empty-panel">No tasks found for the selected employee in this period.</section>`;
@@ -151,6 +182,7 @@ function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
         <div class="task-stat task-stat-danger"><span>Overdue</span><strong>${employee.overdue}</strong></div>
         <div class="task-stat"><span>Productivity</span><strong>${formatPercent(employee.productivity)}</strong></div>
         <div class="task-stat"><span>Worked Hours</span><strong>${escapeHtml(formatHours(employee.workedHours))}</strong></div>
+        <div class="task-stat"><span>Paused Hours</span><strong>${escapeHtml(formatHours(employee.totalPausedHours || 0))}</strong></div>
       </div>
 
       <div class="task-card-list">
@@ -170,6 +202,7 @@ function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
                 <div class="task-badges">
                   ${statusBadge(getStatusLabel(task.status), statusTone)}
                   ${statusBadge(getPriorityLabel(task.priority), task.priority === "HIGH" || task.priority === "URGENT" ? "danger" : "info")}
+                  ${completionBadge(task)}
                 </div>
               </div>
               <div class="task-progress-row">
@@ -179,16 +212,24 @@ function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
               <div class="task-metrics-grid">
                 <div><strong>Assigned By</strong><span>${escapeHtml(task.assignedBy || "System")}</span></div>
                 <div><strong>Assigned To</strong><span>${escapeHtml(task.assignedTo || employee.employeeName)}</span></div>
-                <div><strong>Start Date</strong><span>${escapeHtml(formatDate(task.startedAt) || "N/A")}</span></div>
-                <div><strong>Due Date</strong><span>${escapeHtml(formatDate(task.dueDate) || "N/A")}</span></div>
-                <div><strong>Completed Date</strong><span>${escapeHtml(formatDate(task.completedAt) || "N/A")}</span></div>
+                <div><strong>Department</strong><span>${escapeHtml(task.department || employee.department || "Unassigned")}</span></div>
+                <div><strong>Created</strong><span>${escapeHtml(formatDateTime(task.createdAt))}</span></div>
+                <div><strong>Started</strong><span>${escapeHtml(formatDateTime(task.startedAt))}</span></div>
+                <div><strong>Stopped</strong><span>${escapeHtml(formatDateTime(task.stoppedAt))}</span></div>
+                <div><strong>Completed</strong><span>${escapeHtml(formatDateTime(task.completedAt))}</span></div>
+                <div><strong>Due Date</strong><span>${escapeHtml(formatDateTime(task.dueDate))}</span></div>
                 <div><strong>Estimated</strong><span>${escapeHtml(formatMinutesLabel(task.estimatedMinutes))}</span></div>
-                <div><strong>Worked</strong><span>${escapeHtml(formatMinutesLabel(task.workedMinutes))}</span></div>
-                <div><strong>Hold</strong><span>${escapeHtml(formatMinutesLabel(task.holdMinutes))}</span></div>
-                <div><strong>Pending</strong><span>${escapeHtml(formatMinutesLabel(task.pendingMinutes))}</span></div>
+                <div><strong>Total Worked</strong><span>${escapeHtml(formatMinutesLabel(task.workedMinutes))}</span></div>
+                <div><strong>Total Paused</strong><span>${escapeHtml(formatMinutesLabel(Math.round((task.pausedHours || 0) * 60)))}</span></div>
+                <div><strong>Active Time</strong><span>${escapeHtml(formatMinutesLabel(task.workedMinutes))}</span></div>
+                <div><strong>Overdue Time</strong><span>${escapeHtml(formatHours(task.overdueHours || 0))}</span></div>
                 <div><strong>Completion</strong><span>${escapeHtml(task.completionResultLabel)}</span></div>
                 <div><strong>Time Status</strong><span>${escapeHtml(task.timeStatusLabel)}</span></div>
-                <div><strong>Extension</strong><span>${task.extensionRequested ? (task.extensionApproved ? "Approved" : "Requested") : "None"}</span></div>
+                <div><strong>Extension</strong><span>${escapeHtml(task.extensionStatus || "none")}</span></div>
+              </div>
+              <div class="timeline-wrap">
+                <strong>Task History</strong>
+                ${renderTimeline(task.timeline)}
               </div>
               ${task.remarks ? `<div class="task-notes"><strong>Remarks</strong><p>${escapeHtml(task.remarks)}</p></div>` : ""}
             </article>
@@ -196,8 +237,7 @@ function renderTaskCards(employeeDetails, maxTasksPerEmployee = 100) {
         }).join("")}
       </div>
     </section>
-  `;
-}).join("");
+  `).join("");
 }
 
 function renderMemberHeader(memberInfo, companyInfo) {
@@ -1007,7 +1047,7 @@ function renderTaskAnalyticsPdfHtml(report) {
     }
     .task-card-stats {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 10px;
       margin-top: 16px;
       page-break-inside: avoid;
@@ -1093,9 +1133,62 @@ function renderTaskAnalyticsPdfHtml(report) {
       line-height: 1.45;
     }
     .task-notes p { margin: 0; }
+    .timeline-wrap {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 14px;
+      background: ${isDark ? "rgba(30,41,59,.46)" : "rgba(248,250,252,.92)"};
+      border: 1px solid ${isDark ? "rgba(148,163,184,.14)" : "rgba(226,232,240,.9)"};
+      page-break-inside: avoid;
+    }
+    .timeline-wrap > strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 10px;
+      color: ${isDark ? "#94a3b8" : "#475569"};
+      text-transform: uppercase;
+    }
+    .task-timeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+    .timeline-item {
+      position: relative;
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+    }
+    .timeline-dot {
+      width: 8px;
+      height: 8px;
+      margin-top: 4px;
+      border-radius: 999px;
+      background: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.13);
+      flex: 0 0 auto;
+    }
+    .timeline-item strong {
+      display: block;
+      font-size: 9px;
+      color: ${isDark ? "#e5eefb" : "#172033"};
+      line-height: 1.25;
+    }
+    .timeline-item span, .timeline-item p, .timeline-empty {
+      margin: 2px 0 0;
+      font-size: 8px;
+      line-height: 1.25;
+      color: ${isDark ? "#9fb0c7" : "#64748b"};
+    }
     .page-break { break-before: page; page-break-before: always; }
     @page { size: A4 landscape; margin: 12mm; }
   `;
+
+  const isEmployeeReport = Boolean(report.memberInfo);
+  const focusLabel = isEmployeeReport
+    ? "Employee-specific task analytics and performance insights"
+    : "Company-wide task analytics and team performance insights";
+  const employeeName = report.memberInfo?.employeeName || report.memberInfo?.name || "All Employees";
 
   return `
     <!doctype html>
@@ -1124,7 +1217,7 @@ function renderTaskAnalyticsPdfHtml(report) {
                 </div>
               </div>
               <h1>${escapeHtml(report.reportTitle)}</h1>
-              <p class="subtitle">Selected employee task analytics with premium formatting, timeline clarity, and productivity intelligence.</p>
+              <p class="subtitle">${escapeHtml(focusLabel)} with premium formatting, timeline clarity, and productivity intelligence.</p>
               <div class="report-meta">
                 <div class="meta-pill"><span>Date Range</span><strong>${escapeHtml(report.period.label)}</strong></div>
                 <div class="meta-pill"><span>Generated</span><strong>${escapeHtml(formatDateTime(report.generatedAt))}</strong></div>
@@ -1138,7 +1231,7 @@ function renderTaskAnalyticsPdfHtml(report) {
           <section class="hero-summary">
             <div class="hero-card">
               <h3>Employee</h3>
-              <p>${escapeHtml(report.memberInfo.employeeName || "Selected Employee")}</p>
+              <p>${escapeHtml(employeeName)}</p>
             </div>
             <div class="hero-card">
               <h3>Report Period</h3>
@@ -1146,19 +1239,20 @@ function renderTaskAnalyticsPdfHtml(report) {
             </div>
             <div class="hero-card">
               <h3>Report Focus</h3>
-              <p>Employee-specific task analytics and performance insights</p>
+              <p>${escapeHtml(focusLabel)}</p>
             </div>
           </section>
 
           <section class="metrics">
-            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", "Selected employee total")}
+            ${metricCard("Total Tasks", String(report.summary.totalTasks), "blue", isEmployeeReport ? "Selected employee total" : "Company total")}
             ${metricCard("Completed", String(report.summary.completedTasks), "green", `${formatPercent(report.summary.onTimeCompletionRate)} on time`)}
             ${metricCard("In Progress", String(report.summary.inProgressTasks), "info", "Active work")}
             ${metricCard("Pending", String(report.summary.pendingTasks), "amber", "Queued tasks")}
             ${metricCard("Overdue", String(report.summary.overdueTasks), "red", "At-risk tasks")}
             ${metricCard("Worked Hours", formatHours(report.summary.workedHours), "purple", "Tracked effort")}
-            ${metricCard("Paused", String(report.summary.pausedTasks), "warning", "Currently held")}
-            ${metricCard("Extensions", String(report.summary.extensionRequestedTasks), "purple", "Action required")}
+            ${metricCard("Paused Hours", formatHours(report.summary.totalPausedHours), "warning", "Blocked or paused time")}
+            ${metricCard("Productivity", formatPercent(report.summary.productivity), "green", "Completion based")}
+            ${metricCard("Time Efficiency", formatPercent(report.summary.timeEfficiency), "purple", "Active vs paused")}
           </section>
 
           <section class="panel">
@@ -1198,7 +1292,7 @@ function renderTaskAnalyticsPdfHtml(report) {
             <section class="panel">
               <div class="section-title">
                 <h2>AI Insights</h2>
-                <p>Actionable observations for this employee</p>
+              <p>${isEmployeeReport ? "Actionable observations for this employee" : "Actionable observations for the company"}</p>
               </div>
               <ul class="insights">${renderInsights(report.insights)}</ul>
             </section>
@@ -1214,21 +1308,45 @@ function renderTaskAnalyticsPdfHtml(report) {
             </section>
           ` : ""}
 
-          <section class="panel page-break">
-            <div class="section-title">
-              <h2>Detailed Task Breakdown</h2>
-              <p>Selected employee tasks with time, status, and completion detail</p>
-            </div>
-            ${renderTaskCards(report.employeeDetails, report.maxTasksPerEmployee || 100)}
-          </section>
+          ${isEmployeeReport ? `
+            <section class="panel page-break">
+              <div class="section-title">
+                <h2>Detailed Task Breakdown</h2>
+                <p>Selected employee tasks with time, status, and completion detail</p>
+              </div>
+              ${renderTaskCards(report.employeeDetails, report.maxTasksPerEmployee || 100)}
+            </section>
+          ` : `
+            <section class="panel page-break">
+              <div class="section-title">
+                <h2>Employee Performance</h2>
+                <p>Company-wide employee task distribution</p>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Total</th>
+                    <th>Completed</th>
+                    <th>Pending</th>
+                    <th>Overdue</th>
+                    <th>Worked</th>
+                    <th>Productivity</th>
+                  </tr>
+                </thead>
+                <tbody>${renderEmployeeRows(report.employees || [])}</tbody>
+              </table>
+            </section>
 
-          <section class="panel page-break">
-            <div class="section-title">
-              <h2>Department Analytics</h2>
-              <p>Completion, pending work, and overdue load</p>
-            </div>
-            <div class="department-list">${renderDepartmentCards(report.departments)}</div>
-          </section>
+            <section class="panel page-break">
+              <div class="section-title">
+                <h2>Department Analytics</h2>
+                <p>Completion, pending work, and overdue load</p>
+              </div>
+              <div class="department-list">${renderDepartmentCards(report.departments)}</div>
+            </section>
+          `}
         </main>
       </body>
     </html>

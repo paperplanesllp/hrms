@@ -5,10 +5,8 @@ import { BarChart3, LineChart, PieChart, Download, Calendar, TrendingUp, Loader,
 import api from '../../../lib/api.js';
 import DailyEmployeeTasks from './DailyEmployeeTasks.jsx';
 import TaskProgressReports from './TaskProgressReports.jsx';
-import { useAuthStore } from '../../../store/authStore.js';
 import { toast } from '../../../store/toastStore.js';
-import { exportAsCSV, exportAsExcel, exportAsPDF, exportElementAsPDF } from '../utils/exportReports.js';
-import { ROLES } from '../../../app/constants.js';
+import { exportAsCSV, exportAsExcel } from '../utils/exportReports.js';
 import { getSocket } from '../../../lib/socket.js';
 import { useTaskRefresh } from '../context/TaskRefreshContext.jsx';
 
@@ -21,14 +19,16 @@ const unwrapApiData = (payload) => {
 };
 
 export default function TaskReportsSection() {
-  const user = useAuthStore(s => s.user);
   const { refreshKey } = useTaskRefresh();
   const [dateRange, setDateRange] = useState('daily');
   const [periodFrom, setPeriodFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [periodTo, setPeriodTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [analyticsData, setAnalyticsData] = useState(null);
   const [teamPerformance, setTeamPerformance] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
   const reportRef = useRef(null);
 
@@ -50,10 +50,11 @@ export default function TaskReportsSection() {
 
       const isPeriod = dateRange === 'period';
       const periodParams = isPeriod ? { from: periodFrom, to: periodTo } : {};
+      const employeeParams = selectedEmployeeId !== 'all' ? { employeeId: selectedEmployeeId } : {};
       
       // Load analytics data
       const analyticsResponse = await api.get('/tasks/analytics/all', {
-        params: { dateRange, ...periodParams }
+        params: { dateRange, ...periodParams, ...employeeParams }
       });
       const data = unwrapApiData(analyticsResponse.data) || null;
       setAnalyticsData(data);
@@ -61,7 +62,7 @@ export default function TaskReportsSection() {
 
       // Load team performance data
       const teamResponse = await api.get('/tasks/analytics/team-performance', {
-        params: { dateRange, ...periodParams }
+        params: { dateRange, ...periodParams, ...employeeParams }
       });
       const teamData = unwrapApiData(teamResponse.data) || [];
       setTeamPerformance(Array.isArray(teamData) ? teamData : []);
@@ -75,7 +76,89 @@ export default function TaskReportsSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateRange, periodFrom, periodTo]);
+  }, [dateRange, periodFrom, periodTo, selectedEmployeeId]);
+
+  useEffect(() => {
+    let mounted = true;
+    api.get('/users/assignable?limit=1000')
+      .then((res) => {
+        if (!mounted) return;
+        const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        setEmployees(list.filter((item) => String(item?.role || '').toUpperCase() === 'USER'));
+      })
+      .catch((err) => {
+        console.warn('Could not load employees for report export', err);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const getPdfFileName = (response, fallback) => {
+    const disposition = response?.headers?.['content-disposition'] || '';
+    const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+    if (!match?.[1]) return fallback;
+    try {
+      return decodeURIComponent(match[1].replace(/"/g, '').trim());
+    } catch {
+      return match[1].replace(/"/g, '').trim();
+    }
+  };
+
+  const downloadServerPdf = async () => {
+    try {
+      setIsDownloadingPdf(true);
+      const params = {
+        theme: 'light',
+        dateRange,
+        ...(dateRange === 'period' ? { startDate: periodFrom, endDate: periodTo } : {}),
+        ...(selectedEmployeeId !== 'all' ? { employeeId: selectedEmployeeId } : {}),
+      };
+
+      const response = await api.get('/tasks/analytics/export/pdf', {
+        params,
+        responseType: 'blob',
+      });
+
+      const contentType = response.headers?.['content-type'] || 'application/pdf';
+      if (!contentType.includes('application/pdf')) {
+        throw new Error('Server did not return a PDF file');
+      }
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      if (!blob.size) throw new Error('Downloaded PDF is empty');
+
+      const fileName = getPdfFileName(response, `task-analytics-${dateRange}-${Date.now()}.pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      toast({ title: 'PDF downloaded', message: fileName, type: 'success' });
+    } catch (err) {
+      console.error('PDF download failed', err);
+      let message = err?.message || 'Could not download PDF';
+      const responseData = err?.response?.data;
+      if (responseData instanceof Blob) {
+        const text = await responseData.text();
+        if (text) {
+          try {
+            message = JSON.parse(text)?.message || text;
+          } catch {
+            message = text;
+          }
+        }
+      } else if (responseData?.message) {
+        message = responseData.message;
+      }
+      toast({ title: 'PDF download failed', message, type: 'error' });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   useEffect(() => {
     loadAnalytics();
@@ -236,6 +319,34 @@ export default function TaskReportsSection() {
               )}
             </button>
           ))}
+
+          {dateRange !== 'daily' && dateRange !== 'period' && dateRange !== 'progress' && (
+            <>
+              <select
+                value={selectedEmployeeId}
+                onChange={(event) => setSelectedEmployeeId(event.target.value)}
+                className="px-3 py-2 rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-white min-w-[220px]"
+                title="Select employee for detailed PDF"
+              >
+                <option value="all">All employees</option>
+                {employees.map((employee) => (
+                  <option key={employee._id || employee.id} value={employee._id || employee.id}>
+                    {employee.name || employee.email || 'Unnamed employee'}
+                  </option>
+                ))}
+              </select>
+
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Download className="w-4 h-4" />}
+                onClick={downloadServerPdf}
+                disabled={isLoading || isDownloadingPdf}
+              >
+                {isDownloadingPdf ? 'Downloading...' : 'Download PDF'}
+              </Button>
+            </>
+          )}
           
           {/* Refresh Button */}
           <button
@@ -491,10 +602,10 @@ export default function TaskReportsSection() {
             variant="primary" 
             size="md" 
             leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => exportElementAsPDF(reportRef.current, `task-reports-${dateRange === 'period' ? `${periodFrom}-to-${periodTo}` : dateRange}-${new Date().getTime()}.pdf`)}
-            disabled={isLoading}
+            onClick={downloadServerPdf}
+            disabled={isLoading || isDownloadingPdf}
           >
-            Export as PDF
+            {isDownloadingPdf ? 'Downloading...' : 'Export as PDF'}
           </Button>
           <Button 
             variant="secondary" 

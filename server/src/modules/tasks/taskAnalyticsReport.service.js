@@ -85,7 +85,8 @@ function getCompletionResultLabel(task, metrics, lateByMinutes) {
 function getEstimatedTotalMinutes(task) {
   const hours = Number(task?.estimatedHours) || 0;
   const minutes = Number(task?.estimatedMinutes) || 0;
-  return Math.max(0, Math.round(hours * 60 + minutes));
+  if (hours > 0 && minutes < 60) return Math.max(0, Math.round(hours * 60 + minutes));
+  return Math.max(0, Math.round(minutes || hours * 60));
 }
 
 function hasApprovedExtension(task) {
@@ -181,8 +182,15 @@ function createEmptyEmployeeRow(user) {
     completed: 0,
     pending: 0,
     overdue: 0,
+    inProgress: 0,
+    paused: 0,
+    completedOnTime: 0,
+    completedLate: 0,
+    extensionRequested: 0,
+    totalPausedHours: 0,
     workedHours: 0,
     productivity: 0,
+    initials: getInitials(user?.name || user?.email || "HR"),
   };
 }
 
@@ -256,18 +264,17 @@ function buildInsights({ summary, employees, departments }) {
  * Handles on-time vs late completion, overdue duration, pause time, etc.
  */
 function calculateDetailedTaskMetrics(task, now = new Date()) {
+  const timing = calculateTaskMetrics(task, now);
   const dueDate = task.dueDate || task.dueAt;
   const completedAt = task.completedAt;
   const isCompleted = COMPLETED_STATUSES.has(task.status);
-  const isClosed = CLOSED_STATUSES.has(task.status);
-  
-  // Calculate worked hours
-  const activeMs = task.totalActiveTimeInSeconds ? task.totalActiveTimeInSeconds * 1000 : 
-                   (task.totalWorkedMilliseconds || 0);
-  const pausedMs = task.totalPausedTimeInSeconds ? task.totalPausedTimeInSeconds * 1000 : 
-                   (task.totalPausedMilliseconds || 0);
+
+  const activeMs = timing.activeWorkedMs || 0;
+  const pausedMs = timing.pausedMs || 0;
+  const holdMs = timing.holdMs || 0;
   const workedHours = activeMs / (1000 * 60 * 60);
   const pausedHours = pausedMs / (1000 * 60 * 60);
+  const holdHours = holdMs / (1000 * 60 * 60);
   
   // Calculate due/overdue metrics
   let daysOverdue = 0;
@@ -292,8 +299,7 @@ function calculateDetailedTaskMetrics(task, now = new Date()) {
   }
   
   // Calculate estimated hours
-  const estimatedMs = (task.estimatedHours || 0) * 60 * 60 * 1000 + 
-                      (task.estimatedMinutes || 0) * 60 * 1000;
+  const estimatedMs = timing.estimatedMs || getEstimatedTotalMinutes(task) * 60 * 1000;
   const estimatedHours = estimatedMs / (1000 * 60 * 60);
   
   // Calculate category
@@ -302,13 +308,97 @@ function calculateDetailedTaskMetrics(task, now = new Date()) {
   return {
     workedHours: Number(workedHours.toFixed(2)),
     pausedHours: Number(pausedHours.toFixed(2)),
+    holdHours: Number(holdHours.toFixed(2)),
     estimatedHours: Number(estimatedHours.toFixed(2)),
+    activeWorkedMs: activeMs,
+    pausedMs,
+    holdMs,
+    estimatedMs,
+    remainingMs: timing.remainingMs,
+    deadlineRemainingMs: timing.deadlineRemainingMs,
+    effectiveDueAt: timing.effectiveDueAt,
+    isOverdue: timing.isOverdue || daysOverdue > 0,
+    isDueSoon: timing.isDueSoon,
+    timingHealth: timing.timingHealth,
+    completedOnTime: timing.completedOnTime,
     daysOverdue,
     isOnTime: isOnTime === null ? null : isOnTime,
     isLate,
     statusCategory,
     progress: task.progress || 0,
   };
+}
+
+function getLastDate(items = [], field) {
+  return [...(Array.isArray(items) ? items : [])]
+    .map((item) => item?.[field])
+    .filter(Boolean)
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+}
+
+function getCompletionStatus(task, metrics, now = new Date()) {
+  if (COMPLETED_STATUSES.has(task.status)) {
+    if (metrics.completedOnTime === true || metrics.isOnTime === true) return "Completed on time";
+    return "Completed late";
+  }
+
+  if (metrics.isOverdue || task.status === "overdue" || metrics.daysOverdue > 0) {
+    return "Overdue";
+  }
+
+  if (metrics.isDueSoon || metrics.timingHealth === "risk") {
+    return "Approaching limit";
+  }
+
+  return "In progress";
+}
+
+function getExtensionStatus(task) {
+  const requests = Array.isArray(task?.extensionRequests) ? task.extensionRequests : [];
+  const latest = requests[requests.length - 1];
+  if (latest?.approvalStatus) return latest.approvalStatus;
+  if (task?.approvalStatus && task.approvalStatus !== "none") return task.approvalStatus;
+  if (task?.status === "extension_requested") return "pending";
+  return "none";
+}
+
+function buildTaskTimeline(task) {
+  const timeline = [];
+  const add = (label, at, detail = "") => {
+    if (!at) return;
+    const date = new Date(at);
+    if (Number.isNaN(date.getTime())) return;
+    timeline.push({ label, at: date, detail });
+  };
+
+  add("Created", task.createdAt);
+  add("Started", task.startedAt);
+
+  (task.pauseEntries || []).forEach((entry) => {
+    add("Paused", entry.pausedAt, entry.reason || "");
+    add("Resumed", entry.resumedAt);
+  });
+
+  (task.pauses || []).forEach((entry) => {
+    add("Paused", entry.pausedAt, entry.reason || "");
+    add("Resumed", entry.resumedAt);
+  });
+
+  (task.holdEntries || []).forEach((entry) => {
+    add("On hold", entry.heldAt, entry.reason || "");
+    add("Hold released", entry.resumedAt);
+  });
+
+  (task.extensionRequests || []).forEach((request) => {
+    add("Extension requested", request.requestedAt, request.requestRemarks || "");
+    add(`Extension ${request.approvalStatus || "updated"}`, request.approvedAt || request.rejectedAt);
+  });
+
+  add("Completed", task.completedAt, task.completionRemarks || "");
+
+  return timeline.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, 16);
 }
 
 /**
@@ -388,7 +478,9 @@ function groupTasksByEmployee(tasks, employees, companyUserIds) {
         completedAt: task.completedAt,
         createdAt: task.createdAt,
         startedAt: task.startedAt,
-        assignedBy: typeof task.assignedBy === "object" ? task.assignedBy?.name : (task.assignedBy || "System"),
+        stoppedAt: getLastDate(task.pauseEntries, "pausedAt") || getLastDate(task.pauses, "pausedAt") || null,
+        department: getDepartmentName(task, assignee),
+        assignedBy: typeof task.assignedBy === "object" ? (task.assignedBy?.name || "System") : (task.assignedBy || "System"),
         assignedTo: Array.isArray(task.assignedTo) ? task.assignedTo.map(a => typeof a === "object" ? a.name : a).join(", ") : "",
         estimatedMinutes,
         workedMinutes,
@@ -400,20 +492,22 @@ function groupTasksByEmployee(tasks, employees, companyUserIds) {
         holdHours: metrics.holdHours,
         pendingHours: Math.max(0, metrics.estimatedHours - metrics.workedHours),
         daysOverdue: metrics.daysOverdue,
-        isOverdue: metrics.daysOverdue > 0,
+        overdueHours: Number(Math.max(0, metrics.isOverdue && metrics.deadlineRemainingMs ? Math.abs(metrics.deadlineRemainingMs) / 3600000 : metrics.daysOverdue * 24).toFixed(2)),
+        isOverdue: metrics.isOverdue || metrics.daysOverdue > 0,
         isTimeExceeded,
         completedLate,
         completedOnTime,
         lateByMinutes,
         completionResultLabel: getCompletionResultLabel(task, metrics, lateByMinutes),
+        completionStatus: getCompletionStatus(task, metrics),
         timeStatusLabel: getTimeStatusLabel(task, metrics),
-        extensionStatus: task.extensionRequests?.length > 0 ? 
-          (task.extensionRequests[task.extensionRequests.length - 1]?.approvalStatus || "none") : "none",
+        extensionStatus: getExtensionStatus(task),
         extensionRequested: task.status === "extension_requested" || Array.isArray(task.extensionRequests) && task.extensionRequests.length > 0,
         extensionApproved: hasApprovedExtension(task),
         remarks: task.remarks?.length > 0 ? 
           task.remarks.map(r => r.text).join("; ") : 
-          (task.comments?.length > 0 ? task.comments.map(c => c.text).join("; ") : ""),
+          (task.comments?.length > 0 ? task.comments.map(c => c.text).join("; ") : (task.completionRemarks || "")),
+        timeline: buildTaskTimeline(task),
         progress: task.progress || 0,
       };
       
@@ -556,9 +650,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   }
 
   const tasks = await Task.find(query)
-    .select("title description status assignedTo assignedBy department dueAt dueDate completedAt createdAt startedAt priority progress estimatedHours estimatedMinutes totalWorkedMilliseconds totalActiveTimeInSeconds totalPausedMilliseconds totalPausedTimeInSeconds currentSessionStartTime isRunning isPaused isOnHold extensionRequests completedOnTime")
+    .select("title description status assignedTo assignedBy department dueAt dueDate completedAt createdAt startedAt priority progress estimatedHours estimatedMinutes totalWorkedMilliseconds totalActiveTimeInSeconds totalPausedMilliseconds totalPausedTimeInSeconds totalHoldTimeInSeconds currentSessionStartTime isRunning isPaused isOnHold extensionRequests approvalStatus completedOnTime completionRemarks comments remarks pauseEntries pauses holdEntries activityLog")
     .populate("assignedTo", "name email departmentId")
     .populate("assignedTo.departmentId", "name")
+    .populate("assignedBy", "name email")
     .populate("department", "name")
     .sort({ createdAt: -1 })
     .lean({ virtuals: false });
@@ -617,7 +712,13 @@ export async function buildTaskAnalyticsReportData(options = {}) {
       employeeRow.completed += isCompleted ? 1 : 0;
       employeeRow.pending += isPending ? 1 : 0;
       employeeRow.overdue += isOverdue ? 1 : 0;
+      employeeRow.inProgress += ["in-progress", "in_progress", "paused", "on-hold", "due-soon", "extended", "under-review"].includes(task.status) ? 1 : 0;
+      employeeRow.paused += task.status === "paused" ? 1 : 0;
+      employeeRow.extensionRequested += task.status === "extension_requested" || (Array.isArray(task.extensionRequests) && task.extensionRequests.length > 0) ? 1 : 0;
+      employeeRow.completedOnTime += isCompleted && metrics.completedOnTime === true ? 1 : 0;
+      employeeRow.completedLate += isCompleted && metrics.completedOnTime === false ? 1 : 0;
       employeeRow.workedHours += perAssigneeHours;
+      employeeRow.totalPausedHours += toHoursFromMs(metrics.pausedMs || 0) / Math.max(assignees.length, 1);
 
       if (!departmentMap.has(departmentName)) {
         departmentMap.set(departmentName, createEmptyDepartmentRow(departmentName));
@@ -634,10 +735,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   const employees = Array.from(employeeMap.values())
     .filter((row) => row.totalTasks > 0)
     .map((row) => {
-      const metrics = calculateDetailedTaskMetrics({}, new Date());
       return {
         ...row,
         workedHours: Number(row.workedHours.toFixed(2)),
+        totalPausedHours: Number((row.totalPausedHours || 0).toFixed(2)),
         productivity: row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
         performanceLabel: getPerformanceLabel(
           row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
@@ -645,10 +746,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
           row.totalTasks
         ),
         completedOnTime: row.completedOnTime || 0,
-        completedLate: row.completed - (row.completedOnTime || 0),
-        extensionRequested: 0,
-        inProgress: 0,
-        paused: 0,
+        completedLate: row.completedLate || Math.max(0, row.completed - (row.completedOnTime || 0)),
+        extensionRequested: row.extensionRequested || 0,
+        inProgress: row.inProgress || 0,
+        paused: row.paused || 0,
         onHold: 0,
       };
     })
@@ -711,6 +812,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
     onTimeCompletionRate: completedTasks > 0 ? Math.round((completedOnTimeCount / completedTasks) * 100) : 0,
     productivity: totalTasks > 0 ? Math.round(clampNumber((completedTasks / totalTasks) * 100)) : 0,
+    timeEfficiency: totalTaskHours > 0 ? Math.round(clampNumber(((totalTaskHours - totalPausedHours) / totalTaskHours) * 100)) : 0,
     avgTaskTime: completedTasks > 0 ? Number((totalTaskHours / completedTasks).toFixed(2)) : 0,
     activeEmployees: employees.length,
     departments: departments.length,
@@ -742,6 +844,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     if (member) {
       memberInfo = {
         name: member.name,
+        employeeName: member.name,
         department: member.departmentId?.name || "Team Member",
         initials: getInitials(member.name),
         email: member.email,

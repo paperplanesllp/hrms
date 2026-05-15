@@ -32,13 +32,14 @@ export async function generateTaskAnalyticsPdfBuffer(reportData) {
     const page = await browser.newPage();
 
     await page.setViewport({
-      width: 1440,
-      height: 1024,
-      deviceScaleFactor: 2,
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
     });
+    await page.setJavaScriptEnabled(false);
     await page.setContent(html, {
-      waitUntil: ["load", "domcontentloaded", "networkidle0"],
-      timeout: 60000,
+      waitUntil: ["load", "domcontentloaded"],
+      timeout: 45000,
     });
     await page.emulateMediaType("print");
 
@@ -61,7 +62,7 @@ export async function generateTaskAnalyticsPdfBuffer(reportData) {
           <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
         </div>
       `,
-      timeout: 60000,
+      timeout: 45000,
     });
 
     return Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);
@@ -206,6 +207,33 @@ function generateFallbackTaskAnalyticsPdfBuffer(reportData) {
       bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 32, right: 32 },
+    });
+  }
+
+  if (reportData.memberInfo && reportData.taskDetails?.length) {
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Employee Task Details", 32, 42);
+    autoTable(doc, {
+      startY: 60,
+      head: [["Task", "Status", "Priority", "Assigned By", "Due", "Worked", "Paused", "Completion"]],
+      body: reportData.taskDetails.slice(0, reportData.maxTasksPerEmployee || 100).map((task) => [
+        task.title,
+        task.status,
+        task.priority,
+        task.assignedBy || "System",
+        formatDate(task.dueDate),
+        formatHours(task.workedHours),
+        formatHours(task.pausedHours),
+        task.completionStatus || task.completionResultLabel || "",
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [17, 24, 39], textColor: 255, fontSize: 8 },
+      bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 32, right: 32 },
+      styles: { cellPadding: 4, overflow: "linebreak" },
     });
   }
 

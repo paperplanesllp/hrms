@@ -29,6 +29,7 @@ export function formatDate(value, fallback = "N/A") {
 }
 
 export function formatDateTime(value = new Date(), fallback = "N/A") {
+  if (!value) return fallback;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallback;
 
@@ -139,6 +140,9 @@ export function normalizeReportPeriod({ from, to, dateRange = "month" } = {}) {
     switch (dateRange) {
       case "week":
         fromDate.setDate(now.getDate() - 7);
+        break;
+      case "daily":
+        fromDate.setDate(now.getDate());
         break;
       case "quarter":
         fromDate.setMonth(now.getMonth() - 3);

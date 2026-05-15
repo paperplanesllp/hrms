@@ -599,11 +599,13 @@ export const tasksController = {
         });
       }
 
+      const from = req.query.from || req.query.startDate;
+      const to = req.query.to || req.query.endDate;
       const reportData = await buildTaskAnalyticsReportData({
         companyId: req.user.companyId,
         generatedBy: req.user,
-        from: req.query.from,
-        to: req.query.to,
+        from,
+        to,
         dateRange: req.query.dateRange || 'month',
         departmentId: req.query.department,
         employeeId: req.query.employeeId || 'all',

@@ -227,8 +227,8 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
       const params = {
         theme: 'light',
         ...(isCustomRange
-          ? { from: customFrom, to: customTo, dateRange: 'custom' }
-          : { from: date, to: date, dateRange: 'daily' }),
+          ? { from: customFrom, to: customTo, startDate: customFrom, endDate: customTo, dateRange: 'custom' }
+          : { from: date, to: date, startDate: date, endDate: date, dateRange: 'daily' }),
         ...(selectedMember !== 'all'
           ? { employeeId: selectedMember }
           : {}),
@@ -651,7 +651,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
             onClick={handleDownloadPdf}
             disabled={loading || downloadingPdf}
           >
-            {downloadingPdf ? 'Downloading...' : 'Download Full Report PDF'}
+            {downloadingPdf ? 'Downloading...' : (selectedMember === 'all' ? 'Download Full Report PDF' : 'Download Employee PDF')}
           </Button>
         </div>
       </div>
