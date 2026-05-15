@@ -126,7 +126,7 @@ const employeeProductivitySchema = new mongoose.Schema(
 );
 
 // Calculate productivity score
-productivitySchema.methods.calculateScore = function() {
+employeeProductivitySchema.methods.calculateScore = function() {
   if (this.totalTasks === 0) return 0;
   
   const completionScore = (this.completedTasks / this.totalTasks) * 50;

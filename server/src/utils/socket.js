@@ -6,7 +6,7 @@ import { User } from "../modules/users/User.model.js";
 import presenceManager from "./presenceManager.js";
 import { registerUserSocket, unregisterUserSocket } from "./callManager.js";
 
-let io;
+export let io;
 
 const normalizeSocketPath = (value) => {
   const raw = (value || "").trim();
@@ -721,4 +721,42 @@ export const notifyTaskDeleted = (taskId, taskTitle, deletedBy, assignedToIds = 
   }
 
   io.to("hr_management").emit("task:deleted", payload);
+};
+
+export const notifyTaskForwarded = (task, forwardedBy, forwardedTo) => {
+  if (!io) return;
+
+  const taskId = task?._id?.toString?.() || task?.id?.toString?.() || task?._id || task?.id;
+  const payload = {
+    task,
+    taskId,
+    message: `Task forwarded: ${task?.title || "Task"}`,
+    forwardedBy,
+    forwardedTo,
+    timestamp: new Date().toISOString()
+  };
+
+  if (forwardedTo) io.to(`user_${forwardedTo}`).emit("task:forwarded", payload);
+  if (forwardedBy) io.to(`user_${forwardedBy}`).emit("task:forwarded", payload);
+  io.to("hr_management").emit("task:forwarded", payload);
+};
+
+export const notifyTaskReassigned = (task, reassignedBy, previousAssignee, reassignedTo) => {
+  if (!io) return;
+
+  const taskId = task?._id?.toString?.() || task?.id?.toString?.() || task?._id || task?.id;
+  const payload = {
+    task,
+    taskId,
+    message: `Task reassigned: ${task?.title || "Task"}`,
+    reassignedBy,
+    previousAssignee,
+    reassignedTo,
+    timestamp: new Date().toISOString()
+  };
+
+  if (previousAssignee) io.to(`user_${previousAssignee}`).emit("task:reassigned", payload);
+  if (reassignedTo) io.to(`user_${reassignedTo}`).emit("task:reassigned", payload);
+  if (reassignedBy) io.to(`user_${reassignedBy}`).emit("task:reassigned", payload);
+  io.to("hr_management").emit("task:reassigned", payload);
 };

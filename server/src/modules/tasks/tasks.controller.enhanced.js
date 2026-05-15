@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
-import Task from './Task.model.js';
+import { Task } from './Task.model.js';
 import TaskHistory from './TaskHistory.model.js';
 import EmployeeProductivity from './EmployeeProductivity.model.js';
+import { User } from '../users/User.model.js';
 import { sendSuccess, sendError } from '../../utils/responseHelpers.js';
 import {
   notifyTaskCreated,
@@ -951,3 +952,5 @@ export const tasksControllerEnhanced = {
       console.error('Error rejecting task:', error);
       sendError(res, error.message, 500);
     }
+  }
+};
