@@ -166,18 +166,18 @@ export default function NewsPage() {
     <div className="space-y-8 animate-fadeIn">
       {/* Live Notifications */}
       {liveNotifications.length > 0 && (
-        <div className="fixed top-6 right-6 z-50 space-y-3 max-w-sm">
+        <div className="fixed z-50 max-w-sm space-y-3 top-6 right-6">
           {liveNotifications.map((notif) => (
             <Card
               key={notif.id}
-              className="p-4 bg-gradient-to-r from-emerald-500/20 to-green-500/20 border-emerald-500/50 shadow-lg animate-slideDown"
+              className="p-4 shadow-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border-emerald-500/50 animate-slideDown"
             >
               <div className="flex items-start gap-3">
                 <Send className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="font-semibold text-emerald-100">{notif.title}</p>
-                  <p className="text-sm text-emerald-200 truncate">{notif.message}</p>
-                  <p className="text-xs text-emerald-300/70 mt-1">from {notif.author}</p>
+                  <p className="text-sm truncate text-emerald-200">{notif.message}</p>
+                  <p className="mt-1 text-xs text-emerald-300/70">from {notif.author}</p>
                 </div>
               </div>
             </Card>
@@ -220,7 +220,7 @@ export default function NewsPage() {
                   <img
                     src={getImageUrl(heroNews.imageUrl)}
                     alt={heroNews.title}
-                    className="absolute inset-0 z-10 object-cover w-full h-full opacity-35"
+                    className="absolute inset-0 z-10 object-cover w-full h-full opacity-60"
                     onError={(e) => {
                       // Fallback when image fails to load (404 or other error)
                       e.target.style.display = 'none';
@@ -247,7 +247,7 @@ export default function NewsPage() {
               
               <div className="relative z-30 flex flex-col min-h-[560px] p-6 sm:p-8 lg:p-12">
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center min-w-0 gap-3">
                     <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 bg-white/15 rounded-2xl">
                       <Megaphone className="w-6 h-6 text-white" />
                     </div>
@@ -379,7 +379,7 @@ export default function NewsPage() {
                           </Badge>
                         )}
                         {item.isImportant && !item.isPolicyUpdate && (
-                          <Badge className="text-white bg-amber-500 border-0 shadow-lg">
+                          <Badge className="text-white border-0 shadow-lg bg-amber-500">
                             <AlertCircle className="w-3 h-3 mr-1" />
                             Important
                           </Badge>
