@@ -15,6 +15,50 @@ import {
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 const SERVER_BASE_URL = API_BASE_URL.replace('/api', '');
+const MAX_NEWS_IMAGE_SIZE = 900 * 1024;
+const MAX_NEWS_IMAGE_DIMENSION = 1600;
+
+const compressImageFile = (file) => new Promise((resolve) => {
+  if (!file?.type?.startsWith("image/") || file.size <= MAX_NEWS_IMAGE_SIZE) {
+    resolve(file);
+    return;
+  }
+
+  const image = new Image();
+  const objectUrl = URL.createObjectURL(file);
+
+  image.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+
+    const scale = Math.min(
+      1,
+      MAX_NEWS_IMAGE_DIMENSION / Math.max(image.width, image.height)
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        resolve(file);
+        return;
+      }
+
+      const compressedName = file.name.replace(/\.[^.]+$/, ".jpg");
+      resolve(new File([blob], compressedName, { type: "image/jpeg" }));
+    }, "image/jpeg", 0.82);
+  };
+
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(file);
+  };
+
+  image.src = objectUrl;
+});
 
 export default function NewsStudio() {
   const navigate = useNavigate();
@@ -85,17 +129,22 @@ export default function NewsStudio() {
     }
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast({ title: "Image must be less than 5MB", type: "error" });
         return;
       }
-      setImageFile(file);
+      const uploadFile = await compressImageFile(file);
+      if (uploadFile.size > 5 * 1024 * 1024) {
+        toast({ title: "Image must be less than 5MB", type: "error" });
+        return;
+      }
+      setImageFile(uploadFile);
       const reader = new FileReader();
       reader.onloadend = () => setImagePreview(reader.result);
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(uploadFile);
     }
   };
 

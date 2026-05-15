@@ -19,8 +19,18 @@ export function notFound(req, res) {
 ------------------------------*/
 export function errorHandler(err, req, res, next) {
 
-  let statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
+  let statusCode = err.statusCode || err.status || StatusCodes.INTERNAL_SERVER_ERROR;
   let message = err.message || "Something went wrong on the server.";
+
+  if (err.code === "LIMIT_FILE_SIZE") {
+    statusCode = StatusCodes.REQUEST_TOO_LONG;
+    message = "Uploaded file is too large. Please choose a file under the allowed size limit.";
+  }
+
+  if (err.type === "entity.too.large") {
+    statusCode = StatusCodes.REQUEST_TOO_LONG;
+    message = "Request is too large. Please reduce the upload size and try again.";
+  }
 
   /* -----------------------------
      ZOD VALIDATION ERROR
