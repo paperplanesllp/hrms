@@ -250,10 +250,12 @@ function renderMemberHeader(memberInfo, companyInfo) {
         <div class="member-info">
           <h3>${escapeHtml(memberInfo.name)}</h3>
           <p class="member-designation">${escapeHtml(memberInfo.department || "Team Member")}</p>
+          ${memberInfo.email ? `<p class="member-email">${escapeHtml(memberInfo.email)}</p>` : ""}
         </div>
         <div class="member-company">
           <p class="company-label">Company</p>
           <p class="company-name">${escapeHtml(companyInfo?.companyName || "TheHRSaathi")}</p>
+          <p class="company-role">${escapeHtml(memberInfo.role || "Employee")}</p>
         </div>
       </div>
     </section>
@@ -707,6 +709,12 @@ function renderTaskAnalyticsPdfHtml(report) {
       text-transform: uppercase;
       font-weight: 600;
     }
+    .member-email {
+      margin: 5px 0 0;
+      font-size: 10px;
+      color: ${isDark ? "#cbd5e1" : "#475569"};
+      font-weight: 600;
+    }
     .member-company {
       text-align: right;
     }
@@ -722,6 +730,13 @@ function renderTaskAnalyticsPdfHtml(report) {
       font-size: 13px;
       font-weight: 700;
       color: ${isDark ? "#e5eefb" : "#172033"};
+    }
+    .company-role {
+      margin: 4px 0 0;
+      font-size: 10px;
+      color: ${isDark ? "#94a3b8" : "#64748b"};
+      text-transform: uppercase;
+      font-weight: 700;
     }
     
     /* Task Details Styles */
@@ -1186,8 +1201,8 @@ function renderTaskAnalyticsPdfHtml(report) {
 
   const isEmployeeReport = Boolean(report.memberInfo);
   const focusLabel = isEmployeeReport
-    ? "Employee-specific task analytics and performance insights"
-    : "Company-wide task analytics and team performance insights";
+    ? "Employee-specific task analytics and full task details"
+    : "Company-wide task analytics with per-employee task details";
   const employeeName = report.memberInfo?.employeeName || report.memberInfo?.name || "All Employees";
 
   return `
@@ -1345,6 +1360,14 @@ function renderTaskAnalyticsPdfHtml(report) {
                 <p>Completion, pending work, and overdue load</p>
               </div>
               <div class="department-list">${renderDepartmentCards(report.departments)}</div>
+            </section>
+
+            <section class="panel page-break">
+              <div class="section-title">
+                <h2>Full Employee Task Details</h2>
+                <p>Per-employee task rows for the selected report period</p>
+              </div>
+              ${renderEmployeeTaskDetails(report.employeeDetails, report.maxTasksPerEmployee || 100)}
             </section>
           `}
         </main>

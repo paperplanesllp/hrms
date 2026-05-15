@@ -848,6 +848,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
         department: member.departmentId?.name || "Team Member",
         initials: getInitials(member.name),
         email: member.email,
+        role: member.role || "USER",
       };
     }
   }
@@ -855,7 +856,10 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   const taskDetails = employeeDetails.flatMap((employee) => employee.tasks || []);
 
   return {
-    reportTitle: "Employee Task Performance Report",
+    reportTitle: memberInfo
+      ? `${memberInfo.employeeName} Task Performance Report`
+      : "Team Task Performance Report",
+    reportScope: memberInfo ? "employee" : "team",
     brand: {
       productName: "TheHRSaathi",
       companyName: company?.name || "TheHRSaathi",

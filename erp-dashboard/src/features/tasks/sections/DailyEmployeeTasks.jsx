@@ -122,6 +122,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
   // Determine if we're using custom date range (for Period section)
   const isCustomRange = customFrom && customTo;
   const displayTitle = customTitle || 'Daily Employee Tasks';
+  const reportDateLabel = isCustomRange ? `${customFrom} → ${customTo}` : date;
 
   const load = useCallback(async () => {
     try {
@@ -761,7 +762,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
                       Daily Performance Snapshot: {selectedMemberName}
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">
-                      Date: {date} · Quick metrics for manager updates
+                      Date: {reportDateLabel} · Quick metrics for manager updates
                     </div>
                   </div>
                   <div className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
