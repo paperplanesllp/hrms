@@ -289,7 +289,7 @@ export default function NewsPage() {
                 </div>
                 
                 <h1 className="mb-4 text-4xl font-bold leading-tight text-white lg:text-5xl">{heroNews.title}</h1>
-                <p className="mb-6 text-xl leading-relaxed text-gray-200">{heroNews.body}</p>
+                <p className="mb-6 text-xl leading-relaxed text-gray-200 whitespace-pre-line">{heroNews.body}</p>
                 
                 <div className="flex items-center gap-6 text-white/80">
                   <div className="flex items-center gap-2">
@@ -403,7 +403,7 @@ export default function NewsPage() {
                         {item.title}
                       </h3>
                       
-                      <p className="text-[var(--text-muted)] mb-4 line-clamp-3 leading-relaxed">
+                      <p className="text-[var(--text-muted)] mb-4 line-clamp-3 leading-relaxed whitespace-pre-line">
                         {item.body}
                       </p>
                       

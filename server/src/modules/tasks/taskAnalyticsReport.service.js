@@ -736,7 +736,7 @@ export async function buildTaskAnalyticsReportData(options = {}) {
     .filter((row) => row.totalTasks > 0)
     .map((row) => {
       return {
-        ...row,
+        ...row,k
         workedHours: Number(row.workedHours.toFixed(2)),
         totalPausedHours: Number((row.totalPausedHours || 0).toFixed(2)),
         productivity: row.totalTasks > 0 ? Math.round(clampNumber((row.completed / row.totalTasks) * 100)) : 0,
