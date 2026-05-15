@@ -312,7 +312,7 @@ export default function NewsPage() {
                 </div>
                 
                 <div className="max-w-5xl">
-                  <h1 className="mb-6 text-2xl font-bold leading-tight text-white break-words sm:text-3xl lg:text-4xl">
+                  <h1 className="inline-block max-w-full px-4 py-3 mb-6 text-2xl font-bold leading-tight text-black break-words bg-white rounded-xl shadow-lg sm:text-3xl lg:text-4xl">
                     {heroNews.title}
                   </h1>
                   <div className="pr-0">
