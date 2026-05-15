@@ -1,6 +1,33 @@
 import { create } from "zustand";
 import api from "../lib/api.js";
 import { setupNotificationHandlers } from "../lib/socket.js";
+import { toast } from "./toastStore.js";
+
+const announcedNotificationIds = new Set();
+
+const getNotificationKey = (notification) => {
+  return notification?._id || notification?.newsId || notification?.policyId || notification?.id;
+};
+
+const announceNewsNotificationsOnce = (notifications = [], { suppressToast = false } = {}) => {
+  notifications.forEach((notification) => {
+    const key = getNotificationKey(notification);
+    if (!key || announcedNotificationIds.has(key)) return;
+
+    const isNews = notification.type === "news" || notification.newsId;
+    const isPolicy = notification.type === "policy" || notification.isPolicyUpdate;
+    if (!isNews && !isPolicy) return;
+
+    announcedNotificationIds.add(key);
+    if (suppressToast) return;
+
+    toast({
+      title: isPolicy ? "Policy update" : "New news",
+      message: notification.message || notification.title || "A new company update is available.",
+      type: isPolicy ? "warning" : "info",
+    });
+  });
+};
 
 /**
  * Enterprise Notification Store
@@ -21,11 +48,12 @@ export const useNotificationStore = create((set, get) => ({
   /**
    * Fetch notifications from server
    */
-  fetchNotifications: async () => {
+  fetchNotifications: async (options = {}) => {
     try {
       set({ loading: true });
       const res = await api.get("/notifications");
       const notifications = res.data || [];
+      announceNewsNotificationsOnce(notifications, options);
       set({ 
         notifications, 
         loading: false,
@@ -43,9 +71,13 @@ export const useNotificationStore = create((set, get) => ({
   markAsRead: async (notificationId) => {
     try {
       await api.patch(`/notifications/${notificationId}/read`);
-      set(({ notifications }) => ({
-        notifications: notifications.filter(n => n._id !== notificationId)
-      }));
+      set(({ notifications }) => {
+        const next = notifications.filter(n => n._id !== notificationId);
+        return {
+          notifications: next,
+          unreadCount: next.length
+        };
+      });
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }

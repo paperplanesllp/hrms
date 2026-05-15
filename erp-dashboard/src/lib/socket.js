@@ -400,7 +400,7 @@ export const setupNotificationHandlers = (notificationStore = null) => {
     });
 
     if (notificationStore?.fetchNotifications) {
-      notificationStore.fetchNotifications();
+      notificationStore.fetchNotifications({ suppressToast: true });
     }
   };
 
