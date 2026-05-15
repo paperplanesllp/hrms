@@ -358,6 +358,8 @@ export const setupNotificationHandlers = (notificationStore = null) => {
   // Remove any previously registered listeners to prevent double-firing
   socket.off("new_leave_request");
   socket.off("leave_status_update");
+  socket.off("news_created");
+  socket.off("new_policy_update");
 
   // HR receives new leave requests
   socket.on("new_leave_request", (data) => {
@@ -387,6 +389,23 @@ export const setupNotificationHandlers = (notificationStore = null) => {
     // Emit custom event for leave page to refresh
     window.dispatchEvent(new CustomEvent("leaveStatusUpdate", { detail: data }));
   });
+
+  const handleNewsNotification = (data, fallbackType = "news") => {
+    const isPolicy = data?.isPolicyUpdate || fallbackType === "policy";
+    const isImportant = data?.isImportant || isPolicy;
+    toast({
+      title: isPolicy ? "Policy update" : isImportant ? "Important announcement" : "New announcement",
+      message: data?.title || data?.message || "A new company update was posted.",
+      type: isImportant ? "warning" : "info",
+    });
+
+    if (notificationStore?.fetchNotifications) {
+      notificationStore.fetchNotifications();
+    }
+  };
+
+  socket.on("news_created", (data) => handleNewsNotification(data, "news"));
+  socket.on("new_policy_update", (data) => handleNewsNotification(data, "policy"));
 };
 
 export default {

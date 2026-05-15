@@ -5,7 +5,8 @@ export const newsCreateSchema = z.object({
   body: z.string().min(5, "Body must be at least 5 characters"),
   imageUrl: z.string().optional().or(z.literal(null)).or(z.literal("")),
   publishDate: z.string().optional(),
-  isPolicyUpdate: z.boolean().optional().default(false)
+  isPolicyUpdate: z.boolean().optional().default(false),
+  isImportant: z.boolean().optional().default(false)
 });
 
 export const newsUpdateSchema = z.object({
@@ -14,5 +15,6 @@ export const newsUpdateSchema = z.object({
   imageUrl: z.string().optional().or(z.literal(null)).or(z.literal("")),
   publishDate: z.string().optional(),
   isPolicyUpdate: z.boolean().optional(),
+  isImportant: z.boolean().optional(),
   status: z.enum(["draft", "published"]).optional()
 });

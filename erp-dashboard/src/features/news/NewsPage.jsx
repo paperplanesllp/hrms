@@ -101,10 +101,12 @@ export default function NewsPage() {
     };
 
     socket.on("news_created", handleNewNews);
+    socket.on("new_policy_update", handleNewNews);
     socket.on("news_deleted", handleNewsDeleted);
 
     return () => {
       socket.off("news_created", handleNewNews);
+      socket.off("new_policy_update", handleNewNews);
       socket.off("news_deleted", handleNewsDeleted);
     };
   }, [socket]);
@@ -259,6 +261,12 @@ export default function NewsPage() {
                           Policy Update
                         </Badge>
                       )}
+                      {heroNews.isImportant && !heroNews.isPolicyUpdate && (
+                        <Badge className="text-amber-100 bg-amber-500/20 border-amber-300/30">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          Important
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   
@@ -339,12 +347,20 @@ export default function NewsPage() {
                           src={getImageUrl(item.imageUrl)}
                           alt={item.title}
                           className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const fallback = e.target.parentElement?.querySelector('.grid-image-fallback');
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[var(--pistachio)] to-[var(--peach)] flex items-center justify-center">
                           <Megaphone className="w-16 h-16 text-white/80" />
                         </div>
                       )}
+                      <div className="grid-image-fallback absolute inset-0 hidden w-full h-full bg-gradient-to-br from-[var(--pistachio)] to-[var(--peach)] items-center justify-center">
+                        <Megaphone className="w-16 h-16 text-white/80" />
+                      </div>
                       
                       {/* Overlay Badges */}
                       <div className="absolute top-4 left-4">
@@ -352,6 +368,12 @@ export default function NewsPage() {
                           <Badge className="text-white bg-red-500 border-0 shadow-lg">
                             <Shield className="w-3 h-3 mr-1" />
                             Policy
+                          </Badge>
+                        )}
+                        {item.isImportant && !item.isPolicyUpdate && (
+                          <Badge className="text-white bg-amber-500 border-0 shadow-lg">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Important
                           </Badge>
                         )}
                       </div>

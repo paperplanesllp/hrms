@@ -735,7 +735,8 @@ export async function buildTaskAnalyticsReportData(options = {}) {
   const employees = Array.from(employeeMap.values())
     .filter((row) => row.totalTasks > 0)
     .map((row) => {
-      return {
+      return {-+
+         
         ...row,
         workedHours: Number(row.workedHours.toFixed(2)),
         totalPausedHours: Number((row.totalPausedHours || 0).toFixed(2)),

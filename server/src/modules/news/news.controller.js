@@ -4,29 +4,66 @@ import { createNews, listNews, getNewsById, updateNews, deleteNews, markPolicyVi
 import { createBulkNotifications } from "../notifications/notification.service.js";
 import { User } from "../users/User.model.js";
 import { notifyNewsCreated, notifyNewsDeleted, notifyNewsPolicyUpdate } from "../../utils/socket.js";
+import { isCloudinaryConfigured, uploadNewsImageToCloudinary } from "../../utils/cloudinary.js";
+import fs from "fs";
+
+const toBoolean = (value) => value === true || value === "true" || value === "on" || value === "1";
+
+const removeTempUpload = (filePath) => {
+  if (!filePath) return;
+  fs.promises.unlink(filePath).catch(() => {});
+};
+
+async function attachNewsImage(req, payload) {
+  if (!req.file) return payload;
+
+  if (isCloudinaryConfigured()) {
+    let result;
+    try {
+      result = await uploadNewsImageToCloudinary(req.file.path);
+    } finally {
+      removeTempUpload(req.file.path);
+    }
+    return {
+      ...payload,
+      imageUrl: result.secure_url,
+      imagePublicId: result.public_id,
+      imageProvider: "cloudinary",
+    };
+  }
+
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  return {
+    ...payload,
+    imageUrl: `${baseUrl}/uploads/news/${req.file.filename}`,
+    imagePublicId: null,
+    imageProvider: "local",
+  };
+}
 
 export const postNews = asyncHandler(async (req, res) => {
-  if (req.body.isPolicyUpdate) {
-    req.body.isPolicyUpdate = req.body.isPolicyUpdate === 'true';
-  }
+  req.body.isPolicyUpdate = toBoolean(req.body.isPolicyUpdate);
+  req.body.isImportant = toBoolean(req.body.isImportant) || req.body.isPolicyUpdate;
   
-  const data = newsCreateSchema.parse(req.body);
+  const data = await attachNewsImage(req, newsCreateSchema.parse(req.body));
   
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    data.imageUrl = `${baseUrl}/uploads/news/${req.file.filename}`;
-  }
+  const created = await createNews(req.user.id, data);
+  const doc = await getNewsById(created._id);
   
-  const doc = await createNews(req.user.id, data);
-  
-  const users = await User.find({}).select('_id');
+  const users = await User.find({
+    ...(req.user.companyId ? { companyId: req.user.companyId } : {}),
+  }).select('_id');
   const userIds = users.map(user => user._id);
   
   await createBulkNotifications({
     userIds,
     type: data.isPolicyUpdate ? "policy" : "news",
-    title: data.isPolicyUpdate ? "Policy Update: " + data.title : "New Announcement: " + data.title,
-    message: data.title,
+    title: data.isPolicyUpdate
+      ? "Policy Update: " + data.title
+      : data.isImportant
+        ? "Important Announcement: " + data.title
+        : "New Announcement: " + data.title,
+    message: data.isImportant ? `Important: ${data.title}` : data.title,
     targetUrl: data.isPolicyUpdate ? "/privacy-policy" : "/news",
     newsId: doc._id,
     isPolicyUpdate: data.isPolicyUpdate
@@ -52,17 +89,21 @@ export const getNewsDetail = asyncHandler(async (req, res) => {
 });
 
 export const patchNews = asyncHandler(async (req, res) => {
-  if (req.body.isPolicyUpdate) {
-    req.body.isPolicyUpdate = req.body.isPolicyUpdate === 'true';
+  if (Object.prototype.hasOwnProperty.call(req.body, "isPolicyUpdate")) {
+    req.body.isPolicyUpdate = toBoolean(req.body.isPolicyUpdate);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "isImportant")) {
+    req.body.isImportant = toBoolean(req.body.isImportant) || toBoolean(req.body.isPolicyUpdate);
   }
   
-  const patch = newsUpdateSchema.parse(req.body);
+  let patch = newsUpdateSchema.parse(req.body);
   
   if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    patch.imageUrl = `${baseUrl}/uploads/news/${req.file.filename}`;
+    patch = await attachNewsImage(req, patch);
   } else if (req.body.imageUrl === "") {
     patch.imageUrl = null;
+    patch.imagePublicId = null;
+    patch.imageProvider = null;
   }
   
   const doc = await updateNews(req.params.id, patch);

@@ -28,6 +28,7 @@ export const env = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   CLOUDINARY_PROFILE_FOLDER: process.env.CLOUDINARY_PROFILE_FOLDER || "hrms/profile-images",
   CLOUDINARY_CHAT_FOLDER: process.env.CLOUDINARY_CHAT_FOLDER || "hrms/chat-media",
+  CLOUDINARY_NEWS_FOLDER: process.env.CLOUDINARY_NEWS_FOLDER || "hrms/news",
 
   SOCKET_IO_PATH: process.env.SOCKET_IO_PATH || "/api/socket.io/",
 

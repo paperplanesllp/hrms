@@ -35,6 +35,17 @@ export const uploadChatMediaToCloudinary = async (filePath, userId, mimetype = "
   });
 };
 
+export const uploadNewsImageToCloudinary = async (filePath, options = {}) => {
+  return cloudinary.uploader.upload(filePath, {
+    folder: env.CLOUDINARY_NEWS_FOLDER,
+    public_id: `news_${options.newsId || Date.now()}`,
+    resource_type: "image",
+    use_filename: false,
+    overwrite: false,
+    transformation: [{ quality: "auto", fetch_format: "auto" }],
+  });
+};
+
 const uploadBuffer = (file, options = {}) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(options, (error, result) => {

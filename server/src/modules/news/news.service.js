@@ -4,6 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { deleteFromCloudinary } from "../../utils/cloudinary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../../uploads/news");
@@ -23,6 +24,21 @@ function deleteImageFile(imageUrl) {
   } catch (error) {
     console.error("⚠️ Error deleting image file:", error);
   }
+}
+
+async function deleteNewsImage(doc) {
+  if (!doc?.imageUrl) return;
+
+  if (doc.imageProvider === "cloudinary" && doc.imagePublicId) {
+    try {
+      await deleteFromCloudinary(doc.imagePublicId, "image");
+      return;
+    } catch (error) {
+      console.error("Error deleting Cloudinary news image:", error);
+    }
+  }
+
+  deleteImageFile(doc.imageUrl);
 }
 
 export async function createNews(userId, data) {
@@ -58,10 +74,10 @@ export async function updateNews(id, patch) {
   }
   
   // If updating with a new image, delete the old one
-  if (patch.imageUrl) {
+  if (Object.prototype.hasOwnProperty.call(patch, "imageUrl")) {
     const oldDoc = await News.findById(id);
     if (oldDoc?.imageUrl) {
-      deleteImageFile(oldDoc.imageUrl);
+      await deleteNewsImage(oldDoc);
     }
   }
   
@@ -76,7 +92,7 @@ export async function deleteNews(id) {
   
   // Clean up image file if exists
   if (doc.imageUrl) {
-    deleteImageFile(doc.imageUrl);
+    await deleteNewsImage(doc);
   }
   
   return doc;
@@ -113,7 +129,7 @@ export async function cleanupMissingImages() {
     let cleanedCount = 0;
     
     for (const news of allNews) {
-      if (news.imageUrl) {
+      if (news.imageUrl && news.imageProvider !== "cloudinary" && !String(news.imageUrl).includes("res.cloudinary.com")) {
         const filename = path.basename(news.imageUrl);
         const filepath = path.join(uploadsDir, filename);
         

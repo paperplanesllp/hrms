@@ -8,10 +8,9 @@ import api from "../../lib/api.js";
 import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
-import { getSocket } from "../../lib/socket.js";
 import { 
   ArrowLeft, Upload, ShieldAlert, Calendar, 
-  FileText, Image as ImageIcon, X, Sparkles 
+  FileText, Image as ImageIcon, X, Sparkles, BellRing
 } from "lucide-react";
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
@@ -21,7 +20,6 @@ export default function NewsStudio() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const socket = getSocket();
   const editId = searchParams.get("edit");
 
   const [loading, setLoading] = useState(!!editId);
@@ -33,7 +31,8 @@ export default function NewsStudio() {
     title: "",
     body: "",
     publishDate: new Date().toISOString().split("T")[0],
-    isPolicyUpdate: false
+    isPolicyUpdate: false,
+    isImportant: false
   });
 
   // Helper to resolve image URLs correctly
@@ -74,7 +73,8 @@ export default function NewsStudio() {
         title: news.title,
         body: news.body,
         publishDate: news.publishDate?.split("T")[0] || new Date().toISOString().split("T")[0],
-        isPolicyUpdate: news.isPolicyUpdate || false
+        isPolicyUpdate: news.isPolicyUpdate || false,
+        isImportant: news.isImportant || news.isPolicyUpdate || false
       });
       if (news.imageUrl) setImagePreview(news.imageUrl);
     } catch (err) {
@@ -116,26 +116,7 @@ export default function NewsStudio() {
         await api.patch(`/news/${editId}`, formData);
         toast({ title: "Article refined successfully", type: "success" });
       } else {
-        const res = await api.post("/news", formData);
-        
-        // Emit socket event for live news update to all connected users
-        if (socket && res.data) {
-          socket.emit("news_created", {
-            _id: res.data._id,
-            title: res.data.title,
-            body: res.data.body,
-            imageUrl: res.data.imageUrl,
-            isPolicyUpdate: res.data.isPolicyUpdate,
-            publishDate: res.data.publishDate,
-            createdBy: {
-              _id: user._id,
-              name: user.name,
-              email: user.email
-            },
-            createdAt: res.data.createdAt
-          });
-        }
-        
+        await api.post("/news", formData);
         toast({ title: "Article published to Journal", type: "success" });
       }
       navigate("/news");
@@ -261,6 +242,27 @@ export default function NewsStudio() {
             </div>
 
             <div className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-4 ${
+              form.isImportant 
+                ? "bg-amber-50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-900/30" 
+                : "bg-white dark:bg-[#1A1F16] border-[var(--border-soft)]"
+            }`}>
+              <input 
+                type="checkbox" 
+                id="importantToggle"
+                className="mt-1 w-5 h-5 rounded border-[var(--border-soft)] text-amber-600 focus:ring-amber-500" 
+                checked={form.isImportant} 
+                onChange={(e) => setForm({ ...form, isImportant: e.target.checked })} 
+              />
+              <label htmlFor="importantToggle" className="cursor-pointer">
+                <span className="text-[11px] font-bold text-[var(--text-main)] uppercase tracking-tight flex items-center gap-2">
+                  <BellRing className="w-3 h-3" />
+                  Important Alert
+                </span>
+                <span className="text-[10px] text-[var(--text-muted)] leading-tight block mt-1">Highlights this news in staff notifications</span>
+              </label>
+            </div>
+
+            <div className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-4 ${
               form.isPolicyUpdate 
                 ? "bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-900/30" 
                 : "bg-white dark:bg-[#1A1F16] border-[var(--border-soft)]"
@@ -270,7 +272,7 @@ export default function NewsStudio() {
                 id="policyToggle"
                 className="mt-1 w-5 h-5 rounded border-[var(--border-soft)] text-[var(--clay)] focus:ring-[var(--clay)]" 
                 checked={form.isPolicyUpdate} 
-                onChange={(e) => setForm({ ...form, isPolicyUpdate: e.target.checked })} 
+                onChange={(e) => setForm({ ...form, isPolicyUpdate: e.target.checked, isImportant: e.target.checked ? true : form.isImportant })} 
               />
               <label htmlFor="policyToggle" className="cursor-pointer">
                 <span className="text-[11px] font-bold text-[var(--text-main)] uppercase tracking-tight block">Important Policy</span>

@@ -589,8 +589,9 @@ export const notifyHRMeetingStatusChanged = (meetingId, oldStatus, newStatus, up
 // ============ NEWS/UPDATES BROADCASTERS ============
 export const notifyNewsCreated = (newsItem) => {
   if (io) {
+    const payload = typeof newsItem?.toObject === "function" ? newsItem.toObject() : newsItem;
     io.emit("news_created", {
-      ...newsItem,
+      ...payload,
       timestamp: new Date().toISOString()
     });
   }
@@ -604,10 +605,11 @@ export const notifyNewsDeleted = (newsId) => {
 
 export const notifyNewsPolicyUpdate = (newsItem, policyTitle) => {
   if (io) {
+    const payload = typeof newsItem?.toObject === "function" ? newsItem.toObject() : newsItem;
     io.emit("new_policy_update", {
-      ...newsItem,
+      ...payload,
       type: "policy_update",
-      title: "📋 New Policy Update",
+      notificationTitle: "📋 New Policy Update",
       message: `Important: ${policyTitle}`,
       timestamp: new Date().toISOString()
     });
