@@ -244,13 +244,13 @@ export default function NewsPage() {
                       }
                     }}
                   />
-                  <div className="hero-gradient absolute inset-0 z-20 bg-gradient-to-r from-black via-black/90 to-black/65"></div>
+                  <div className="absolute inset-0 z-20 hero-gradient bg-gradient-to-r from-black via-black/90 to-black/65"></div>
                   <div 
-                    className="image-fallback absolute inset-0 z-10 items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black" 
+                    className="absolute inset-0 z-10 items-center justify-center image-fallback bg-gradient-to-br from-gray-900 via-gray-800 to-black" 
                     style={{ display: 'none' }}
                   >
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-32 h-32 rounded-full bg-white/10 flex items-center justify-center">
+                      <div className="flex items-center justify-center w-32 h-32 rounded-full bg-white/10">
                         <Megaphone className="w-16 h-16 text-white/40" />
                       </div>
                       <p className="text-sm font-medium text-white/50">Unable to load image</p>
@@ -258,9 +258,9 @@ export default function NewsPage() {
                   </div>
                 </>
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="w-32 h-32 rounded-full bg-white/10 flex items-center justify-center">
+                    <div className="flex items-center justify-center w-32 h-32 rounded-full bg-white/10">
                       <Megaphone className="w-16 h-16 text-white/40" />
                     </div>
                     <p className="text-sm font-medium text-white/50">No image available</p>
