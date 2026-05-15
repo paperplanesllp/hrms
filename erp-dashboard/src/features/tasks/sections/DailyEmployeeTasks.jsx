@@ -651,7 +651,7 @@ export default function DailyEmployeeTasks({ customFrom, customTo, title: custom
             onClick={handleDownloadPdf}
             disabled={loading || downloadingPdf}
           >
-            {downloadingPdf ? 'Downloading...' : 'Download PDF'}
+            {downloadingPdf ? 'Downloading...' : 'Download Full Report PDF'}
           </Button>
         </div>
       </div>

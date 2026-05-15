@@ -592,7 +592,7 @@ export const tasksController = {
       if (process.env.NODE_ENV !== 'production') {
         console.log('[TASK_PDF_EXPORT_REQUEST]', {
           companyId: String(req.user.companyId),
-          employeeId: req.query.employeeId || 'all',
+          employeeId: 'all', // PDF export always includes all employees
           dateRange: req.query.dateRange || 'month',
           from: req.query.from || null,
           to: req.query.to || null,
@@ -606,7 +606,6 @@ export const tasksController = {
         to: req.query.to,
         dateRange: req.query.dateRange || 'month',
         departmentId: req.query.department,
-        employeeId: req.query.employeeId,
         theme: req.query.theme || 'light',
       });
 
