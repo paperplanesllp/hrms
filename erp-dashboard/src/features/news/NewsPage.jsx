@@ -222,13 +222,13 @@ export default function NewsPage() {
         <>
           {/* Featured News - Latest */}
           {heroNews && (
-            <div className="relative min-h-[560px] overflow-hidden rounded-[2rem] bg-black shadow-2xl">
+            <div className="relative overflow-hidden rounded-[2rem] bg-black shadow-2xl">
               {heroNews.imageUrl ? (
                 <>
                   <img
                     src={getImageUrl(heroNews.imageUrl)}
                     alt={heroNews.title}
-                    className="absolute inset-0 z-10 object-cover w-full h-full opacity-60"
+                    className="absolute inset-0 z-10 object-contain w-full h-full p-8 opacity-30"
                     onError={(e) => {
                       console.error('❌ Hero image failed to load:', getImageUrl(heroNews.imageUrl), e);
                       // Fallback when image fails to load (404 or other error)
@@ -244,7 +244,7 @@ export default function NewsPage() {
                       }
                     }}
                   />
-                  <div className="absolute inset-0 z-20 hero-gradient bg-gradient-to-r from-black via-black/90 to-black/65"></div>
+                  <div className="absolute inset-0 z-20 hero-gradient bg-gradient-to-r from-black via-black/95 to-black/80"></div>
                   <div 
                     className="absolute inset-0 z-10 items-center justify-center image-fallback bg-gradient-to-br from-gray-900 via-gray-800 to-black" 
                     style={{ display: 'none' }}
@@ -268,7 +268,7 @@ export default function NewsPage() {
                 </div>
               )}
               
-              <div className="relative z-30 flex flex-col min-h-[560px] p-6 sm:p-8 lg:p-12">
+              <div className="relative z-30 flex flex-col p-6 sm:p-8 lg:p-12">
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
                   <div className="flex items-center min-w-0 gap-3">
                     <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 bg-white/15 rounded-2xl">
@@ -312,11 +312,11 @@ export default function NewsPage() {
                 </div>
                 
                 <div className="max-w-5xl">
-                  <h1 className="mb-6 text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
+                  <h1 className="mb-6 text-2xl font-bold leading-tight text-white break-words sm:text-3xl lg:text-4xl">
                     {heroNews.title}
                   </h1>
-                  <div className="max-h-[48vh] overflow-y-auto pr-2 sm:pr-4 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-transparent">
-                    <p className="text-base leading-8 text-gray-100 whitespace-pre-line sm:text-lg lg:text-xl">
+                  <div className="pr-0">
+                    <p className="text-base leading-8 text-gray-100 whitespace-pre-line sm:text-lg">
                       {heroNews.body}
                     </p>
                   </div>
