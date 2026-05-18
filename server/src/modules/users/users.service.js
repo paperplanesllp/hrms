@@ -135,8 +135,13 @@ export async function listUsers(
     .sort({ createdAt: -1 });
 }
 
-export async function listAssignableUsers(departmentId = null) {
+export async function listAssignableUsers(departmentId = null, companyId = null) {
+  if (!companyId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Company is required");
+  }
+
   const query = {
+    companyId,
     role: { $nin: ["SUPERADMIN"] },
     $or: [
       { accountType: { $ne: "TEMPORARY" } },

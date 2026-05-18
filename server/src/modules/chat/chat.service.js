@@ -3,6 +3,21 @@ import { Message } from "./Message.model.js";
 import { User } from "../users/User.model.js";
 import { notifyNewMessage, notifyGroupUpdate, notifyGroupMemberAdded, notifyGroupMemberRemoved, notifyGroupRenamed } from "../../utils/socket.js";
 
+async function assertSameCompanyUsers(userIds, companyId) {
+  if (!companyId) {
+    throw new Error("Company context is required");
+  }
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean).map(String))];
+  const users = await User.find({ _id: { $in: uniqueIds }, companyId }).select("_id name email");
+
+  if (users.length !== uniqueIds.length) {
+    throw new Error("Cannot chat with users from another company");
+  }
+
+  return users;
+}
+
 // Get all chats for current user
 export async function getUserChats(userId) {
   return Chat.find({ participants: userId })
@@ -12,7 +27,9 @@ export async function getUserChats(userId) {
 }
 
 // Create 1-on-1 chat
-export async function createDirectChat(userId, otherUserId) {
+export async function createDirectChat(userId, otherUserId, companyId) {
+  await assertSameCompanyUsers([userId, otherUserId], companyId);
+
   // Check if chat already exists
   const existing = await Chat.findOne({
     isGroupChat: false,
@@ -29,7 +46,9 @@ export async function createDirectChat(userId, otherUserId) {
 }
 
 // Create group chat
-export async function createGroupChat(userId, name, participantIds) {
+export async function createGroupChat(userId, name, participantIds, companyId) {
+  await assertSameCompanyUsers([userId, ...(participantIds || [])], companyId);
+
   const chat = await Chat.create({
     name,
     isGroupChat: true,
@@ -41,11 +60,13 @@ export async function createGroupChat(userId, name, participantIds) {
 }
 
 // Update group chat (rename, add/remove members)
-export async function updateGroupChat(chatId, userId, { name, action, userId: targetUserId }) {
+export async function updateGroupChat(chatId, userId, { name, action, userId: targetUserId }, companyId) {
   const chat = await Chat.findById(chatId);
   if (!chat || !chat.isGroupChat || chat.groupAdmin.toString() !== userId) {
     throw new Error("Unauthorized");
   }
+
+  await assertSameCompanyUsers([userId, ...chat.participants.map(String)], companyId);
   
   const admin = await User.findById(userId).select("name");
   
@@ -58,6 +79,8 @@ export async function updateGroupChat(chatId, userId, { name, action, userId: ta
   }
   
   if (action === 'add' && targetUserId) {
+    await assertSameCompanyUsers([targetUserId], companyId);
+
     if (!chat.participants.includes(targetUserId)) {
       chat.participants.push(targetUserId);
       await chat.save();
@@ -138,9 +161,15 @@ export async function markAsRead(chatId, userId) {
 }
 
 // Search users
-export async function searchUsers(query, currentUserId) {
+export async function searchUsers(query, currentUserId, companyId) {
+  if (!companyId) {
+    throw new Error("Company context is required");
+  }
+
   return User.find({
     _id: { $ne: currentUserId },
+    companyId,
+    role: { $ne: "SUPERADMIN" },
     $or: [
       { name: { $regex: query, $options: "i" } },
       { email: { $regex: query, $options: "i" } }
@@ -237,11 +266,13 @@ export async function getGroupDetails(chatId, userId) {
 }
 
 // Add member to group
-export async function addGroupMember(chatId, userId, newMemberId) {
+export async function addGroupMember(chatId, userId, newMemberId, companyId) {
   const chat = await Chat.findById(chatId);
   if (!chat || !chat.isGroupChat || chat.groupAdmin.toString() !== userId) {
     throw new Error("Unauthorized - Only group admin can add members");
   }
+
+  await assertSameCompanyUsers([userId, newMemberId, ...chat.participants.map(String)], companyId);
   
   if (chat.participants.includes(newMemberId)) {
     throw new Error("User already in group");

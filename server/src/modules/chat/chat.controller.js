@@ -13,9 +13,9 @@ export const createChat = asyncHandler(async (req, res) => {
   
   let chat;
   if (isGroup) {
-    chat = await chatService.createGroupChat(req.user.id, name, participants);
+    chat = await chatService.createGroupChat(req.user.id, name, participants, req.user.companyId);
   } else {
-    chat = await chatService.createDirectChat(req.user.id, userId);
+    chat = await chatService.createDirectChat(req.user.id, userId, req.user.companyId);
   }
   
   res.json(chat);
@@ -28,13 +28,13 @@ export const getGroupDetails = asyncHandler(async (req, res) => {
 
 export const updateGroup = asyncHandler(async (req, res) => {
   const { name, action, userId } = req.body;
-  const chat = await chatService.updateGroupChat(req.params.chatId, req.user.id, { name, action, userId });
+  const chat = await chatService.updateGroupChat(req.params.chatId, req.user.id, { name, action, userId }, req.user.companyId);
   res.json(chat);
 });
 
 export const addMember = asyncHandler(async (req, res) => {
   const { userId } = req.body;
-  const chat = await chatService.addGroupMember(req.params.chatId, req.user.id, userId);
+  const chat = await chatService.addGroupMember(req.params.chatId, req.user.id, userId, req.user.companyId);
   res.json(chat);
 });
 
@@ -106,7 +106,7 @@ export const markRead = asyncHandler(async (req, res) => {
 });
 
 export const searchUsers = asyncHandler(async (req, res) => {
-  const users = await chatService.searchUsers(req.query.q, req.user.id);
+  const users = await chatService.searchUsers(req.query.q, req.user.id, req.user.companyId);
   res.json(users);
 });
 

@@ -189,6 +189,20 @@ async function getPublicHolidayNameForDate(date, companyId = null) {
   return holiday?.title || null;
 }
 
+async function getCompanyOfficeLocation(companyId = null) {
+  if (!companyId) return null;
+
+  return (
+    await User.findOne({ role: ROLES.ADMIN, companyId, isCompanyLocation: true })
+      .select("officeLatitude officeLongitude")
+      .lean()
+  ) || (
+    await User.findOne({ role: ROLES.ADMIN, companyId })
+      .select("officeLatitude officeLongitude")
+      .lean()
+  );
+}
+
 /**
  * SECURE CHECK-IN FUNCTION
  * 
@@ -209,7 +223,8 @@ export async function performCheckIn(
   checkInLatitude,
   checkInLongitude,
   checkInAccuracy = null,
-  fraudAnalysis = null
+  fraudAnalysis = null,
+  companyId = null
 ) {
   try {
     // SECURITY: Get server time (ONLY source of truth)
@@ -217,10 +232,11 @@ export async function performCheckIn(
     const checkInTime24 = getServerTimeISTPrecision(); // HH:MM format
 
     // Verify user exists
-    const user = await User.findById(userId).select("role");
+    const user = await User.findById(userId).select("role companyId");
     if (!user) {
       throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
     }
+    const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user already has active attendance for today
     const existingAttendance = await Attendance.findOne({ userId, date });
@@ -233,8 +249,7 @@ export async function performCheckIn(
     }
 
     // Get company location for geofence validation
-    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+    const adminUser = await getCompanyOfficeLocation(effectiveCompanyId);
 
     if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
       throw new ApiError(
@@ -264,8 +279,8 @@ export async function performCheckIn(
     }
 
     // Get shift details
-    const { shiftStart, shiftEnd } = await getShiftForDate(date);
-    const holidayName = await getPublicHolidayNameForDate(date);
+    const { shiftStart, shiftEnd } = await getShiftForDate(date, effectiveCompanyId);
+    const holidayName = await getPublicHolidayNameForDate(date, effectiveCompanyId);
 
     // Calculate status
     const status = holidayName
@@ -334,7 +349,8 @@ export async function performCheckOut(
   checkOutLatitude,
   checkOutLongitude,
   checkOutAccuracy = null,
-  fraudAnalysis = null
+  fraudAnalysis = null,
+  companyId = null
 ) {
   try {
     // SECURITY: Get server time (ONLY source of truth)
@@ -342,10 +358,11 @@ export async function performCheckOut(
     const checkOutTime24 = getServerTimeISTPrecision(); // HH:MM format
 
     // Verify user exists
-    const user = await User.findById(userId).select("role");
+    const user = await User.findById(userId).select("role companyId");
     if (!user) {
       throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
     }
+    const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user has active check-in
     const existingAttendance = await Attendance.findOne({ userId, date });
@@ -365,8 +382,7 @@ export async function performCheckOut(
     }
 
     // Get company location for geofence validation
-    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+    const adminUser = await getCompanyOfficeLocation(effectiveCompanyId);
 
     if (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0) {
       throw new ApiError(
@@ -402,8 +418,8 @@ export async function performCheckOut(
     }
 
     // Get shift details for status calculation
-    const { shiftStart, shiftEnd } = await getShiftForDate(date);
-    const holidayName = await getPublicHolidayNameForDate(date);
+    const { shiftStart, shiftEnd } = await getShiftForDate(date, effectiveCompanyId);
+    const holidayName = await getPublicHolidayNameForDate(date, effectiveCompanyId);
 
     // Calculate status
     const status = holidayName
@@ -452,22 +468,22 @@ export async function performCheckOut(
   }
 }
 
-export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude, checkOutLatitude, checkOutLongitude, checkInAccuracy = null, checkOutAccuracy = null) {
+export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude, checkOutLatitude, checkOutLongitude, checkInAccuracy = null, checkOutAccuracy = null, companyId = null) {
   try {
     const existing = await Attendance.findOne({ userId, date });
-    const { shiftStart, shiftEnd } = await getShiftForDate(date);
-    const holidayName = await getPublicHolidayNameForDate(date);
 
     const newCheckIn = checkIn ?? existing?.checkIn ?? "";
     const newCheckOut = checkOut ?? existing?.checkOut ?? "";
 
     // Get the checking-in user's role — admins are exempt from geofence
-    const checkingUser = await User.findById(userId).select("role");
+    const checkingUser = await User.findById(userId).select("role companyId");
     const isAdmin = checkingUser && checkingUser.role === ROLES.ADMIN;
+    const effectiveCompanyId = companyId || checkingUser?.companyId;
+    const { shiftStart, shiftEnd } = await getShiftForDate(date, effectiveCompanyId);
+    const holidayName = await getPublicHolidayNameForDate(date, effectiveCompanyId);
 
     // Get company location (required for geofence validation)
-    const company = await User.findOne({ role: ROLES.ADMIN, isCompanyLocation: true });
-    const adminUser = company || await User.findOne({ role: ROLES.ADMIN });
+    const adminUser = await getCompanyOfficeLocation(effectiveCompanyId);
 
     // If office location is not configured, block check-in/checkout for non-admin users
     if (!isAdmin && (!adminUser || adminUser.officeLatitude === 0 || adminUser.officeLongitude === 0)) {

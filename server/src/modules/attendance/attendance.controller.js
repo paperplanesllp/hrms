@@ -141,7 +141,8 @@ export const postMarkMine = asyncHandler(async (req, res) => {
     resolvedLocation.latitude,
     resolvedLocation.longitude,
     resolvedLocation.accuracy,
-    fraudAnalysis // Pass fraud analysis to service
+    fraudAnalysis, // Pass fraud analysis to service
+    req.user.companyId
   );
 
   // Log activity
@@ -226,7 +227,8 @@ export const postCheckOut = asyncHandler(async (req, res) => {
     resolvedLocation.latitude,
     resolvedLocation.longitude,
     resolvedLocation.accuracy,
-    fraudAnalysis
+    fraudAnalysis,
+    req.user.companyId
   );
 
   // Log activity

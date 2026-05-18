@@ -209,7 +209,8 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
 export const getAssignableUsers = asyncHandler(async (req, res) => {
   const { department } = req.query;
-  const users = await listAssignableUsers(department);
+  requireCompanyId(req);
+  const users = await listAssignableUsers(department, req.user.companyId);
   res.json(users);
 });
 
