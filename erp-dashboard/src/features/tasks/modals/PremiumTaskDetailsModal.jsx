@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Play,
-  Pause,
   CheckCircle2,
   Lock,
   Eye,
@@ -40,9 +39,7 @@ export default function PremiumTaskDetailsModal({
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState(null);
   const [timelineData, setTimelineData] = useState([]);
-  const [pauseReason, setPauseReason] = useState('');
   const [blockReason, setBlockReason] = useState('');
-  const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
@@ -324,14 +321,6 @@ export default function PremiumTaskDetailsModal({
           {task.executionStatus === 'in_progress' && (
             <>
               <button
-                onClick={() => setShowPauseDialog(true)}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50 transition-colors font-medium"
-              >
-                <Pause size={16} />
-                Pause
-              </button>
-              <button
                 onClick={() => handleExecutionAction('complete')}
                 disabled={isLoading}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
@@ -375,40 +364,6 @@ export default function PremiumTaskDetailsModal({
           )}
         </div>
       </div>
-
-      {/* Pause Dialog */}
-      {showPauseDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Pause Task</h3>
-            <textarea
-              value={pauseReason}
-              onChange={(e) => setPauseReason(e.target.value)}
-              placeholder="Why are you pausing?"
-              className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white resize-none"
-              rows="3"
-            />
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setShowPauseDialog(false)}
-                className="flex-1 px-4 py-2 rounded-lg bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  handleExecutionAction('pause', { reason: pauseReason });
-                  setShowPauseDialog(false);
-                  setPauseReason('');
-                }}
-                className="flex-1 px-4 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 transition-colors font-medium"
-              >
-                Pause
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Block Dialog */}
       {showBlockDialog && (
