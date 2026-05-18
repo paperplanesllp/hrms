@@ -11,19 +11,19 @@ export default function AppLayout() {
   useNewsNotifications();
 
   return (
-    <div className="app-shell-premium flex flex-col lg:flex-row transition-colors duration-300 ease-smooth">
+    <div className="app-shell-premium flex min-h-dvh w-full flex-col overflow-hidden lg:h-dvh lg:flex-row transition-colors duration-300 ease-smooth">
       {/* Sidebar */}
       <RoleBasedSidebar open={open} setOpen={setOpen} />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex min-h-0 flex-1 flex-col min-w-0">
         {/* Header */}
         <HeaderBar onMenu={() => setOpen(true)} />
 
         {/* Content Wrapper - Only this scrolls, not the sidebar */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="min-h-full p-4 md:p-6 lg:p-8 bg-transparent transition-colors duration-300 ease-smooth">
-            <div className="mx-auto max-w-7xl">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="min-h-full bg-transparent p-3 transition-colors duration-300 ease-smooth sm:p-4 md:p-6 xl:p-8">
+            <div className="mx-auto w-full max-w-[1800px] min-w-0">
               <Outlet />
             </div>
           </div>

@@ -64,7 +64,7 @@ export default function DigitalClock() {
   }, []);
 
   return (
-    <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-white/45 bg-gradient-to-br from-white/75 via-white/45 to-emerald-50/35 px-4 py-2.5 shadow-[0_18px_45px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-2xl transition-all duration-300 ease-smooth hover:-translate-y-0.5 hover:scale-[1.01] hover:border-emerald-200/70 hover:shadow-[0_22px_55px_rgba(15,23,42,0.16),0_0_28px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-white/10 dark:from-slate-900/80 dark:via-slate-800/55 dark:to-emerald-950/35 dark:shadow-[0_18px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] dark:hover:border-emerald-400/30 dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42),0_0_30px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] group">
+    <div className="relative flex max-w-[18rem] items-center gap-3 overflow-hidden rounded-2xl border border-white/45 bg-gradient-to-br from-white/75 via-white/45 to-emerald-50/35 px-3 py-2 shadow-[0_18px_45px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-2xl transition-all duration-300 ease-smooth hover:-translate-y-0.5 hover:scale-[1.01] hover:border-emerald-200/70 hover:shadow-[0_22px_55px_rgba(15,23,42,0.16),0_0_28px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-white/10 dark:from-slate-900/80 dark:via-slate-800/55 dark:to-emerald-950/35 dark:shadow-[0_18px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] dark:hover:border-emerald-400/30 dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42),0_0_30px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] group md:px-4 md:py-2.5">
       <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-emerald-300/30 blur-2xl dark:bg-emerald-400/15" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20" />
       {/* Clock Icon */}
@@ -73,14 +73,14 @@ export default function DigitalClock() {
       </div>
       
       {/* Time & Date Display */}
-      <div className="relative flex flex-col items-start gap-0.5">
+      <div className="relative flex min-w-0 flex-col items-start gap-0.5">
         {/* Time with AM/PM */}
-        <span className={`font-mono text-sm font-extrabold leading-tight tracking-wide drop-shadow-sm ${colorClass}`}>
+        <span className={`font-mono text-xs font-extrabold leading-tight tracking-wide drop-shadow-sm md:text-sm ${colorClass}`}>
           {time || "12:00 pm"}
         </span>
         
         {/* Full Date */}
-        <span className="text-xs font-semibold leading-tight text-slate-600/90 dark:text-slate-300/90">
+        <span className="hidden max-w-44 truncate text-xs font-semibold leading-tight text-slate-600/90 dark:text-slate-300/90 md:block">
           {dateInfo || "Loading..."}
         </span>
       </div>

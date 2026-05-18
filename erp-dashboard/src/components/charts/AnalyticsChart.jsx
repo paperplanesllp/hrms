@@ -67,17 +67,23 @@ function PremiumChartCard({ title, subtitle, lastUpdated, children }) {
   const [timeAgo, setTimeAgo] = useState("");
 
   useEffect(() => {
-    if (!lastUpdated) return;
+    const timeout = window.setTimeout(() => {
+      if (!lastUpdated) {
+        setTimeAgo("");
+        return;
+      }
 
-    const diff = Math.floor((Date.now() - new Date(lastUpdated)) / 60000);
-    if (diff < 1) setTimeAgo("just now");
-    else setTimeAgo(`${diff} min ago`);
+      const diff = Math.floor((Date.now() - new Date(lastUpdated)) / 60000);
+      setTimeAgo(diff < 1 ? "just now" : `${diff} min ago`);
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [lastUpdated]);
 
   return (
-    <Card className="p-6 bg-white border shadow-lg rounded-3xl border-slate-200">
-      <div className="flex items-start justify-between mb-6">
-        <div>
+    <Card className="p-4 bg-white border shadow-lg rounded-3xl border-slate-200 sm:p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           {subtitle && (
             <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
@@ -85,7 +91,7 @@ function PremiumChartCard({ title, subtitle, lastUpdated, children }) {
         </div>
 
         {lastUpdated && (
-          <div className="flex items-center gap-1 text-xs text-slate-500">
+          <div className="flex flex-shrink-0 items-center gap-1 text-xs text-slate-500">
             <Clock className="w-3.5 h-3.5" />
             {timeAgo}
           </div>
@@ -103,7 +109,7 @@ STAT BLOCK
 
 function StatBlock({ label, value }) {
   return (
-    <div className="p-4 border rounded-xl bg-slate-50">
+    <div className="min-w-0 p-4 border rounded-xl bg-slate-50">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
     </div>
@@ -148,6 +154,7 @@ export function AttendanceTrendChart({
       subtitle="Weekly attendance overview"
       lastUpdated={lastUpdated}
     >
+      <div className="responsive-chart">
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -191,8 +198,9 @@ export function AttendanceTrendChart({
           />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
 
-      <div className="grid grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-2 gap-3 mt-6 sm:grid-cols-4 sm:gap-4">
         <StatBlock label="Present" value={totalPresent} />
         <StatBlock label="Short Hours" value={totalLate} />
         <StatBlock label="Half Day" value={totalHalfDay} />
@@ -227,6 +235,7 @@ export function DepartmentComparisonChart({
       subtitle="Department performance metrics"
       lastUpdated={lastUpdated}
     >
+      <div className="responsive-chart">
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -242,6 +251,7 @@ export function DepartmentComparisonChart({
           <Bar dataKey="productivity" fill={CHART_THEME.purple} />
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </PremiumChartCard>
   );
 }
@@ -290,6 +300,7 @@ export function PayrollDistributionChart({
       subtitle="Payroll breakdown"
       lastUpdated={lastUpdated}
     >
+      <div className="responsive-chart">
       <ResponsiveContainer width="100%" height={250}>
         <PieChart>
           <Pie
@@ -307,6 +318,7 @@ export function PayrollDistributionChart({
           </Pie>
         </PieChart>
       </ResponsiveContainer>
+      </div>
     </PremiumChartCard>
   );
 }
@@ -336,6 +348,7 @@ export function LeaveAnalyticsChart({
       subtitle="Weekly leave requests"
       lastUpdated={lastUpdated}
     >
+      <div className="responsive-chart">
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -368,6 +381,7 @@ export function LeaveAnalyticsChart({
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </PremiumChartCard>
   );
 }
@@ -384,7 +398,7 @@ export function KPICard({
   trendDirection = "up",
 }) {
   return (
-    <div className="p-6 bg-white border shadow-md rounded-2xl border-slate-200">
+    <div className="min-w-0 p-4 bg-white border shadow-md rounded-2xl border-slate-200 sm:p-6">
       <p className="text-xs uppercase text-slate-500">{title}</p>
 
       <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>

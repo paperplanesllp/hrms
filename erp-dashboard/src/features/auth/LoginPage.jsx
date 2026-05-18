@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../../lib/api.js";
 import Button from "../../components/ui/Button.jsx";
 import Input from "../../components/ui/Input.jsx";
-import { isAuthed, setSession } from "../../store/authStore.js";
+import { setSession } from "../../store/authStore.js";
 import { toast } from "../../store/toastStore.js";
 import OTPVerification from "./OTPVerification.jsx";
 
@@ -11,7 +11,6 @@ import OTPVerification from "./OTPVerification.jsx";
 import videoBg from "../../../../assets/Videos/video.mp4";
 
 export default function LoginPage() {
-  const authed = isAuthed();
   const navigate = useNavigate();
 
   const [authMode, setAuthMode] = useState("employee");
@@ -303,7 +302,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="relative z-10 flex min-h-screen items-start justify-center px-5 py-10 sm:px-8 lg:px-10">
+        <div className="relative z-10 flex min-h-screen items-start justify-center px-4 py-8 sm:px-8 sm:py-10 lg:px-10">
           <div className="w-full max-w-md">
             {/* Mobile top header */}
             <div className="mb-8 lg:hidden">
@@ -313,7 +312,7 @@ export default function LoginPage() {
             </div>
 
             {/* Glass card */}
-            <div className="rounded-3xl border border-emerald-100/70 bg-white/80 p-7 shadow-[0_26px_90px_rgba(6,78,59,0.16)] backdrop-blur-2xl sm:p-8 dark:border-emerald-300/10 dark:bg-slate-950/35 dark:shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
+            <div className="rounded-3xl border border-emerald-100/70 bg-white/80 p-5 shadow-[0_26px_90px_rgba(6,78,59,0.16)] backdrop-blur-2xl sm:p-8 dark:border-emerald-300/10 dark:bg-slate-950/35 dark:shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
               <div className="mb-8">
                 <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                   Sign In
@@ -381,7 +380,7 @@ export default function LoginPage() {
                         required
                       />
 
-                      <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
@@ -608,7 +607,7 @@ export default function LoginPage() {
                   required
                 />
 
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     type="button"
                     onClick={() => {

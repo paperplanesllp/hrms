@@ -60,6 +60,8 @@
 
   body {
     min-height: 100vh;
+    min-width: 0;
+    overflow-x: hidden;
     background:
       radial-gradient(circle at 12% 8%, rgba(20, 184, 166, 0.22), transparent 28rem),
       radial-gradient(circle at 88% 6%, rgba(16, 185, 129, 0.16), transparent 26rem),
@@ -70,6 +72,24 @@
     line-height: 1.55;
     font-weight: 400;
     letter-spacing: 0;
+  }
+
+  html,
+  #root {
+    min-width: 0;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  *, *::before, *::after {
+    min-width: 0;
   }
 
   .dark body {
@@ -410,6 +430,7 @@
   .glass-card {
     overflow: hidden;
     border-radius: 1.5rem;
+    max-width: 100%;
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease, filter 220ms ease;
   }
 
@@ -474,6 +495,7 @@
   }
 
   .glass-input {
+    max-width: 100%;
     border: 1px solid var(--theme-border);
     background: rgba(255, 255, 255, 0.64);
     color: var(--text-main);
@@ -512,8 +534,141 @@
   }
 
   .glass-table {
+    width: 100%;
+    max-width: 100%;
     overflow: hidden;
     border-radius: 1.25rem;
+  }
+
+  .responsive-table-shell,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+  }
+
+  .responsive-table-shell table,
+  .overflow-x-auto > table {
+    width: 100%;
+  }
+
+  .responsive-table-shell th,
+  .responsive-table-shell td {
+    vertical-align: middle;
+  }
+
+  .responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 1rem;
+  }
+
+  .responsive-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .responsive-actions > * {
+    max-width: 100%;
+  }
+
+  .responsive-chart {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-modal-panel {
+    width: min(100%, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 1.5rem);
+    overflow: hidden;
+  }
+
+  .app-shell-premium main,
+  .app-shell-premium section,
+  .app-shell-premium article,
+  .app-shell-premium form,
+  .app-shell-premium header,
+  .app-shell-premium nav {
+    min-width: 0;
+  }
+
+  .app-shell-premium .recharts-responsive-container {
+    min-width: 0;
+  }
+
+  @media (max-width: 640px) {
+    body {
+      font-size: 15px;
+    }
+
+    .app-shell-premium {
+      background-size: auto;
+    }
+
+    .glass-panel,
+    .glass-card,
+    .glass-modal,
+    .glass-table {
+      border-radius: 1.125rem;
+      box-shadow:
+        0 12px 30px var(--theme-shadow),
+        0 0 18px var(--theme-glow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36);
+    }
+
+    .glass-card-hover:hover,
+    button:not(.glass-btn):not([class*="ql-"]):hover:not(:disabled),
+    .glass-btn:hover:not(:disabled),
+    .glass-theme-toggle:hover {
+      transform: none;
+    }
+
+    .theme-page-title,
+    .premium-page-title {
+      line-height: 1.12;
+    }
+
+    .theme-page-subtitle,
+    .theme-body-text {
+      line-height: 1.55;
+    }
+
+    .glass-btn {
+      min-height: 2.75rem;
+      padding-inline: 0.875rem;
+    }
+
+    .glass-icon-btn,
+    .glass-theme-toggle {
+      width: 2.5rem;
+      height: 2.5rem;
+      min-width: 2.5rem;
+      min-height: 2.5rem;
+      border-radius: 0.875rem;
+    }
+
+    .glass-input {
+      min-height: 2.75rem;
+      font-size: 1rem;
+    }
+
+    .responsive-table-shell,
+    .overflow-x-auto {
+      max-width: 100%;
+    }
+
+    .responsive-table-shell table,
+    .overflow-x-auto > table {
+      min-width: 42rem;
+    }
+
+    table th,
+    table td {
+      white-space: nowrap;
+    }
   }
 
   .glass-badge {

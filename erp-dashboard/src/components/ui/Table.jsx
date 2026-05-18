@@ -8,15 +8,15 @@ export default function Table({
   striped = true 
 }) {
   return (
-    <div className="glass-table overflow-x-auto">
-      <table className="w-full theme-table-text">
+    <div className="glass-table responsive-table-shell overflow-x-auto">
+      <table className="w-full min-w-[42rem] theme-table-text">
         <thead className="border-b theme-border bg-white/45 dark:bg-slate-900/35">
           <tr>
             {columns.map((c) => (
               <th
                 key={c}
                 className={`text-left theme-table-heading ${
-                  compact ? "px-4 py-3" : "px-6 py-4"
+                  compact ? "px-3 py-3 sm:px-4" : "px-3 py-3 sm:px-6 sm:py-4"
                 }`}
               >
                 {c}
@@ -49,7 +49,7 @@ export function TableCell({ children, className = "", compact = false, align = "
   }[align];
 
   return (
-    <td className={`theme-table-text ${compact ? "px-4 py-3" : "px-6 py-4"} ${alignClass} ${className}`}>
+    <td className={`theme-table-text whitespace-nowrap ${compact ? "px-3 py-3 sm:px-4" : "px-3 py-3 sm:px-6 sm:py-4"} ${alignClass} ${className}`}>
       {children}
     </td>
   );

@@ -3,6 +3,17 @@ import { useAuthStore } from "../../store/authStore.js";
 
 export default function SidebarProfile() {
   const user = useAuthStore((s) => s.user);
+  const displayName = user?.firstName || user?.name || "User";
+  const profileImageUrl =
+    user?.profileImageUrl ||
+    user?.profileImage ||
+    user?.profilePhoto ||
+    user?.avatar ||
+    user?.photo ||
+    user?.picture ||
+    user?.image ||
+    "";
+  const avatarInitial = (displayName || "U").charAt(0).toUpperCase();
 
   return (
     <div className="glass-panel rounded-3xl p-4">
@@ -11,12 +22,21 @@ export default function SidebarProfile() {
 
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-white border rounded-2xl shadow-[0_12px_28px_rgba(16,185,129,0.24)] bg-gradient-to-br from-emerald-400 to-emerald-600 border-emerald-200/40">
-            {(user?.name || user?.firstName || "U").charAt(0).toUpperCase()}
+          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-emerald-200/50 bg-gradient-to-br from-emerald-400 to-teal-600 text-sm font-bold text-white shadow-[0_14px_32px_rgba(16,185,129,0.26)] ring-2 ring-white/65 transition-all duration-300 dark:border-emerald-300/20 dark:ring-white/10">
+            {profileImageUrl ? (
+              <img
+                src={profileImageUrl}
+                alt={`${displayName} profile`}
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span>{avatarInitial}</span>
+            )}
           </div>
 
           {/* Online status — current user is always online while viewing */}
-          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-white dark:border-slate-900 bg-green-500 ring-2 ring-green-400/30 transition-colors duration-300" />
+          <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.18)] transition-colors duration-300 dark:border-slate-950 dark:bg-emerald-300" />
         </div>
 
         {/* User Info */}
@@ -24,7 +44,7 @@ export default function SidebarProfile() {
           
           {/* Name */}
           <p className="text-sm font-semibold truncate theme-text-primary">
-            {user?.firstName || user?.name || "User"}
+            {displayName}
           </p>
 
           {/* Email */}

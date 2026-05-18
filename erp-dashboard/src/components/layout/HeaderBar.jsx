@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Menu, LogOut, Sun, Moon } from "lucide-react";
 import NotificationCenter from "../ui/NotificationCenter.jsx";
 import DigitalClock from "../ui/DigitalClock.jsx";
@@ -13,7 +13,6 @@ import { ROLES } from "../../app/constants.js";
 
 export default function HeaderBar({ onMenu }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { isDark, toggleTheme } = useTheme();
   const showDashboardWeather =
@@ -41,9 +40,9 @@ export default function HeaderBar({ onMenu }) {
   };
   return (
     <header className="glass-navbar sticky top-0 z-30 border-x-0 border-t-0 rounded-none transition-all duration-300 ease-smooth">    
-      <div className="flex items-center justify-between h-16 px-4 md:px-8 lg:px-10">
+      <div className="flex min-h-16 items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-4 md:px-6 lg:px-8 xl:px-10">
         {/* LEFT SIDE */}
-        <div className="flex items-center gap-4">         
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">         
           {/* Mobile Menu Button */}
           <button
             onClick={onMenu}
@@ -54,7 +53,9 @@ export default function HeaderBar({ onMenu }) {
           </button>
 
           {/* Digital Clock */}
-          <DigitalClock />
+          <div className="hidden sm:block min-w-0">
+            <DigitalClock />
+          </div>
 
           {/* Dashboard-only compact weather */}
           {showDashboardWeather && <CompactWeatherWidget />}
@@ -62,7 +63,7 @@ export default function HeaderBar({ onMenu }) {
         </div>
 
         {/* RIGHT SIDE */}
-        <div className="flex items-center gap-4 md:gap-6">
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3 md:gap-5">
 
           {/* Divider */}
           <div className="hidden w-px h-6 md:block bg-slate-300/70 dark:bg-white/10" />

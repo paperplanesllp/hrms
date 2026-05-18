@@ -11,7 +11,7 @@ import Button from "./Button.jsx";
  */
 export default function NotificationCenter() {
   const navigate = useNavigate();
-  const { notifications, loading, fetchNotifications, markAsRead, markAllAsRead, getUnreadCount, getPolicyNotifications } = useNotificationStore();
+  const { notifications, fetchNotifications, markAsRead, markAllAsRead, getUnreadCount, getPolicyNotifications } = useNotificationStore();
   const [open, setOpen] = useState(false);
 
   const unreadCount = getUnreadCount();
@@ -19,7 +19,7 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [fetchNotifications]);
 
   const handleNotificationClick = (notif) => {
     navigate(notif.targetUrl);
@@ -51,21 +51,6 @@ export default function NotificationCenter() {
     }
   };
 
-  const getNotificationColor = (type) => {
-    switch (type) {
-      case "success":
-        return "bg-[#E6F4EA] border-[#137333]";
-      case "error":
-        return "bg-[#FCE8E6] border-[#C5221F]";
-      case "warning":
-        return "bg-orange-50 border-orange-400";
-      case "policy":
-        return "bg-red-50 border-red-400";
-      default:
-        return "bg-[#F6FAFD] border-[#B3CFE5]";
-    }
-  };
-
   return (
     <div className="relative">
       {/* Bell Icon Button */}
@@ -86,7 +71,7 @@ export default function NotificationCenter() {
 
       {/* Dropdown Panel */}
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border border-teal-200/50 bg-white/90 shadow-[0_24px_70px_rgba(15,23,42,0.18)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/82 dark:shadow-[0_28px_80px_rgba(0,0,0,0.48)]">
+        <div className="fixed inset-x-3 top-16 z-50 max-h-[calc(100dvh-5rem)] overflow-hidden rounded-3xl border border-teal-200/50 bg-white/90 shadow-[0_24px_70px_rgba(15,23,42,0.18)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/82 dark:shadow-[0_28px_80px_rgba(0,0,0,0.48)] sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]">
           {/* Header */}
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-teal-100/80 bg-white/88 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/88">
             <div>
@@ -116,7 +101,7 @@ export default function NotificationCenter() {
               </p>
             </div>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-[calc(100dvh-13rem)] overflow-y-auto sm:max-h-96">
               {/* Clear All Button */}
               <div className="border-b border-teal-100/70 bg-teal-50/35 p-4 dark:border-white/10 dark:bg-white/5">
                 <Button

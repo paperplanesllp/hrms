@@ -114,17 +114,17 @@ export default function RoleBasedSidebar({ open, setOpen }) {
 
       {/* Sidebar */}
       <aside
-        className={`glass-sidebar fixed z-50 lg:sticky top-0 left-0 h-screen w-72 border-y-0 border-l-0 rounded-none transition-all duration-300 ease-smooth flex flex-col lg:translate-x-0 ${
+        className={`glass-sidebar fixed z-50 lg:sticky top-0 left-0 h-dvh w-[min(18rem,calc(100vw-1rem))] max-w-full border-y-0 border-l-0 rounded-none transition-all duration-300 ease-smooth flex flex-col lg:h-dvh lg:w-72 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Sidebar Header - Profile */}
-        <div className="p-6 border-b theme-border">
+        <div className="border-b theme-border p-4 sm:p-5 lg:p-6">
           <SidebarProfile />
         </div>
 
         {/* Navigation - Scrollable */}
-        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 sm:py-4">
           <NavSection items={mainLinks} />
           <div className="my-2 border-t theme-border" />
           <NavSection title="Work" items={workLinks} />

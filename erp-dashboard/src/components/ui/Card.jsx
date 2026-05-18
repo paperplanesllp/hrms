@@ -9,8 +9,8 @@ export default function Card({
   ...props
 }) {
   const baseClasses = elevated
-    ? "glass-card glass-card-hover shadow-elevation-2"
-    : "glass-card glass-card-hover shadow-elevation-1";
+    ? "glass-card glass-card-hover min-w-0 shadow-elevation-2"
+    : "glass-card glass-card-hover min-w-0 shadow-elevation-1";
 
   const interactiveClasses = interactive 
     ? "cursor-pointer active:scale-[0.98] transition-all duration-300 ease-smooth" 

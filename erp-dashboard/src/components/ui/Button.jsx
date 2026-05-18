@@ -30,7 +30,7 @@ const Button = ({
     <button
       onClick={onClick}
       className={`
-        inline-flex items-center justify-center 
+        inline-flex max-w-full items-center justify-center whitespace-normal break-words text-center 
         theme-button-text
         ${variants[variant] || variants.primary}
         ${sizes[size] || sizes.md}
