@@ -39,6 +39,14 @@ function statusTone(status) {
   return "text-red-600 dark:text-red-400";
 }
 
+function statusBadgeTone(status) {
+  if (status === "PRESENT") return "border-green-200 bg-green-50 text-green-700 dark:border-green-800/70 dark:bg-green-900/30 dark:text-green-300";
+  if (status === "SHORT_HOURS") return "border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800/70 dark:bg-yellow-900/30 dark:text-yellow-300";
+  if (status === "HALF_DAY") return "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/70 dark:bg-indigo-900/30 dark:text-indigo-300";
+  if (status === "HOLIDAY") return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-900/30 dark:text-sky-300";
+  return "border-red-200 bg-red-50 text-red-700 dark:border-red-800/70 dark:bg-red-900/30 dark:text-red-300";
+}
+
 export default function CalendarPage() {
   const user = useAuthStore((s) => s.user);
   const canManagePublicHolidays = user?.role === ROLES.ADMIN || user?.role === ROLES.HR;
@@ -240,14 +248,14 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="min-h-screen px-6 py-8 space-y-10 bg-gradient-to-br from-[#f7f9fc] via-white to-[#eef3fb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden px-3 py-4 space-y-5 bg-gradient-to-br from-[#f7f9fc] via-white to-[#eef3fb] dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 sm:px-4 sm:py-6 sm:space-y-6 lg:px-6 lg:py-8 lg:space-y-10">
       <PageTitle
         title="Attendance Calendar"
         subtitle="Track attendance, events and productivity"
         icon={Calendar}
       />
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5 lg:gap-6">
         <StatCard title="Present" value={presentDays} icon={<Check size={22} />} color="green" />
         <StatCard title="Short Hours" value={shortHoursDays} icon={<Clock size={22} />} color="orange" />
         <StatCard title="Half Day" value={halfDayDays} icon={<Clock size={22} />} color="purple" />
@@ -255,21 +263,21 @@ export default function CalendarPage() {
         <StatCard title="Attendance" value={`${percentage}%`} icon={"★"} color="purple" />
       </div>
 
-      <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{monthName}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Click a date to see details</p>
+      <Card className="overflow-hidden p-3 bg-white/90 dark:bg-slate-900/90 border shadow-xl rounded-2xl border-slate-200 dark:border-slate-700 backdrop-blur-xl sm:p-4 md:p-6 md:rounded-3xl">
+        <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between md:mb-6">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold truncate text-slate-800 dark:text-white sm:text-xl md:text-2xl">{monthName}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">Click a date to see details</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => changeMonth(-1)} className="p-2 transition rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+            <button onClick={() => changeMonth(-1)} className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-9 sm:w-9" aria-label="Previous month">
               <ChevronLeft size={18} className="dark:text-slate-300" />
             </button>
-            <button onClick={goToToday} className="px-4 py-2 text-sm font-semibold text-indigo-700 rounded-xl bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30">
+            <button onClick={goToToday} className="min-w-0 flex-1 px-3 py-2 text-xs font-semibold text-indigo-700 rounded-xl bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/40 sm:flex-none sm:px-4 sm:text-sm">
               Today
             </button>
-            <button onClick={() => changeMonth(1)} className="p-2 transition rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700">
+            <button onClick={() => changeMonth(1)} className="flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-slate-100 dark:hover:bg-slate-700 sm:h-9 sm:w-9" aria-label="Next month">
               <ChevronRight size={18} className="dark:text-slate-300" />
             </button>
           </div>
@@ -281,15 +289,15 @@ export default function CalendarPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-7 mb-4 text-xs font-semibold tracking-wide text-center uppercase text-slate-500 dark:text-slate-400">
+            <div className="grid grid-cols-7 gap-1 mb-2 text-[10px] font-semibold tracking-wide text-center uppercase text-slate-500 dark:text-slate-400 sm:mb-3 sm:text-xs md:mb-4">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                <div key={d}>{d}</div>
+                <div key={d} className="truncate px-0.5 py-1 sm:py-1.5">{d}</div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3">
               {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={i} />
+                <div key={i} className="min-h-[58px] sm:min-h-[76px] md:min-h-[104px]" />
               ))}
 
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -305,7 +313,7 @@ export default function CalendarPage() {
                 const displayStatus = isPublicHoliday ? "HOLIDAY" : status?.status;
                 const displayEventName = status?.eventName || publicHolidayEvent?.title;
 
-                const weekendBgClass = isWeekend ? "bg-slate-50 dark:bg-slate-800/50 opacity-60" : "bg-white dark:bg-slate-800";
+                const weekendBgClass = isWeekend ? "bg-slate-50/90 dark:bg-slate-800/50 opacity-80" : "bg-white/90 dark:bg-slate-800/90";
                 const weekendBorderClass = isWeekend ? "border-slate-300 dark:border-slate-600" : "border-slate-200 dark:border-slate-700";
 
                 return (
@@ -314,44 +322,45 @@ export default function CalendarPage() {
                     onMouseEnter={() => setHoveringDate(day)}
                     onMouseLeave={() => setHoveringDate(null)}
                     onClick={() => handleDayClick(day)}
-                    className={`relative group p-3 transition border shadow-sm cursor-pointer rounded-xl hover:shadow-lg hover:-translate-y-[2px] dark:hover:shadow-slate-700/50 ${weekendBgClass} ${weekendBorderClass}`}
+                    className={`relative group min-h-[58px] overflow-hidden p-1 transition border shadow-sm cursor-pointer rounded-lg hover:shadow-md dark:hover:shadow-slate-700/50 sm:min-h-[76px] sm:p-2 sm:hover:-translate-y-[2px] md:min-h-[104px] md:p-3 md:rounded-xl ${weekendBgClass} ${weekendBorderClass}`}
                   >
-                    <div className="flex items-start justify-between mb-1">
-                      <div className="font-semibold text-slate-800 dark:text-slate-100">{day}</div>
+                    <div className="flex items-start justify-between gap-1 mb-0.5 sm:mb-1">
+                      <div className="text-xs font-bold leading-none text-slate-800 dark:text-slate-100 sm:text-sm md:text-base">{day}</div>
                       {isWeekend && (
-                        <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
-                          Week Off
+                        <div className="max-w-[34px] truncate rounded bg-slate-100 px-1 py-0.5 text-[8px] font-semibold leading-none text-slate-500 dark:bg-slate-700 dark:text-slate-300 sm:max-w-none sm:px-1.5 sm:text-[10px] md:px-2 md:text-xs">
+                          <span className="sm:hidden">Off</span>
+                          <span className="hidden sm:inline">Week Off</span>
                         </div>
                       )}
                     </div>
 
                     {status?.checkIn && (
-                      <div className="flex items-center gap-1 mt-1 text-xs text-green-600">
-                        <span className="w-2 h-2 bg-green-500 rounded-full" />
-                        {status.checkIn}
+                      <div className="flex min-w-0 items-center gap-1 mt-1 text-[9px] leading-tight text-green-700 dark:text-green-300 sm:text-[11px] md:text-xs">
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-green-500 sm:h-2 sm:w-2" />
+                        <span className="truncate">{status.checkIn}</span>
                       </div>
                     )}
 
                     {displayEventName && (
-                      <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">{displayEventName}</div>
+                      <div className="mt-1 truncate text-[9px] font-medium leading-tight text-blue-600 dark:text-blue-300 sm:text-[11px] md:text-xs">{displayEventName}</div>
                     )}
 
                     {displayStatus === "ABSENT" && !isWeekend && (
-                      <div className="mt-1 text-xs text-red-500">Absent</div>
+                      <div className={`mt-1 inline-flex max-w-full truncate rounded-full border px-1.5 py-0.5 text-[8px] font-semibold leading-none sm:text-[10px] md:text-xs ${statusBadgeTone(displayStatus)}`}>Absent</div>
                     )}
 
                     {displayStatus === "HOLIDAY" && !isWeekend && (
-                      <div className="mt-1 text-xs text-sky-600 dark:text-sky-400">Holiday</div>
+                      <div className={`mt-1 inline-flex max-w-full truncate rounded-full border px-1.5 py-0.5 text-[8px] font-semibold leading-none sm:text-[10px] md:text-xs ${statusBadgeTone(displayStatus)}`}>Holiday</div>
                     )}
 
                     {dayEvents.length > 0 && (
-                      <div className="mt-1 text-xs text-purple-600 dark:text-purple-400">
+                      <div className="mt-1 truncate text-[9px] font-medium leading-tight text-purple-600 dark:text-purple-300 sm:text-[11px] md:text-xs">
                         {dayEvents.length} event{dayEvents.length > 1 ? "s" : ""}
                       </div>
                     )}
 
                     {hoveringDate === day && (
-                      <div className="absolute z-30 w-64 mb-3 transition duration-150 ease-out -translate-x-1/2 pointer-events-none left-1/2 bottom-full">
+                      <div className="absolute z-30 hidden w-64 mb-3 transition duration-150 ease-out -translate-x-1/2 pointer-events-none left-1/2 bottom-full sm:block">
                         <div className="absolute w-3 h-3 rotate-45 -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 -bottom-1 left-1/2" />
 
                         <div className={`p-4 space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-xl ${isWeekend ? "opacity-75" : ""}`}>
@@ -413,7 +422,7 @@ export default function CalendarPage() {
         )}
       </Card>
 
-      <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
+      <Card className="p-3 bg-white/90 dark:bg-slate-900/90 border shadow-xl rounded-2xl border-slate-200 dark:border-slate-700 backdrop-blur-xl sm:p-4 md:p-6 md:rounded-3xl">
         <div className="overflow-x-auto">
           <div className="flex gap-1 pb-2">
             {heatmapData.slice(-84).map((day, idx) => {
@@ -439,8 +448,8 @@ export default function CalendarPage() {
       </Card>
 
       {upcomingEvents.length > 0 && (
-        <Card className="p-6 bg-white dark:bg-slate-900 border shadow-xl rounded-3xl border-slate-200 dark:border-slate-700">
-          <div className="mb-6">
+        <Card className="p-3 bg-white/90 dark:bg-slate-900/90 border shadow-xl rounded-2xl border-slate-200 dark:border-slate-700 backdrop-blur-xl sm:p-4 md:p-6 md:rounded-3xl">
+          <div className="mb-4 md:mb-6">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upcoming Events</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">{upcomingEvents.length} upcoming events</p>
           </div>
@@ -470,8 +479,8 @@ export default function CalendarPage() {
       )}
 
       {showEventModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <Card className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 backdrop-blur-sm sm:p-4">
+          <Card className="w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto p-4 space-y-4 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl sm:p-6 sm:space-y-5 md:p-8 md:space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold dark:text-white">Create Event</h2>
               <button onClick={() => setShowEventModal(false)} className="dark:text-slate-300">
@@ -493,7 +502,7 @@ export default function CalendarPage() {
               className="w-full px-4 py-3 border rounded-xl bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <input
                 type="date"
                 value={eventForm.date}
@@ -514,7 +523,7 @@ export default function CalendarPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <select
                 value={eventForm.color}
                 onChange={(e) => setEventForm({ ...eventForm, color: e.target.value })}
@@ -537,7 +546,7 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">Start Time</label>
                 <input
@@ -569,7 +578,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <div className="fixed bottom-8 right-8">
+      <div className="fixed bottom-4 right-4 z-30 sm:bottom-6 sm:right-6 lg:bottom-8 lg:right-8">
         <button
           onClick={() => {
             setEventForm((prev) => ({
@@ -579,10 +588,10 @@ export default function CalendarPage() {
             }));
             setShowEventModal(true);
           }}
-          className="flex items-center gap-2 px-6 py-4 font-semibold text-white transition rounded-full shadow-xl bg-gradient-to-r from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 hover:shadow-2xl dark:hover:shadow-indigo-900/50 hover:scale-105"
+          className="flex items-center gap-2 px-4 py-3 font-semibold text-white transition rounded-full shadow-xl bg-gradient-to-r from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 hover:shadow-2xl dark:hover:shadow-indigo-900/50 hover:scale-105 sm:px-6 sm:py-4"
         >
           <Plus size={20} />
-          New Event
+          <span className="hidden sm:inline">New Event</span>
         </button>
       </div>
 
@@ -594,9 +603,9 @@ export default function CalendarPage() {
           />
 
           <div className="fixed top-0 right-0 z-50 w-full h-screen max-w-md overflow-y-auto transition-transform duration-300 ease-out transform translate-x-0 bg-white dark:bg-slate-900 shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between p-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Worksheet</h2>
+            <div className="sticky top-0 flex items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 sm:p-6">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">Worksheet</h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {selectedDate &&
                     new Date(selectedDate).toLocaleDateString("en-US", {
@@ -615,27 +624,27 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 space-y-4 sm:p-6 sm:space-y-6">
               {loadingWorksheet ? (
                 <div className="flex justify-center py-12">
                   <Spinner size="md" />
                 </div>
               ) : worksheetData ? (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="p-3 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20 sm:p-4">
                       <div className="mb-1 text-xs font-semibold tracking-wide text-green-700 dark:text-green-400 uppercase">Check In</div>
                       <div className="text-2xl font-bold text-green-900 dark:text-green-300">{worksheetData.checkIn || "—"}</div>
                     </div>
 
-                    <div className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <div className="p-3 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20 sm:p-4">
                       <div className="mb-1 text-xs font-semibold tracking-wide text-blue-700 dark:text-blue-400 uppercase">Check Out</div>
                       <div className="text-2xl font-bold text-blue-900 dark:text-blue-300">{worksheetData.checkOut || "—"}</div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="p-3 border border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-900/20 sm:p-4">
                       <div className="mb-1 text-xs font-semibold tracking-wide text-purple-700 dark:text-purple-400 uppercase">Total Hours</div>
                       <div className="text-2xl font-bold text-purple-900 dark:text-purple-300">
                         {worksheetData.totalHours
@@ -647,7 +656,7 @@ export default function CalendarPage() {
                     </div>
 
                     {worksheetData.status && (
-                      <div className="p-4 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+                      <div className="p-3 border border-indigo-200 dark:border-indigo-800 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 sm:p-4">
                         <div className="mb-1 text-xs font-semibold tracking-wide text-indigo-700 dark:text-indigo-400 uppercase">Status</div>
                         <div className={`text-xl font-bold capitalize ${statusTone(worksheetData.status)}`}>
                           {worksheetData.status}
@@ -741,14 +750,14 @@ function StatCard({ title, value, color, icon }) {
   };
 
   return (
-    <Card className="p-6 transition border shadow-lg rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:shadow-xl dark:hover:shadow-slate-700/50 hover:-translate-y-[2px]">
-      <div className="flex items-start justify-between">
-        <div>
+    <Card className="p-3 transition border shadow-lg rounded-2xl bg-white/90 dark:bg-slate-900/90 border-slate-200 dark:border-slate-700 backdrop-blur-xl hover:shadow-xl dark:hover:shadow-slate-700/50 sm:p-4 lg:p-6 lg:hover:-translate-y-[2px]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
           <div className="mb-1 text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">{title}</div>
-          <div className="text-3xl font-bold text-slate-800 dark:text-white">{value}</div>
+          <div className="text-xl font-bold text-slate-800 dark:text-white sm:text-2xl lg:text-3xl">{value}</div>
         </div>
 
-        <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${colors[color]}`}>
+        <div className={`w-9 h-9 flex flex-shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 lg:h-11 lg:w-11 ${colors[color]}`}>
           {icon}
         </div>
       </div>
