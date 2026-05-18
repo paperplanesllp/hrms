@@ -39,9 +39,11 @@ export default function TaskDetailsModal({
   const [showTimeline, setShowTimeline] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
   const [holdReason, setHoldReason] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [completionRemark, setCompletionRemark] = useState('');
+  const [pauseReason, setPauseReason] = useState('');
   const [selectedAssignees, setSelectedAssignees] = useState([]);
   const [timeline, setTimeline] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -322,6 +324,28 @@ export default function TaskDetailsModal({
     }
   };
 
+  const handlePauseTask = async () => {
+    if (!pauseReason.trim()) {
+      toast({ title: 'Pause reason is required', type: 'error' });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      await taskService.holdTask(task._id, pauseReason);
+      toast({ title: 'Task paused successfully', type: 'success' });
+      setShowPauseModal(false);
+      setPauseReason('');
+      if (onStatusChange) {
+        await onStatusChange(task._id, 'on-hold');
+      }
+    } catch (error) {
+      toast({ title: error.message || 'Failed to pause task', type: 'error' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleReassignTask = async () => {
     if (!selectedAssignees || selectedAssignees.length === 0) {
       toast({ title: 'Please select at least one assignee', type: 'error' });
@@ -404,6 +428,39 @@ export default function TaskDetailsModal({
   // Render workflow buttons based on status
   const renderWorkflowButtons = () => {
     const buttons = [];
+
+    // Blue Start/Pause button for pending and in-progress states
+    if (['pending', 'not-started'].includes(task.status)) {
+      buttons.push(
+        <Button
+          key="start"
+          onClick={() => {
+            // Start the task
+            if (onStatusChange) {
+              onStatusChange(task._id, 'in-progress');
+            }
+          }}
+          disabled={isLoading || isProcessing}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          ▶ Start
+        </Button>
+      );
+    }
+
+    // Pause button when in progress (blue button that opens modal)
+    if (task.status === 'in-progress') {
+      buttons.push(
+        <Button
+          key="pause"
+          onClick={() => setShowPauseModal(true)}
+          disabled={isLoading || isProcessing}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          ⏸ Pause
+        </Button>
+      );
+    }
 
     // All statuses can mark complete (except completed)
     if (task.status !== 'completed') {
@@ -1202,6 +1259,43 @@ export default function TaskDetailsModal({
                       className="bg-green-500 hover:bg-green-600"
                     >
                       {isProcessing ? 'Completing...' : 'Submit & Complete'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Pause Modal */}
+          {showPauseModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50">
+              <Card className="w-full max-w-md">
+                <div className="p-6 space-y-4">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Pause Task</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Why are you pausing this task?</p>
+                  <textarea
+                    value={pauseReason}
+                    onChange={(e) => setPauseReason(e.target.value)}
+                    placeholder="Enter pause reason..."
+                    className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows="4"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPauseModal(false);
+                        setPauseReason('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handlePauseTask}
+                      disabled={isProcessing || !pauseReason.trim()}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isProcessing ? 'Pausing...' : 'Pause Task'}
                     </Button>
                   </div>
                 </div>
