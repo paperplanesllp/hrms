@@ -143,8 +143,8 @@ const ComplaintCard = ({ complaint, isExpanded, onToggle }) => {
       {/* Content */}
       <div className="p-6 pt-4">
         {/* Message */}
-        <div className={`mb-4 p-4 rounded-2xl ${isDark ? "bg-slate-800/50 border border-slate-700/50" : "bg-slate-50/50 border border-slate-200/50"}`}>
-          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+        <div className="mb-4 p-4 rounded-2xl glass-panel">
+          <p className="text-sm leading-relaxed theme-text-secondary">
             {complaint.message}
           </p>
         </div>
@@ -178,8 +178,8 @@ const ComplaintCard = ({ complaint, isExpanded, onToggle }) => {
                 </p>
               </div>
             </div>
-            <div className={`p-4 mt-3 rounded-xl ${isDark ? "bg-slate-800/50 border border-slate-700/50" : "bg-white/80 border border-slate-200/50"}`}>
-              <p className={`text-sm leading-relaxed ${isDark ? "text-slate-100" : "text-slate-800"}`}>
+            <div className="p-4 mt-3 rounded-xl glass-panel">
+              <p className="text-sm leading-relaxed theme-text-primary">
                 {complaint.replyMessage}
               </p>
             </div>
@@ -296,7 +296,7 @@ export default function StaffComplaintsDashboard() {
   }
 
   return (
-    <div className={`min-h-screen pb-12 ${isDark ? "bg-gradient-to-br from-slate-900 via-slate-900/50 to-slate-950" : "bg-gradient-to-br from-slate-50 to-white"}`}>
+    <div className="min-h-screen pb-12 bg-transparent">
       <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
         {/* Header */}
         <div className="pt-8 pb-12">
@@ -322,9 +322,9 @@ export default function StaffComplaintsDashboard() {
         {/* Submission Form */}
         {showForm && (
           <div className="mb-12">
-            <Card className={`backdrop-blur-xl ${isDark ? "bg-white/5 border-white/20 shadow-2xl shadow-black/20" : "bg-white/80 border-slate-200 shadow-2xl shadow-slate-200/50"}`}>
+            <Card>
               <form onSubmit={handleSubmit} className="p-8">
-                <h2 className="mb-8 text-2xl font-bold text-transparent bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text">
+                <h2 className="mb-8 text-2xl font-bold theme-card-title">
                   Raise Ticket
                 </h2>
 
@@ -339,19 +339,13 @@ export default function StaffComplaintsDashboard() {
                   />
                   
                   <div>
-                    <label className="block mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    <label className="block mb-3 text-sm font-semibold theme-text-primary">
                       Category
                     </label>
                     <select 
                       value={formData.category}
                       onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      className={`
-                        w-full px-5 py-4 rounded-xl border-2 transition-all duration-300
-                        ${isDark 
-                          ? "bg-slate-800/50 border-slate-600/50 text-slate-100 placeholder-slate-400 hover:border-slate-500/70 focus:border-blue-500 focus:ring-blue-500/30" 
-                          : "bg-white/70 border-slate-200 text-slate-900 placeholder-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-blue-500/30 shadow-sm"
-                        }
-                      `}
+                      className="w-full px-5 py-4 rounded-xl glass-input transition-all duration-300"
                     >
                       <option value="Technical Issue">Technical Issue</option>
                       <option value="Leave Management">Leave Management</option>
@@ -363,7 +357,7 @@ export default function StaffComplaintsDashboard() {
                 </div>
 
                 <div className="mb-8">
-                  <label className="block mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="block mb-3 text-sm font-semibold theme-text-primary">
                     Your Message (Confidential)
                   </label>
                   <textarea
@@ -372,13 +366,7 @@ export default function StaffComplaintsDashboard() {
                     placeholder="Please describe your feedback or complaint in detail. All submissions are confidential and will be handled professionally..."
                     rows={6}
                     required
-                    className={`
-                      w-full resize-vertical rounded-2xl border-2 p-6 text-lg leading-relaxed
-                      ${isDark 
-                        ? "bg-slate-800/50 border-slate-600/50 text-slate-100 placeholder-slate-400 hover:border-slate-500/70 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20" 
-                        : "bg-white/70 border-slate-200 text-slate-900 placeholder-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 shadow-sm"
-                      }
-                    `}
+                    className="w-full resize-vertical rounded-2xl glass-input p-6 text-lg leading-relaxed"
                   />
                 </div>
 
@@ -407,7 +395,7 @@ export default function StaffComplaintsDashboard() {
                 </div>
 
                 {/* Confidentiality Notice */}
-                <div className={`mt-8 p-5 rounded-2xl border-2 ${isDark ? "bg-slate-800/50 border-slate-700/50" : "bg-slate-50 border-slate-200/50"}`}>
+                <div className="mt-8 p-5 rounded-2xl glass-panel">
                   <AlertTriangle className={`w-5 h-5 inline ${isDark ? "text-yellow-400" : "text-yellow-600"} mr-2`} />
                   <span className="text-sm font-medium">
                     🔒 This submission is confidential and will only be visible to authorized Admin personnel.
@@ -421,18 +409,18 @@ export default function StaffComplaintsDashboard() {
         {/* Complaints Grid */}
         <div>
           <div className="flex items-center justify-between mb-8">
-            <h2 className={`text-3xl font-bold ${isDark ? "bg-gradient-to-r from-slate-200 to-slate-400 bg-clip-text text-transparent" : "bg-gradient-to-r from-slate-800 to-slate-700 bg-clip-text text-transparent"}`}>
+            <h2 className="text-3xl font-bold theme-page-title">
               Your Submissions ({complaints.length})
             </h2>
           </div>
 
           {complaints.length === 0 ? (
-            <Card className={`backdrop-blur-xl p-16 text-center ${isDark ? "bg-white/5 border-white/20 shadow-2xl" : "bg-white/80 border-slate-200 shadow-2xl"}`}>
+            <Card className="p-16 text-center">
               <MessageSquare className={`w-16 h-16 mx-auto mb-6 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
-              <h3 className="mb-2 text-xl font-bold text-slate-700 dark:text-slate-200">
+              <h3 className="mb-2 text-xl font-bold theme-card-title">
                 No submissions yet
               </h3>
-              <p className={`text-slate-600 dark:text-slate-400 mb-6`}>
+              <p className="theme-text-secondary mb-6">
                 All your confidential submissions will appear here
               </p>
               {!showForm && (

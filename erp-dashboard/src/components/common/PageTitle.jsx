@@ -6,16 +6,16 @@ export default function PageTitle({ title, subtitle, actions, icon: Icon }) {
       <div className="flex-1">
         <div className="flex items-center gap-4 mb-3">
           {Icon && (
-            <div className="w-12 h-12 rounded-2xl bg-brand-accent/20 dark:bg-brand-accent/30 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl border theme-border bg-white/55 dark:bg-white/10 flex items-center justify-center shadow-sm backdrop-blur">
               <Icon className="w-6 h-6 text-brand-accent dark:text-brand-accent" />
             </div>
           )}
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white leading-tight">
+          <h1 className="text-3xl md:text-4xl premium-page-title">
             {title}
           </h1>
         </div>
         {subtitle && (
-          <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed max-w-2xl">
+          <p className="text-base theme-page-subtitle max-w-2xl">
             {subtitle}
           </p>
         )}

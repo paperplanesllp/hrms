@@ -1,13 +1,14 @@
 import React from "react";
 
 const variants = {
-  primary: "bg-slate-900 dark:bg-slate-700 text-white border border-slate-900 dark:border-slate-600",
-  secondary: "bg-slate-700 dark:bg-slate-600 text-white border border-slate-700 dark:border-slate-500",
-  light: "bg-slate-200/30 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600",
-  success: "bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800",
-  warning: "bg-yellow-100 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-800",
-  danger: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800",
-  info: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800",
+  primary: "glass-badge border-emerald-300/45 text-emerald-800 dark:text-emerald-200 bg-emerald-100/55 dark:bg-emerald-900/25",
+  secondary: "glass-badge border-slate-300/45 text-slate-700 dark:text-slate-200 bg-slate-100/55 dark:bg-slate-800/45",
+  light: "glass-badge text-slate-700 dark:text-slate-200",
+  success: "glass-badge border-green-300/45 text-green-800 dark:text-green-200 bg-green-100/55 dark:bg-green-900/25",
+  warning: "glass-badge border-amber-300/45 text-amber-800 dark:text-amber-200 bg-amber-100/60 dark:bg-amber-900/25",
+  danger: "glass-badge border-red-300/45 text-red-800 dark:text-red-200 bg-red-100/55 dark:bg-red-900/25",
+  info: "glass-badge border-blue-300/45 text-blue-800 dark:text-blue-200 bg-blue-100/55 dark:bg-blue-900/25",
+  outline: "glass-badge text-slate-700 dark:text-slate-200",
 };
 
 const sizes = {
@@ -25,7 +26,7 @@ export default function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-semibold transition-all duration-300 ${animated ? 'hover:scale-110' : 'hover:scale-105'} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full theme-badge-text transition-all duration-300 ${animated ? 'hover:scale-110' : 'hover:scale-105'} ${variants[variant]} ${sizes[size]} ${className}`}
     >
       {children}
     </span>

@@ -166,9 +166,9 @@ export default function ComplaintsPage() {
 
       {/* Complaint Form */}
       {showForm && (
-        <Card className="dark:bg-slate-800/50">
+        <Card>
           <form onSubmit={handleSubmitComplaint} className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-lg font-semibold theme-card-title">
               Submit a Complaint
             </h3>
 
@@ -184,7 +184,7 @@ export default function ComplaintsPage() {
             />
 
             <div>
-              <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5">
+              <label className="block text-sm font-semibold theme-text-primary mb-2.5">
                 Message <span className="text-red-600 dark:text-red-400">*</span>
               </label>
               <textarea
@@ -195,12 +195,12 @@ export default function ComplaintsPage() {
                 }
                 required
                 rows={6}
-                className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 px-4 py-3 outline-none text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-200 focus:border-blue-500 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50"
+                className="w-full rounded-lg glass-input px-4 py-3 outline-none transition-all duration-200"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-900 dark:text-white mb-2.5">
+              <label className="block text-sm font-semibold theme-text-primary mb-2.5">
                 Priority
               </label>
               <select
@@ -208,7 +208,7 @@ export default function ComplaintsPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, priority: e.target.value })
                 }
-                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                className="w-full px-4 py-2.5 glass-input rounded-lg transition-all text-sm"
               >
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
@@ -243,14 +243,14 @@ export default function ComplaintsPage() {
 
       {/* Complaints List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+        <h2 className="text-xl font-semibold theme-card-title">
           My Complaints ({complaints.length})
         </h2>
 
         {complaints.length === 0 ? (
-          <Card className="dark:bg-slate-800/50 text-center py-12">
+          <Card className="text-center py-12">
             <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="theme-text-secondary">
               No complaints submitted yet. {!showForm && "Click 'New Complaint' to submit one."}
             </p>
           </Card>
@@ -258,7 +258,7 @@ export default function ComplaintsPage() {
           complaints.map((complaint) => (
             <Card
               key={complaint._id}
-              className={`dark:bg-slate-800/50 cursor-pointer transition-all hover:shadow-lg ${
+              className={`cursor-pointer transition-all hover:shadow-lg ${
                 selectedComplaint?._id === complaint._id
                   ? "ring-2 ring-blue-500"
                   : ""
@@ -275,11 +275,11 @@ export default function ComplaintsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       {getStatusIcon(complaint.status)}
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                      <h3 className="text-lg font-semibold theme-card-title">
                         {complaint.subject}
                       </h3>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p className="text-sm theme-text-secondary">
                       Submitted on {new Date(complaint.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
@@ -294,16 +294,16 @@ export default function ComplaintsPage() {
                 </div>
 
                 {/* Message */}
-                <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-lg">
-                  <p className="text-slate-700 dark:text-slate-300 text-sm">
+                <div className="glass-panel p-4 rounded-lg">
+                  <p className="theme-text-secondary text-sm">
                     {complaint.message}
                   </p>
                 </div>
 
                 {/* Admin Reply (if available) */}
                 {selectedComplaint?._id === complaint._id && complaint.adminReply && (
-                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
+                  <div className="border-t theme-border pt-4">
+                    <h4 className="font-semibold theme-card-title mb-2">
                       Admin Response
                     </h4>
                     <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-900/40">

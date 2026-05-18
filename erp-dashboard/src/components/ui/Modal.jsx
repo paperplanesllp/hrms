@@ -21,19 +21,19 @@ export default function Modal({ open, isOpen, title, children, onClose, size = "
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+        className="absolute inset-0 bg-slate-950/45 dark:bg-black/70 backdrop-blur-md transition-opacity duration-300"
         onClick={onClose}
       />
 
       {/* Modal Content */}
-      <div className={`relative w-full ${modalWidthClass} rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl dark:shadow-2xl animate-scaleIn transition-all duration-300`}>
+      <div className={`glass-modal relative w-full ${modalWidthClass} rounded-3xl shadow-2xl animate-scaleIn transition-all duration-300`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">{title}</h2>
+        <div className="flex items-center justify-between p-6 border-b theme-border">
+          <h2 className="text-xl theme-modal-title">{title}</h2>
           {closeButton && (
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-all duration-200 active:scale-95"
+              className="glass-icon-btn text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white transition-all duration-200 active:scale-95"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -42,7 +42,7 @@ export default function Modal({ open, isOpen, title, children, onClose, size = "
         </div>
 
         {/* Body */}
-        <div className="p-6 text-slate-900 dark:text-slate-100 max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
+        <div className="p-6 theme-body-text max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
       </div>
     </div>
   );

@@ -12,8 +12,8 @@ export default {
         brand: {
           dark: "#020617",           // Richer deep navy (Dark Mode background)
           card: "#0f172a",           // Surface color for cards in dark mode
-          accent: "#F59E0B",         // Electric Gold - Primary action & highlights
-          "accent-alt": "#10B981",   // Emerald - Secondary accent
+          accent: "#10B981",         // Emerald - Primary action & highlights
+          "accent-alt": "#14B8A6",   // Teal - Secondary accent
           pale: "#FFFFFF",           // White - Light mode background
           light: "#F9FAFB",          // Minimal light gray
         },
@@ -56,8 +56,8 @@ export default {
         lg: "0 8px 16px -2px rgba(2, 6, 23, 0.15), 0 4px 8px -1px rgba(2, 6, 23, 0.08)",
         xl: "0 16px 32px -4px rgba(2, 6, 23, 0.2), 0 8px 16px -2px rgba(2, 6, 23, 0.1)",
         "2xl": "0 24px 48px -8px rgba(2, 6, 23, 0.25)",
-        "accent-glow": "0 0 20px -4px rgba(245, 158, 11, 0.4), 0 0 8px -2px rgba(245, 158, 11, 0.2)",
-        "accent-alt-glow": "0 0 20px -4px rgba(16, 185, 129, 0.3), 0 0 8px -2px rgba(16, 185, 129, 0.15)",
+        "accent-glow": "0 0 22px -4px rgba(16, 185, 129, 0.38), 0 0 10px -2px rgba(20, 184, 166, 0.22)",
+        "accent-alt-glow": "0 0 22px -4px rgba(20, 184, 166, 0.34), 0 0 10px -2px rgba(34, 211, 238, 0.16)",
         "elevation-1": "0 4px 12px rgba(2, 6, 23, 0.1)",
         "elevation-2": "0 8px 24px rgba(2, 6, 23, 0.15)",
         "elevation-3": "0 16px 40px rgba(2, 6, 23, 0.2)",
@@ -103,8 +103,8 @@ export default {
       addUtilities({
         '.glass': {
           'backdrop-filter': 'blur(12px)',
-          'background-color': 'rgba(2, 6, 23, 0.65)',
-          'border': '1px solid rgba(245, 158, 11, 0.1)',
+          'background-color': 'rgba(15, 23, 42, 0.64)',
+          'border': '1px solid rgba(45, 212, 191, 0.16)',
         },
         '.glass-light': {
           'backdrop-filter': 'blur(12px)',
@@ -114,7 +114,7 @@ export default {
         '.glass-dark': {
           'backdrop-filter': 'blur(12px)',
           'background-color': 'rgba(15, 23, 42, 0.8)',
-          'border': '1px solid rgba(245, 158, 11, 0.15)',
+          'border': '1px solid rgba(45, 212, 191, 0.18)',
         },
       });
     },

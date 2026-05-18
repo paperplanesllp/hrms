@@ -652,7 +652,7 @@ export default function AttendancePage() {
             <div className="border border-[#B3CFE5] dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#0A1931] dark:bg-slate-800" style={{ backgroundColor: '#0A1931' }}>
+                  <tr className="attendance-table-header">
                     {isAdmin && (
                       <>
                         <th className="px-6 py-4 font-bold text-left text-white dark:text-slate-100">Staff Name</th>

@@ -246,7 +246,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable] bg-slate-100 dark:bg-[#061014]">
+    <div className="login-page-premium relative min-h-screen overflow-x-hidden overflow-y-scroll [scrollbar-gutter:stable] bg-slate-100 dark:bg-[#061014]">
       {/* Background blobs */}
       <div className="absolute rounded-full pointer-events-none -top-20 -left-20 h-72 w-72 bg-cyan-500/20 blur-3xl" />
       <div className="absolute bottom-0 right-0 rounded-full pointer-events-none h-96 w-96 bg-emerald-500/10 blur-3xl" />
@@ -285,15 +285,15 @@ export default function LoginPage() {
               </p>
 
               <div className="grid grid-cols-3 gap-4 mt-10">
-                <div className="p-4 border rounded-2xl border-white/15 bg-white/10 backdrop-blur-md">
+                <div className="p-4 border rounded-2xl border-emerald-200/20 bg-white/10 shadow-[0_18px_45px_rgba(6,78,59,0.18)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-emerald-200/35 hover:bg-white/15">
                   <p className="text-2xl font-semibold text-white">24/7</p>
                   <p className="mt-1 text-sm text-white/65">Secure access</p>
                 </div>
-                <div className="p-4 border rounded-2xl border-white/15 bg-white/10 backdrop-blur-md">
+                <div className="p-4 border rounded-2xl border-emerald-200/20 bg-white/10 shadow-[0_18px_45px_rgba(6,78,59,0.18)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-emerald-200/35 hover:bg-white/15">
                   <p className="text-2xl font-semibold text-white">Fast</p>
                   <p className="mt-1 text-sm text-white/65">Reliable login</p>
                 </div>
-                <div className="p-4 border rounded-2xl border-white/15 bg-white/10 backdrop-blur-md">
+                <div className="p-4 border rounded-2xl border-emerald-200/20 bg-white/10 shadow-[0_18px_45px_rgba(6,78,59,0.18)] backdrop-blur-md transition hover:-translate-y-0.5 hover:border-emerald-200/35 hover:bg-white/15">
                   <p className="text-2xl font-semibold text-white">Smart</p>
                   <p className="mt-1 text-sm text-white/65">User management</p>
                 </div>
@@ -313,7 +313,7 @@ export default function LoginPage() {
             </div>
 
             {/* Glass card */}
-            <div className="rounded-3xl border border-white/40 bg-white/75 p-7 shadow-[0_20px_80px_rgba(15,23,42,0.15)] backdrop-blur-2xl sm:p-8 dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+            <div className="rounded-3xl border border-emerald-100/70 bg-white/80 p-7 shadow-[0_26px_90px_rgba(6,78,59,0.16)] backdrop-blur-2xl sm:p-8 dark:border-emerald-300/10 dark:bg-slate-950/35 dark:shadow-[0_24px_90px_rgba(0,0,0,0.5)]">
               <div className="mb-8">
                 <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                   Sign In
@@ -326,17 +326,17 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
+              <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-emerald-100/70 bg-emerald-50/55 p-1 shadow-inner dark:border-emerald-300/10 dark:bg-slate-900/60">
                 <button
                   type="button"
                   onClick={() => {
                     setAuthMode("employee");
                     setShowTempRegister(false);
                   }}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                     authMode === "employee"
-                      ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
-                      : "text-slate-600 dark:text-slate-300"
+                      ? "bg-white text-teal-800 shadow-[0_10px_28px_rgba(6,78,59,0.14)] ring-1 ring-teal-100 dark:bg-teal-400/12 dark:text-teal-100 dark:ring-teal-300/15"
+                      : "text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-200"
                   }`}
                 >
                   Employee Login
@@ -347,10 +347,10 @@ export default function LoginPage() {
                     setAuthMode("temporary");
                     setShowTempRegister(false);
                   }}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                     authMode === "temporary"
-                      ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
-                      : "text-slate-600 dark:text-slate-300"
+                      ? "bg-white text-teal-800 shadow-[0_10px_28px_rgba(6,78,59,0.14)] ring-1 ring-teal-100 dark:bg-teal-400/12 dark:text-teal-100 dark:ring-teal-300/15"
+                      : "text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-200"
                   }`}
                 >
                   Associate Login
@@ -385,7 +385,7 @@ export default function LoginPage() {
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
-                          className="text-sm font-medium transition text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
+                          className="text-sm font-semibold transition text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-200"
                         >
                           {showPassword ? "Hide password" : "Show password"}
                         </button>
@@ -393,7 +393,7 @@ export default function LoginPage() {
                         <button
                           type="button"
                           onClick={() => setShowForgot(true)}
-                          className="text-sm font-medium transition text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+                          className="text-sm font-semibold transition text-teal-700 hover:text-teal-600 dark:text-teal-300 dark:hover:text-teal-200"
                         >
                           Forgot password?
                         </button>
@@ -406,7 +406,7 @@ export default function LoginPage() {
                       type="checkbox"
                       checked={rememberMe}
                       disabled
-                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      className="w-4 h-4 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
                       Stay logged in for 90 days
@@ -415,23 +415,23 @@ export default function LoginPage() {
 
                   <Button
                     disabled={loading}
-                    className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
+                    className="h-12 w-full rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-base font-bold text-white shadow-[0_18px_38px_rgba(5,150,105,0.28)] transition hover:scale-[1.01] hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-600 hover:shadow-[0_22px_48px_rgba(5,150,105,0.34)] active:scale-[0.99]"
                   >
                     {loading ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl border border-emerald-100/70 bg-emerald-50/55 p-1 shadow-inner dark:border-emerald-300/10 dark:bg-slate-900/60">
                     <button
                       type="button"
                       onClick={() => {
                         setShowTempRegister(false);
                       }}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                         !showTempRegister
-                          ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
-                          : "text-slate-600 dark:text-slate-300"
+                          ? "bg-white text-teal-800 shadow-[0_10px_28px_rgba(6,78,59,0.14)] ring-1 ring-teal-100 dark:bg-teal-400/12 dark:text-teal-100 dark:ring-teal-300/15"
+                          : "text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-200"
                       }`}
                     >
                       OTP Sign In
@@ -444,10 +444,10 @@ export default function LoginPage() {
                         setTempOtp("");
                         setTempDebugOtp("");
                       }}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                         showTempRegister
-                          ? "bg-white text-slate-900 shadow dark:bg-slate-700 dark:text-white"
-                          : "text-slate-600 dark:text-slate-300"
+                          ? "bg-white text-teal-800 shadow-[0_10px_28px_rgba(6,78,59,0.14)] ring-1 ring-teal-100 dark:bg-teal-400/12 dark:text-teal-100 dark:ring-teal-300/15"
+                          : "text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-200"
                       }`}
                     >
                       Register
@@ -511,7 +511,7 @@ export default function LoginPage() {
 
                           <Button
                             disabled={tempRegisterLoading}
-                            className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-sm font-semibold text-white shadow-md shadow-emerald-900/20 hover:from-emerald-500 hover:to-teal-600"
+                            className="h-11 w-full rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-sm font-bold text-white shadow-[0_16px_34px_rgba(5,150,105,0.24)] hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-600"
                           >
                             {tempRegisterLoading ? "Submitting Request..." : "Submit for HR Approval"}
                           </Button>
@@ -543,14 +543,14 @@ export default function LoginPage() {
                         )}
 
                         {tempDebugOtp ? (
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                          <p className="text-xs font-semibold text-teal-700 dark:text-teal-300">
                             Dev OTP: {tempDebugOtp}
                           </p>
                         ) : null}
 
                         <Button
                           disabled={tempLoading}
-                          className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:scale-[1.01] hover:from-emerald-500 hover:to-teal-600 active:scale-[0.99]"
+                          className="h-12 w-full rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-base font-bold text-white shadow-[0_18px_38px_rgba(5,150,105,0.28)] transition hover:scale-[1.01] hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-600 hover:shadow-[0_22px_48px_rgba(5,150,105,0.34)] active:scale-[0.99]"
                         >
                           {tempLoading
                             ? "Please wait..."
@@ -563,7 +563,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowTempRegister(true)}
-                        className="w-full rounded-xl border border-dashed border-emerald-300 bg-emerald-50/60 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+                        className="w-full rounded-xl border border-dashed border-teal-300 bg-teal-50/60 px-4 py-2.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-900/20 dark:text-teal-300"
                       >
                         New associate? Register instead
                       </button>

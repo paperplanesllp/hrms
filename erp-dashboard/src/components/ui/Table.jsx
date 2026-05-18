@@ -8,14 +8,14 @@ export default function Table({
   striped = true 
 }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-sm">
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+    <div className="glass-table overflow-x-auto">
+      <table className="w-full theme-table-text">
+        <thead className="border-b theme-border bg-white/45 dark:bg-slate-900/35">
           <tr>
             {columns.map((c) => (
               <th
                 key={c}
-                className={`text-left font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${
+                className={`text-left theme-table-heading ${
                   compact ? "px-4 py-3" : "px-6 py-4"
                 }`}
               >
@@ -28,9 +28,9 @@ export default function Table({
           {rows.map((r, i) => (
             <tr
               key={i}
-              className={`border-b border-slate-200/50 dark:border-slate-700/50 transition-colors duration-150 ${
-                striped && i % 2 === 0 ? "bg-slate-50 dark:bg-slate-900/20" : "bg-white dark:bg-slate-800/50"
-              } hover:bg-slate-50 dark:hover:bg-slate-700`}
+              className={`border-b border-slate-200/40 dark:border-slate-700/40 transition-colors duration-150 ${
+                striped && i % 2 === 0 ? "bg-white/35 dark:bg-slate-900/18" : "bg-white/15 dark:bg-slate-800/22"
+              } hover:bg-emerald-50/45 dark:hover:bg-slate-700/45`}
             >
               {renderRow(r)}
             </tr>
@@ -49,7 +49,7 @@ export function TableCell({ children, className = "", compact = false, align = "
   }[align];
 
   return (
-    <td className={`text-slate-900 dark:text-slate-100 ${compact ? "px-4 py-3" : "px-6 py-4"} ${alignClass} ${className}`}>
+    <td className={`theme-table-text ${compact ? "px-4 py-3" : "px-6 py-4"} ${alignClass} ${className}`}>
       {children}
     </td>
   );

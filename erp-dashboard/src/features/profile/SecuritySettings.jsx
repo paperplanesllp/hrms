@@ -239,7 +239,7 @@ export default function SecuritySettings() {
   if (loading) {
     return (
       <Card className="security-settings-loading">
-        <div className="flex items-center justify-center gap-2 text-slate-600">
+        <div className="flex items-center justify-center gap-2 theme-text-secondary">
           <LoaderCircle size={20} className="animate-spin" />
           <span>Loading security settings...</span>
         </div>

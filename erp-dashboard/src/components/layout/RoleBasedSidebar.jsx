@@ -10,9 +10,9 @@ import { ROLES } from "../../app/constants.js";
 import SidebarProfile from "../ui/SidebarProfile.jsx";
 import { useSpotifyWellnessSettings } from "../../services/spotify/spotifyService.js";
 
-const base = "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ease-smooth select-none cursor-pointer group";
-const active = "bg-brand-accent/15 text-brand-accent shadow-accent-glow/20 border border-brand-accent/40 dark:bg-brand-accent/20 dark:text-brand-accent dark:border-brand-accent/50";
-const inactive = "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-brand-accent dark:hover:text-brand-accent hover:border border-slate-200 dark:border-slate-700 hover:shadow-accent-glow/10";
+const base = "flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm theme-sidebar-text transition-all duration-300 ease-smooth select-none cursor-pointer group border border-transparent";
+const active = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 shadow-[0_12px_28px_rgba(16,185,129,0.18)] border-emerald-300/45 dark:border-emerald-300/25";
+const inactive = "text-slate-600 dark:text-slate-300 hover:bg-white/45 dark:hover:bg-white/10 hover:text-emerald-700 dark:hover:text-emerald-200 hover:border-white/45 dark:hover:border-white/10 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]";
 
 function Item({ to, icon, label, end }) {
   return (
@@ -21,12 +21,12 @@ function Item({ to, icon, label, end }) {
       end={end}
       className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
     >
-      <span className="flex items-center justify-center flex-shrink-0 w-8 h-8 transition-all duration-300 rounded-lg bg-slate-100 dark:bg-slate-700 ease-smooth group-hover:bg-brand-accent/10 dark:group-hover:bg-brand-accent/20">
+      <span className="flex items-center justify-center flex-shrink-0 w-8 h-8 transition-all duration-300 rounded-xl bg-white/55 dark:bg-white/10 border border-white/45 dark:border-white/10 ease-smooth group-hover:bg-emerald-500/10 dark:group-hover:bg-emerald-400/15">
         {React.cloneElement(icon, { 
-          className: "w-4 h-4 text-slate-600 dark:text-slate-400 group-hover:text-brand-accent transition-colors duration-300" 
+          className: "w-4 h-4 text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-200 transition-colors duration-300" 
         })}
       </span>
-      <span className="flex-1 tracking-tight truncate text-slate-900 dark:text-slate-100">{label}</span>
+      <span className="flex-1 truncate theme-sidebar-text">{label}</span>
       <ChevronRight className="w-3 h-3 transition-all duration-300 opacity-0 group-hover:opacity-100" />
     </NavLink>
   );
@@ -37,7 +37,7 @@ function NavSection({ title, items }) {
     <div>
       {title && (
         <div className="px-4 py-3 mt-4 first:mt-0">
-          <p className="text-xs font-semibold tracking-widest uppercase text-slate-500 dark:text-slate-500">
+          <p className="text-xs theme-label uppercase">
             {title}
           </p>
         </div>
@@ -114,26 +114,26 @@ export default function RoleBasedSidebar({ open, setOpen }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed z-50 lg:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all duration-300 ease-smooth flex flex-col lg:translate-x-0 ${
+        className={`glass-sidebar fixed z-50 lg:sticky top-0 left-0 h-screen w-72 border-y-0 border-l-0 rounded-none transition-all duration-300 ease-smooth flex flex-col lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Sidebar Header - Profile */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+        <div className="p-6 border-b theme-border">
           <SidebarProfile />
         </div>
 
         {/* Navigation - Scrollable */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           <NavSection items={mainLinks} />
-          <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
+          <div className="my-2 border-t theme-border" />
           <NavSection title="Work" items={workLinks} />
-          <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
+          <div className="my-2 border-t theme-border" />
           <NavSection title="Company" items={companyLinks} />
           
           {hrManagementLinks.length > 0 && (
             <>
-              <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
+              <div className="my-2 border-t theme-border" />
               <NavSection title="Management" items={hrManagementLinks} />
             </>
           )}

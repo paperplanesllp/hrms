@@ -40,14 +40,14 @@ export default function HeaderBar({ onMenu }) {
     window.location.replace(redirectTo);
   };
   return (
-    <header className="sticky top-0 z-30 transition-all duration-300 bg-white border-b ease-smooth border-slate-200 dark:border-slate-700 dark:bg-slate-800 shadow-elevation-1 backdrop-blur-md">    
+    <header className="glass-navbar sticky top-0 z-30 border-x-0 border-t-0 rounded-none transition-all duration-300 ease-smooth">    
       <div className="flex items-center justify-between h-16 px-4 md:px-8 lg:px-10">
         {/* LEFT SIDE */}
         <div className="flex items-center gap-4">         
           {/* Mobile Menu Button */}
           <button
             onClick={onMenu}
-            className="inline-flex items-center justify-center w-10 h-10 transition-all duration-300 rounded-lg ease-smooth lg:hidden hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-brand-accent dark:hover:text-brand-accent hover:shadow-accent-glow/10 active:scale-95"
+            className="glass-icon-btn inline-flex items-center justify-center w-10 h-10 transition-all duration-300 ease-smooth lg:hidden text-slate-600 dark:text-slate-300 hover:text-brand-accent dark:hover:text-brand-accent active:scale-95"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
@@ -65,7 +65,7 @@ export default function HeaderBar({ onMenu }) {
         <div className="flex items-center gap-4 md:gap-6">
 
           {/* Divider */}
-          <div className="hidden w-px h-6 md:block bg-slate-200 dark:bg-slate-700" />
+          <div className="hidden w-px h-6 md:block bg-slate-300/70 dark:bg-white/10" />
 
           {/* Notifications */}
           <NotificationCenter />
@@ -73,11 +73,11 @@ export default function HeaderBar({ onMenu }) {
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-brand-accent dark:hover:text-brand-accent transition-all duration-300 ease-smooth hover:shadow-accent-glow/10 active:scale-95"
+            className="glass-theme-toggle"
             title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             aria-label="Toggle theme"
           >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isDark ? <Sun className="glass-theme-toggle-icon" /> : <Moon className="glass-theme-toggle-icon" />}
           </button>
 
           {/* Logout Button (Desktop) */}
@@ -86,7 +86,7 @@ export default function HeaderBar({ onMenu }) {
             size="sm"
             onClick={onLogout}
             leftIcon={<LogOut className="w-4 h-4" />}
-            className="hidden transition-all duration-300 border sm:flex ease-smooth text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800"
+            className="hidden sm:flex"
           >
             Logout
           </Button>
@@ -94,7 +94,7 @@ export default function HeaderBar({ onMenu }) {
           {/* Logout Icon (Mobile) */}
           <button
             onClick={onLogout}
-            className="inline-flex sm:hidden items-center justify-center w-10 h-10 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:shadow-[0_0_12px_rgba(239,68,68,0.2)] transition-all duration-300 ease-smooth"
+            className="glass-icon-btn inline-flex sm:hidden items-center justify-center w-10 h-10 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-300 transition-all duration-300 ease-smooth"
             title="Logout"
             aria-label="Logout"
           >

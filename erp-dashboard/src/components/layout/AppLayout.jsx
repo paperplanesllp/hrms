@@ -11,7 +11,7 @@ export default function AppLayout() {
   useNewsNotifications();
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-800 flex flex-col lg:flex-row transition-colors duration-300 ease-smooth">
+    <div className="app-shell-premium flex flex-col lg:flex-row transition-colors duration-300 ease-smooth">
       {/* Sidebar */}
       <RoleBasedSidebar open={open} setOpen={setOpen} />
 
@@ -22,7 +22,7 @@ export default function AppLayout() {
 
         {/* Content Wrapper - Only this scrolls, not the sidebar */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4 md:p-6 lg:p-8 bg-slate-50 dark:bg-slate-900 transition-colors duration-300 ease-smooth">
+          <div className="min-h-full p-4 md:p-6 lg:p-8 bg-transparent transition-colors duration-300 ease-smooth">
             <div className="mx-auto max-w-7xl">
               <Outlet />
             </div>

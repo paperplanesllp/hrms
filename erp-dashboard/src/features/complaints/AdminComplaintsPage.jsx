@@ -155,39 +155,39 @@ export default function AdminComplaintsPage() {
       {stats && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           <Card 
-            className="border cursor-pointer hover:bg-gray-50"
+            className="border cursor-pointer hover:bg-emerald-50/35 dark:hover:bg-white/5"
             onClick={handleClearFilters}
           >
             <div className="p-4">
-              <p className="text-sm font-semibold text-gray-600">Total</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm font-semibold theme-text-secondary">Total</p>
+              <p className="mt-2 text-2xl font-bold theme-text-primary">{stats.total}</p>
             </div>
           </Card>
 
           <Card 
-            className="border cursor-pointer hover:bg-gray-50"
+            className="border cursor-pointer hover:bg-emerald-50/35 dark:hover:bg-white/5"
             onClick={() => setFilters({ ...filters, status: "OPEN" })}
           >
             <div className="p-4">
-              <p className="text-sm font-semibold text-gray-600">Open</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.open}</p>
+              <p className="text-sm font-semibold theme-text-secondary">Open</p>
+              <p className="mt-2 text-2xl font-bold theme-text-primary">{stats.open}</p>
             </div>
           </Card>
 
           <Card 
-            className="border cursor-pointer hover:bg-gray-50"
+            className="border cursor-pointer hover:bg-emerald-50/35 dark:hover:bg-white/5"
             onClick={() => setFilters({ ...filters, status: "RESOLVED" })}
           >
             <div className="p-4">
-              <p className="text-sm font-semibold text-gray-600">Resolved</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.resolved}</p>
+              <p className="text-sm font-semibold theme-text-secondary">Resolved</p>
+              <p className="mt-2 text-2xl font-bold theme-text-primary">{stats.resolved}</p>
             </div>
           </Card>
 
           <Card className="border">
             <div className="p-4">
-              <p className="text-sm font-semibold text-gray-600">Overdue</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.overDeadline}</p>
+              <p className="text-sm font-semibold theme-text-secondary">Overdue</p>
+              <p className="mt-2 text-2xl font-bold theme-text-primary">{stats.overDeadline}</p>
             </div>
           </Card>
         </div>
@@ -211,7 +211,7 @@ export default function AdminComplaintsPage() {
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="p-2 border rounded"
+              className="p-2 glass-input rounded"
             >
               <option value="">All Status</option>
               <option value="OPEN">Open</option>
@@ -222,7 +222,7 @@ export default function AdminComplaintsPage() {
             <select
               value={filters.priority}
               onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
-              className="p-2 border rounded"
+              className="p-2 glass-input rounded"
             >
               <option value="">All Priorities</option>
               <option value="Low">Low</option>
@@ -245,25 +245,25 @@ export default function AdminComplaintsPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Complaints List */}
-        <div className="bg-white border rounded lg:col-span-1">
-          <div className="p-4 border-b">
-            <h3 className="text-sm font-semibold">Complaints ({filteredComplaints.length})</h3>
+        <div className="glass-panel rounded lg:col-span-1 overflow-hidden">
+          <div className="p-4 border-b theme-border">
+            <h3 className="text-sm font-semibold theme-card-title">Complaints ({filteredComplaints.length})</h3>
           </div>
           <div className="overflow-y-auto max-h-[600px]">
             {filteredComplaints.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">No complaints found</div>
+              <div className="p-8 text-center theme-text-secondary">No complaints found</div>
             ) : (
               filteredComplaints.map((complaint) => (
                 <div
                   key={complaint._id}
-                  className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
-                    selectedComplaint?._id === complaint._id ? "bg-gray-100" : ""
+                  className={`p-4 border-b theme-border cursor-pointer hover:bg-emerald-50/35 dark:hover:bg-white/5 ${
+                    selectedComplaint?._id === complaint._id ? "bg-emerald-50/70 dark:bg-emerald-400/10" : ""
                   }`}
                   onClick={() => handleViewComplaint(complaint)}
                 >
-                  <h4 className="text-sm font-semibold">{complaint.subject || 'No Subject'}</h4>
-                  <p className="text-xs text-gray-600">{complaint.userId?.name || 'Unknown User'}</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <h4 className="text-sm font-semibold theme-text-primary">{complaint.subject || 'No Subject'}</h4>
+                  <p className="text-xs theme-text-secondary">{complaint.userId?.name || 'Unknown User'}</p>
+                  <p className="mt-1 text-xs theme-text-muted">
                     Status: {complaint.status} | Priority: {complaint.priority}
                   </p>
                 </div>
@@ -279,17 +279,17 @@ export default function AdminComplaintsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedComplaint(null)}
-                className="text-sm text-blue-600 lg:hidden"
+                className="text-sm text-blue-600 dark:text-blue-300 lg:hidden"
               >
                 ← Back to List
               </button>
 
               <Card className="p-4 border">
-                <h2 className="text-xl font-bold">{selectedComplaint.subject || 'No Subject'}</h2>
-                <p className="mt-2 text-sm text-gray-600">
+                <h2 className="text-xl font-bold theme-card-title">{selectedComplaint.subject || 'No Subject'}</h2>
+                <p className="mt-2 text-sm theme-text-secondary">
                   From: {selectedComplaint.userId?.name} ({selectedComplaint.userId?.email})
                 </p>
-                <div className="flex gap-4 mt-4 text-sm text-gray-700">
+                <div className="flex gap-4 mt-4 text-sm theme-text-secondary">
                   <p><strong>Status:</strong> {selectedComplaint.status}</p>
                   <p><strong>Priority:</strong> {selectedComplaint.priority}</p>
                   <p><strong>Submitted:</strong> {selectedComplaint.submittedAt ? new Date(selectedComplaint.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : 'N/A'}</p>
@@ -297,27 +297,27 @@ export default function AdminComplaintsPage() {
               </Card>
 
               <Card className="p-4 border">
-                <h3 className="mb-2 text-sm font-semibold">User's Message</h3>
-                <p className="text-sm whitespace-pre-wrap">{selectedComplaint.message}</p>
+                <h3 className="mb-2 text-sm font-semibold theme-card-title">User's Message</h3>
+                <p className="text-sm whitespace-pre-wrap theme-text-secondary">{selectedComplaint.message}</p>
               </Card>
 
               {selectedComplaint.repliedAt ? (
-                <Card className="p-4 border bg-gray-50">
-                  <h3 className="mb-2 text-sm font-bold">Reply Sent</h3>
-                  <p className="mb-2 text-xs text-gray-600">
+                <Card className="p-4 border bg-emerald-50/40 dark:bg-emerald-950/20">
+                  <h3 className="mb-2 text-sm font-bold theme-card-title">Reply Sent</h3>
+                  <p className="mb-2 text-xs theme-text-secondary">
                     Replied on {new Date(selectedComplaint.repliedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                   </p>
-                  <p className="text-sm whitespace-pre-wrap">{selectedComplaint.replyMessage}</p>
+                  <p className="text-sm whitespace-pre-wrap theme-text-primary">{selectedComplaint.replyMessage}</p>
                 </Card>
               ) : (
                 <Card className="p-4 border">
-                  <h3 className="mb-4 font-bold">Send Reply</h3>
+                  <h3 className="mb-4 font-bold theme-card-title">Send Reply</h3>
                   <textarea
                     placeholder="Write your response..."
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
                     rows={6}
-                    className="w-full p-3 mb-4 border rounded"
+                    className="w-full p-3 mb-4 glass-input rounded"
                   />
                   <Button
                     type="button"
@@ -331,7 +331,7 @@ export default function AdminComplaintsPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full min-h-[400px] border rounded bg-gray-50 text-gray-500">
+            <div className="flex items-center justify-center h-full min-h-[400px] glass-panel rounded theme-text-secondary">
               Select a complaint to view
             </div>
           )}

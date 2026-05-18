@@ -158,13 +158,17 @@ export default function CompactWeatherWidget() {
   const { Icon } = getConditionFromCode(weather.weatherCode);
 
   return (
-    <div className="hidden sm:flex items-center gap-2.5 px-3 py-2 rounded-xl border border-white/35 dark:border-slate-600/60 bg-gradient-to-br from-white/80 via-sky-50/70 to-cyan-100/70 dark:from-slate-800/80 dark:via-slate-800/70 dark:to-slate-700/70 shadow-[0_8px_20px_rgba(15,23,42,0.08)] backdrop-blur-md transition-all duration-300 ease-smooth">
-      <Icon className="w-4 h-4 text-amber-500 dark:text-amber-300" />
-      <div className="flex flex-col leading-tight">
-        <span className="text-[11px] font-semibold tracking-wide text-slate-700 dark:text-slate-200">
+    <div className="relative hidden items-center gap-3 overflow-hidden rounded-2xl border border-white/45 bg-gradient-to-br from-white/75 via-sky-50/55 to-cyan-100/40 px-3.5 py-2.5 shadow-[0_18px_45px_rgba(14,165,233,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-2xl transition-all duration-300 ease-smooth hover:-translate-y-0.5 hover:scale-[1.01] hover:border-sky-200/75 hover:shadow-[0_22px_55px_rgba(15,23,42,0.14),0_0_30px_rgba(14,165,233,0.2),inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-white/10 dark:from-slate-900/80 dark:via-slate-800/55 dark:to-sky-950/35 dark:shadow-[0_18px_45px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] dark:hover:border-sky-300/30 dark:hover:shadow-[0_22px_55px_rgba(0,0,0,0.42),0_0_30px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] sm:flex">
+      <div className="pointer-events-none absolute -left-8 -bottom-8 h-20 w-20 rounded-full bg-sky-300/35 blur-2xl dark:bg-sky-400/15" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20" />
+      <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-amber-200/55 bg-white/45 shadow-inner shadow-white/40 backdrop-blur-md dark:border-amber-300/15 dark:bg-white/10 dark:shadow-none">
+        <Icon className="w-5 h-5 text-amber-500 drop-shadow-sm dark:text-amber-300" />
+      </div>
+      <div className="relative flex flex-col leading-tight">
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-700 dark:text-slate-100">
           {weather.city}
         </span>
-        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+        <span className="text-xs font-semibold text-slate-600/90 dark:text-slate-300/90">
           {weather.temperature}°C · {weather.conditionText}
         </span>
       </div>

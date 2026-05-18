@@ -198,17 +198,17 @@ export default function LeaveMyPage() {
 
     return (
 
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#f8fbff] to-white">
+      <div className="flex items-center justify-center min-h-screen bg-transparent">
 
-        <Card className="p-10 text-center shadow-xl rounded-2xl bg-white/80 backdrop-blur">
+        <Card className="p-10 text-center shadow-xl rounded-2xl">
 
           <AlertCircle className="mx-auto mb-4 text-indigo-500 w-14 h-14" />
 
-          <h2 className="mb-2 text-xl font-semibold text-gray-800">
+          <h2 className="mb-2 text-xl font-semibold theme-card-title">
             Admin Access
           </h2>
 
-          <p className="mb-6 text-gray-500">
+          <p className="mb-6 theme-text-secondary">
             Leave approvals are managed from the Leave Management panel.
           </p>
 
@@ -230,7 +230,7 @@ export default function LeaveMyPage() {
 
   return (
 
-  <div className="min-h-screen px-6 py-8 space-y-10 bg-gradient-to-br from-[#f8fbff] via-white to-[#eef5ff]">
+  <div className="min-h-screen px-6 py-8 space-y-10 bg-transparent">
 
   <PageTitle
   title="My Leave Requests"
@@ -247,10 +247,10 @@ export default function LeaveMyPage() {
   />
 
   {/* ---------------- LEAVE BALANCE SUMMARY ---------------- */}
-  <Card className="rounded-2xl shadow-lg bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-900/30 border border-emerald-200 dark:border-emerald-800">
+  <Card className="rounded-2xl shadow-lg border border-emerald-300/35 dark:border-emerald-300/15 bg-emerald-50/45 dark:bg-emerald-950/20">
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+        <h3 className="text-lg font-bold theme-card-title flex items-center gap-2">
           <Calendar className="w-5 h-5 text-emerald-600" />
           Leave Balance Summary
         </h3>
@@ -259,26 +259,26 @@ export default function LeaveMyPage() {
       {balanceLoading ? (
         <div className="flex items-center justify-center py-4">
           <Clock className="animate-spin text-emerald-600 w-5 h-5" />
-          <span className="ml-2 text-sm text-gray-600">Loading balance...</span>
+          <span className="ml-2 text-sm theme-text-secondary">Loading balance...</span>
         </div>
       ) : (
         <div className="space-y-4">
           {/* Overall Summary */}
           <div className="grid gap-4 md:grid-cols-4">
-            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Total Days</span>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{leaveBalance.total}</p>
+            <div className="glass-panel p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
+              <span className="text-xs font-semibold theme-text-secondary uppercase tracking-wider">Total Days</span>
+              <p className="text-2xl font-bold theme-text-primary mt-1">{leaveBalance.total}</p>
             </div>
-            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-orange-100 dark:border-orange-800/30">
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Used</span>
+            <div className="glass-panel p-4 rounded-lg border border-orange-100 dark:border-orange-800/30">
+              <span className="text-xs font-semibold theme-text-secondary uppercase tracking-wider">Used</span>
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{leaveBalance.used}</p>
             </div>
-            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-amber-100 dark:border-amber-800/30">
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Pending</span>
+            <div className="glass-panel p-4 rounded-lg border border-amber-100 dark:border-amber-800/30">
+              <span className="text-xs font-semibold theme-text-secondary uppercase tracking-wider">Pending</span>
               <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{leaveBalance.pending}</p>
             </div>
-            <div className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Remaining</span>
+            <div className="glass-panel p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/30">
+              <span className="text-xs font-semibold theme-text-secondary uppercase tracking-wider">Remaining</span>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{leaveBalance.remaining}</p>
             </div>
           </div>
@@ -286,19 +286,19 @@ export default function LeaveMyPage() {
           {/* Leave Type Breakdown */}
           {leaveBalance.byType && leaveBalance.byType.length > 0 && (
             <div className="mt-6 pt-6 border-t border-emerald-200 dark:border-emerald-800/50">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Breakdown by Leave Type</h4>
+              <h4 className="text-sm font-semibold theme-card-title mb-4">Breakdown by Leave Type</h4>
               <div className="grid gap-3 md:grid-cols-2">
                 {leaveBalance.byType.map((type, idx) => (
-                  <div key={idx} className="bg-white/60 dark:bg-slate-800/40 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div key={idx} className="glass-panel p-4 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div 
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: type.color || "#3b82f6" }}
                         />
-                        <span className="font-medium text-gray-900 dark:text-white">{type.leaveTypeName}</span>
+                        <span className="font-medium theme-text-primary">{type.leaveTypeName}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <span className="text-sm font-semibold theme-text-secondary">
                         {type.remainingDays}/{type.maxDaysPerYear}
                       </span>
                     </div>
@@ -311,7 +311,7 @@ export default function LeaveMyPage() {
                         }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    <div className="flex justify-between text-xs theme-text-muted mt-2">
                       <span>Used: {type.usedDays}</span>
                       <span>Pending: {type.pendingDays} days</span>
                     </div>
@@ -354,15 +354,15 @@ export default function LeaveMyPage() {
 
   {/* ---------------- HISTORY ---------------- */}
 
-  <Card className="rounded-2xl shadow-xl bg-white/80 backdrop-blur border border-[#eef1f6] overflow-hidden">
+  <Card className="rounded-2xl shadow-xl overflow-hidden">
 
-  <div className="p-6 border-b">
+  <div className="p-6 border-b theme-border">
 
-  <h3 className="text-lg font-semibold text-gray-800">
+  <h3 className="text-lg font-semibold theme-card-title">
   Leave History
   </h3>
 
-  <p className="text-sm text-gray-500">
+  <p className="text-sm theme-text-secondary">
   All your leave requests
   </p>
 
@@ -374,7 +374,7 @@ export default function LeaveMyPage() {
 
   <Clock className="mx-auto mb-3 text-gray-400 animate-spin"/>
 
-  <p className="text-gray-500">
+  <p className="theme-text-secondary">
   Loading leave records...
   </p>
 
@@ -386,7 +386,7 @@ export default function LeaveMyPage() {
 
   <Calendar className="mx-auto mb-3 text-gray-300 w-14 h-14"/>
 
-  <p className="text-gray-500">
+  <p className="theme-text-secondary">
   No leave requests yet
   </p>
 
@@ -394,16 +394,16 @@ export default function LeaveMyPage() {
 
   ) : (
 
-  <div className="divide-y">
+  <div className="divide-y divide-slate-200/70 dark:divide-white/10">
 
   {items.map(item=>(
-  <div key={item._id} className="p-6 transition hover:bg-gray-50">
+  <div key={item._id} className="p-6 transition hover:bg-emerald-50/40 dark:hover:bg-white/5">
 
   <div className="flex items-center justify-between mb-2">
 
   <div className="flex items-center gap-3">
 
-  <span className="font-semibold text-gray-800">
+  <span className="font-semibold theme-text-primary">
   {item.leaveType}
   </span>
 
@@ -413,7 +413,7 @@ export default function LeaveMyPage() {
 
   </div>
 
-  <div className="flex items-center gap-2 mb-1 text-sm text-gray-500">
+  <div className="flex items-center gap-2 mb-1 text-sm theme-text-secondary">
 
   <Calendar size={14}/>
 
@@ -421,7 +421,7 @@ export default function LeaveMyPage() {
 
   </div>
 
-  <p className="text-gray-700">
+  <p className="theme-text-primary">
   {item.reason || "No reason provided"}
   </p>
 
@@ -459,7 +459,7 @@ export default function LeaveMyPage() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-indigo-600" />
-          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+          <label className="block text-sm font-semibold theme-text-primary">
             Leave Type <span className="text-red-500">*</span>
           </label>
         </div>
@@ -467,7 +467,7 @@ export default function LeaveMyPage() {
           value={form.leaveType}
           onChange={(e) => setForm({...form, leaveType: e.target.value})}
           disabled={loadingTypes}
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-gray-400 dark:hover:border-gray-500"
+          className="w-full px-4 py-3 glass-input rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {loadingTypes ? (
             <option disabled>Loading leave types...</option>
@@ -498,23 +498,23 @@ export default function LeaveMyPage() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-indigo-600" />
-          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+          <label className="block text-sm font-semibold theme-text-primary">
             Leave Duration <span className="text-red-500">*</span>
           </label>
         </div>
         <div className="grid grid-cols-2 gap-4">
           {/* From Date */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">From</label>
+            <label className="text-xs font-medium theme-text-secondary uppercase tracking-wide">From</label>
             <input
               type="date"
               value={form.from}
               onChange={(e) => setForm({...form, from: e.target.value})}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="w-full px-4 py-3 glass-input rounded-xl transition-all"
               required
             />
             {form.from && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+              <p className="text-xs theme-text-muted font-medium">
                 {new Date(form.from).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             )}
@@ -522,17 +522,17 @@ export default function LeaveMyPage() {
 
           {/* To Date */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">To</label>
+            <label className="text-xs font-medium theme-text-secondary uppercase tracking-wide">To</label>
             <input
               type="date"
               value={form.to}
               onChange={(e) => setForm({...form, to: e.target.value})}
               min={form.from}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all hover:border-gray-400 dark:hover:border-gray-500"
+              className="w-full px-4 py-3 glass-input rounded-xl transition-all"
               required
             />
             {form.to && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+              <p className="text-xs theme-text-muted font-medium">
                 {new Date(form.to).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             )}
@@ -580,7 +580,7 @@ export default function LeaveMyPage() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-indigo-600" />
-          <label className="block text-sm font-semibold text-gray-900 dark:text-white">
+          <label className="block text-sm font-semibold theme-text-primary">
             Reason for Leave <span className="text-red-500">*</span>
           </label>
         </div>
@@ -589,11 +589,11 @@ export default function LeaveMyPage() {
           rows="4"
           value={form.reason}
           onChange={(e) => setForm({...form, reason: e.target.value})}
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all resize-none hover:border-gray-400 dark:hover:border-gray-500"
+          className="w-full px-4 py-3 glass-input rounded-xl transition-all resize-none"
           required
         />
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs theme-text-muted">
             {form.reason.length}/500 characters
           </p>
           {form.reason.length > 450 && (
@@ -603,11 +603,11 @@ export default function LeaveMyPage() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-3 pt-6 border-t theme-border">
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 px-6 py-3 rounded-xl font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 active:scale-95 transition-all duration-200"
+          className="flex-1 px-6 py-3 rounded-xl font-medium glass-btn glass-btn-cancel active:scale-95 transition-all duration-200"
         >
           Cancel
         </button>
@@ -634,24 +634,24 @@ export default function LeaveMyPage() {
 function StatCard({title,value,icon,color}){
 
 const colors={
-green:"text-green-600 bg-green-100",
-yellow:"text-yellow-600 bg-yellow-100",
-red:"text-red-600 bg-red-100"
+green:"text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/30",
+yellow:"text-yellow-600 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/30",
+red:"text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/30"
 };
 
 return(
 
-<Card className="p-6 transition shadow-lg rounded-2xl bg-white/80 backdrop-blur hover:shadow-xl">
+<Card className="p-6 transition shadow-lg rounded-2xl hover:shadow-xl">
 
 <div className="flex items-start justify-between">
 
 <div>
 
-<p className="text-xs tracking-wide text-gray-500 uppercase">
+<p className="text-xs tracking-wide theme-text-secondary uppercase">
 {title}
 </p>
 
-<p className="mt-2 text-3xl font-bold text-gray-800">
+<p className="mt-2 text-3xl font-bold theme-text-primary">
 {value}
 </p>
 

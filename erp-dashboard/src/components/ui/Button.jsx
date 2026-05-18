@@ -10,12 +10,14 @@ const Button = ({
   rightIcon, 
   ...props 
 }) => {
-  // Premium variant mapping with proper contrast ratios (4.5:1+)
   const variants = {
-    primary: "bg-brand-accent text-white hover:bg-brand-accent/90 hover:shadow-accent-glow/30 dark:bg-brand-accent dark:text-slate-900 dark:hover:bg-brand-accent/90 dark:hover:shadow-accent-glow/25 border border-brand-accent/50 dark:border-brand-accent",
-    secondary: "bg-slate-100 text-slate-900 border-slate-200 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600 hover:shadow-md",
-    ghost: "bg-transparent text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-200",
-    danger: "bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800/50 dark:hover:bg-red-900/50",
+    primary: "glass-btn glass-btn-primary",
+    secondary: "glass-btn glass-btn-secondary",
+    ghost: "glass-btn glass-btn-secondary",
+    outline: "glass-btn glass-btn-secondary",
+    danger: "glass-btn glass-btn-danger",
+    success: "glass-btn glass-btn-success",
+    cancel: "glass-btn glass-btn-cancel",
   };
 
   const sizes = {
@@ -29,10 +31,7 @@ const Button = ({
       onClick={onClick}
       className={`
         inline-flex items-center justify-center 
-        font-semibold rounded-lg border 
-        transition-all duration-300 ease-smooth 
-        active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
-        tracking-wide
+        theme-button-text
         ${variants[variant] || variants.primary}
         ${sizes[size] || sizes.md}
         ${className}

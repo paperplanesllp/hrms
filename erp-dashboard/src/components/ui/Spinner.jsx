@@ -9,7 +9,7 @@ export default function Spinner({ size = "md", className = "" }) {
 
   return (
     <div
-      className={`rounded-full border-slate-200 dark:border-slate-700 border-t-brand-accent dark:border-t-brand-accent animate-spin ${sizeClass} ${className}`}
+      className={`rounded-full border-emerald-100/70 dark:border-slate-700/80 border-t-emerald-500 dark:border-t-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.22)] animate-spin ${sizeClass} ${className}`}
     />
   );
 }

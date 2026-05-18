@@ -780,7 +780,7 @@ export default function MyProfilePage() {
 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
 
-          <div className="bg-white p-6 rounded-xl w-[400px]">
+          <div className="glass-modal p-6 rounded-xl w-[400px]">
 
             <div className="relative h-80">
 

@@ -210,7 +210,7 @@ export default function AdminAttendancePage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b-2 border-slate-200 dark:border-slate-700">
+                <tr className="attendance-table-header">
                   <th className="px-4 py-3 text-sm font-semibold text-left text-slate-900 dark:text-white">Date</th>
                   <th className="px-4 py-3 text-sm font-semibold text-left text-slate-900 dark:text-white">Employee</th>
                   <th className="px-4 py-3 text-sm font-semibold text-left text-slate-900 dark:text-white">Shift</th>
