@@ -72,15 +72,14 @@ const initialHRForm = {
   status: "Active",
 };
 
-const palette = {
-  bg: "from-[#0b1020] via-[#0f172a] to-[#111827]",
-  panel: "bg-[#0f172a]/72",
-  panelSoft: "bg-white/[0.04]",
-  border: "border-white/10",
-  textMain: "text-slate-50",
-  textSoft: "text-slate-300",
-  textMuted: "text-slate-400",
-  textFaint: "text-slate-500",
+const hrTheme = {
+  glass: "border-white/55 bg-white/70 text-slate-950 shadow-slate-900/10 dark:border-white/10 dark:bg-slate-950/62 dark:text-white",
+  glassSoft: "border-white/55 bg-white/60 text-slate-950 shadow-slate-900/5 dark:border-white/10 dark:bg-white/[0.07] dark:text-white",
+  textMain: "text-slate-950 dark:text-white",
+  textSoft: "text-slate-700 dark:text-slate-300",
+  textMuted: "text-slate-600 dark:text-slate-400",
+  textFaint: "text-slate-500 dark:text-slate-400",
+  focusRing: "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-violet-300/60 dark:focus-visible:ring-offset-slate-950",
 };
 
 export default function HRTeamPage() {
@@ -297,10 +296,10 @@ export default function HRTeamPage() {
       status === "active-recently" ||
       status === "typing"
     ) {
-      return "text-teal-300";
+      return "text-teal-700 dark:text-teal-300";
     }
-    if (status === "away") return "text-amber-300";
-    return "text-slate-500";
+    if (status === "away") return "text-amber-700 dark:text-amber-300";
+    return "text-slate-600 dark:text-slate-400";
   };
 
   const activeDiscussions = useMemo(
@@ -349,7 +348,7 @@ export default function HRTeamPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card
               key={i}
-              className={`h-40 rounded-3xl animate-pulse border ${palette.border} bg-gradient-to-br from-[#111827]/80 to-[#0b1020]/90`}
+              className="h-40 border border-white/55 rounded-3xl animate-pulse bg-white/70 dark:border-white/10 dark:bg-gradient-to-br dark:from-[#111827]/80 dark:to-[#0b1020]/90"
             />
           ))}
         </div>
@@ -376,7 +375,7 @@ export default function HRTeamPage() {
           <RefreshStatus
             isRefreshing={hrTeamRefresh.isRefreshing}
             lastUpdatedAt={hrTeamRefresh.lastUpdatedAt}
-            className="shadow-lg w-fit border-white/40 bg-white/60 text-slate-700 shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200"
+            className="shadow-lg w-fit border-white/50 bg-white/75 text-slate-700 shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200"
           />
         </div>
 
@@ -384,7 +383,7 @@ export default function HRTeamPage() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55 }}
-          className="relative overflow-hidden rounded-[32px] border border-white/50 bg-white/55 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62 md:p-7"
+          className={`relative overflow-hidden rounded-[32px] border p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-2xl md:p-7 ${hrTheme.glass}`}
         >
           <motion.div
             className="absolute rounded-full -right-16 -top-20 h-72 w-72 bg-gradient-to-br from-violet-500/35 to-cyan-400/25 blur-3xl"
@@ -401,10 +400,10 @@ export default function HRTeamPage() {
               </div>
 
               <div>
-                <h2 className="max-w-4xl text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white md:text-5xl">
+                <h2 className={`max-w-4xl text-3xl font-black leading-tight tracking-tight md:text-5xl ${hrTheme.textMain}`}>
                   A premium HR workspace for people, conversations, and decisions.
                 </h2>
-                <p className="max-w-2xl mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
+                <p className={`max-w-2xl mt-4 text-sm font-medium leading-7 md:text-base ${hrTheme.textSoft}`}>
                   Coordinate the HR team, follow live presence, launch discussions, and schedule meetings from one calm collaboration surface.
                 </p>
               </div>
@@ -430,9 +429,9 @@ export default function HRTeamPage() {
                 value={`${activeTeam.length || onlineCount} active`}
                 caption={`${hrTeam.length} total HR members`}
               />
-              <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
+              <div className={`rounded-3xl border p-4 shadow-xl backdrop-blur-2xl ${hrTheme.glassSoft}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  <p className={`text-xs font-bold uppercase tracking-[0.18em] ${hrTheme.textMuted}`}>
                     Active Indicators
                   </p>
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.9)]" />
@@ -466,7 +465,7 @@ export default function HRTeamPage() {
           <PremiumStatCard title="Online Now" value={onlineCount} icon={Zap} from="from-teal-400" to="to-emerald-500" caption="Realtime presence" />
         </motion.div>
 
-        <div className="flex flex-wrap gap-2 rounded-3xl border border-white/50 bg-white/55 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/72">
+        <div className="flex flex-wrap gap-2 rounded-3xl border border-white/55 bg-white/70 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/72">
         {[
           { id: "overview", label: "Overview", icon: Users },
           { id: "discussions", label: "Discussions", icon: MessageCircle },
@@ -481,13 +480,13 @@ export default function HRTeamPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all ${hrTheme.focusRing} ${
                 active
                   ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/25"
-                  : "text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+                  : "text-slate-700 hover:bg-white/80 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-4 h-4 shrink-0" />
               {tab.label}
             </button>
           );
@@ -607,9 +606,9 @@ function PremiumButton({ children, onClick, icon: Icon, tone = "violet", compact
       onClick={onClick}
       className={`group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${tones[tone]} ${
         compact ? "px-4 py-2.5 text-sm" : "px-5 py-3"
-      } font-bold shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02]`}
+      } font-bold shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] ${hrTheme.focusRing}`}
     >
-      <Icon className="w-4 h-4 transition-transform group-hover:scale-110" />
+      <Icon className="w-4 h-4 transition-transform shrink-0 group-hover:scale-110" />
       {children}
     </button>
   );
@@ -617,17 +616,17 @@ function PremiumButton({ children, onClick, icon: Icon, tone = "violet", compact
 
 function HeroGlassPanel({ icon: Icon, label, value, caption }) {
   return (
-    <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
+    <div className={`rounded-3xl border p-4 shadow-xl backdrop-blur-2xl ${hrTheme.glassSoft}`}>
       <div className="flex items-center gap-4">
         <div className="flex items-center justify-center w-12 h-12 shadow-lg rounded-2xl bg-gradient-to-br from-teal-400 to-cyan-500 shadow-cyan-500/20">
           <Icon className="w-6 h-6 text-slate-950" />
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          <p className={`text-xs font-bold uppercase tracking-[0.18em] ${hrTheme.textMuted}`}>
             {label}
           </p>
-          <p className="text-2xl font-black text-slate-950 dark:text-white">{value}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>
+          <p className={`text-2xl font-black ${hrTheme.textMain}`}>{value}</p>
+          <p className={`text-xs font-medium ${hrTheme.textMuted}`}>{caption}</p>
         </div>
       </div>
     </div>
@@ -644,7 +643,7 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
         show: { opacity: 1, y: 0 },
       }}
       whileHover={{ y: -5, scale: 1.01 }}
-      className="group relative overflow-hidden rounded-[28px] border border-white/55 bg-white/62 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-violet-300/60 hover:shadow-[0_28px_80px_rgba(99,102,241,0.18)] dark:border-white/10 dark:bg-slate-950/62 dark:hover:border-violet-400/30"
+      className={`group relative overflow-hidden rounded-[28px] border p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-violet-300/60 hover:shadow-[0_28px_80px_rgba(99,102,241,0.18)] dark:hover:border-violet-400/30 ${hrTheme.glass}`}
     >
       <div className="absolute transition-opacity rounded-full -right-12 -top-16 h-36 w-36 bg-violet-500/12 blur-3xl group-hover:opacity-100" />
 
@@ -660,10 +659,10 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
           </div>
 
           <div className="min-w-0">
-            <h4 className="text-lg font-black truncate text-slate-950 dark:text-white">
+            <h4 className={`truncate text-lg font-black ${hrTheme.textMain}`}>
               {member.name}
             </h4>
-            <p className="text-sm truncate text-slate-500 dark:text-slate-400">
+            <p className={`truncate text-sm font-medium ${hrTheme.textMuted}`}>
               {member.email}
             </p>
             <p className={`mt-1 text-xs font-semibold ${presenceTextColor}`} title={presenceLabel.tooltip}>
@@ -672,7 +671,7 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
           </div>
         </div>
 
-        <button className="p-2 transition border shadow-sm rounded-2xl border-slate-200/70 bg-white/60 text-slate-500 backdrop-blur-xl hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-white">
+        <button className={`rounded-2xl border border-slate-200/70 bg-white/70 p-2 text-slate-600 shadow-sm backdrop-blur-xl transition hover:bg-white hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white ${hrTheme.focusRing}`}>
           <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>
@@ -703,15 +702,15 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
 
 function IconAction({ icon: Icon, label, color }) {
   const colors = {
-    teal: "text-teal-600 hover:bg-teal-500/10 dark:text-teal-300",
-    indigo: "text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300",
-    amber: "text-amber-600 hover:bg-amber-500/10 dark:text-amber-300",
+    teal: "text-teal-700 hover:bg-teal-500/12 dark:text-teal-300",
+    indigo: "text-indigo-700 hover:bg-indigo-500/12 dark:text-indigo-300",
+    amber: "text-amber-700 hover:bg-amber-500/12 dark:text-amber-300",
   };
 
   return (
     <button
       title={label}
-      className={`flex items-center justify-center rounded-2xl border border-slate-200/70 bg-white/55 py-3 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5 ${colors[color]}`}
+      className={`flex items-center justify-center rounded-2xl border border-slate-200/70 bg-white/70 py-3 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 ${colors[color]} ${hrTheme.focusRing}`}
     >
       <Icon className="w-4 h-4" />
     </button>
@@ -732,7 +731,7 @@ function WorkspaceSidebar({
       <SidebarPanel title="Quick Actions" icon={Zap}>
         <ActionButton onClick={onAddMember} icon={UserPlus} label="Add HR Staff" gradient="from-violet-600 to-indigo-600" />
         <ActionButton onClick={onOpenDiscussions} icon={MessageCircle} label="Open Discussions" gradient="from-indigo-600 to-blue-500" />
-        <ActionButton onClick={onNewMeeting} icon={Calendar} label="Schedule Meeting" gradient="from-teal-500 to-cyan-500" />
+        <ActionButton onClick={onNewMeeting} icon={Calendar} label="Schedule Meeting" gradient="from-teal-400 to-cyan-500" textClass="text-slate-950" />
       </SidebarPanel>
 
       <SidebarPanel title="Active Discussions" icon={MessageCircle}>
@@ -741,10 +740,10 @@ function WorkspaceSidebar({
           empty="No active discussions"
           render={(discussion) => (
             <>
-              <p className="text-sm font-bold line-clamp-1 text-slate-900 dark:text-white">
+              <p className={`line-clamp-1 text-sm font-bold ${hrTheme.textMain}`}>
                 {discussion.title || "Untitled discussion"}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className={`mt-1 text-xs font-medium ${hrTheme.textMuted}`}>
                 {discussion.replies?.length || 0} replies • {discussion.category || "General"}
               </p>
             </>
@@ -758,10 +757,10 @@ function WorkspaceSidebar({
           empty="No upcoming meetings"
           render={(meeting) => (
             <>
-              <p className="text-sm font-bold line-clamp-1 text-slate-900 dark:text-white">
+              <p className={`line-clamp-1 text-sm font-bold ${hrTheme.textMain}`}>
                 {meeting.title || "Untitled meeting"}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className={`mt-1 text-xs font-medium ${hrTheme.textMuted}`}>
                 {new Date(meeting.date || meeting.scheduledFor).toLocaleDateString("en-IN", {
                   day: "2-digit",
                   month: "short",
@@ -777,15 +776,15 @@ function WorkspaceSidebar({
       <SidebarPanel title="Live Team Status" icon={Activity}>
         <div className="space-y-2">
           {activeTeam.slice(0, 5).map((member) => (
-            <div key={member._id} className="flex items-center gap-3 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
+            <div key={member._id} className="flex items-center gap-3 rounded-2xl bg-white/60 p-3 dark:bg-white/[0.04]">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
               <div className="min-w-0">
-                <p className="text-sm font-bold truncate text-slate-900 dark:text-white">{member.name}</p>
+                <p className={`truncate text-sm font-bold ${hrTheme.textMain}`}>{member.name}</p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-300">Active now</p>
               </div>
             </div>
           ))}
-          {activeTeam.length === 0 && <p className="py-2 text-sm text-slate-500 dark:text-slate-400">No one is active right now</p>}
+          {activeTeam.length === 0 && <p className={`py-2 text-sm font-medium ${hrTheme.textMuted}`}>No one is active right now</p>}
         </div>
       </SidebarPanel>
 
@@ -801,13 +800,13 @@ function SidebarPanel({ title, icon: Icon, children }) {
     <motion.section
       initial={{ opacity: 0, x: 18 }}
       animate={{ opacity: 1, x: 0 }}
-      className="rounded-[28px] border border-white/55 bg-white/62 p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62"
+      className={`rounded-[28px] border p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)] backdrop-blur-2xl ${hrTheme.glass}`}
     >
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center justify-center text-white h-9 w-9 rounded-2xl bg-slate-950 dark:bg-white/10">
           <Icon className="w-4 h-4" />
         </div>
-        <h4 className="text-sm font-black uppercase tracking-[0.16em] text-slate-700 dark:text-slate-300">
+        <h4 className={`text-sm font-black uppercase tracking-[0.16em] ${hrTheme.textSoft}`}>
           {title}
         </h4>
       </div>
@@ -817,12 +816,12 @@ function SidebarPanel({ title, icon: Icon, children }) {
 }
 
 function CompactList({ items, empty, render }) {
-  if (!items.length) return <p className="py-2 text-sm text-slate-500 dark:text-slate-400">{empty}</p>;
+  if (!items.length) return <p className={`py-2 text-sm font-medium ${hrTheme.textMuted}`}>{empty}</p>;
 
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <div key={item._id} className="rounded-2xl border border-slate-200/70 bg-white/45 p-3 transition hover:bg-white/75 dark:border-white/5 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]">
+        <div key={item._id} className="rounded-2xl border border-slate-200/70 bg-white/60 p-3 transition hover:bg-white/80 dark:border-white/5 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]">
           {render(item)}
         </div>
       ))}
@@ -835,7 +834,7 @@ function MiniTimeline({ activity }) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300/70 bg-white/35 p-5 text-center dark:border-white/10 dark:bg-white/[0.03]">
         <AlertCircle className="w-6 h-6 mx-auto mb-2 text-slate-400" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Realtime activity will appear here</p>
+        <p className={`text-sm font-medium ${hrTheme.textMuted}`}>Realtime activity will appear here</p>
       </div>
     );
   }
@@ -845,9 +844,9 @@ function MiniTimeline({ activity }) {
       {activity.map((item, idx) => (
         <div key={idx} className="relative flex gap-3 pl-1">
           <span className="mt-1.5 h-7 w-7 rounded-full border-4 border-white bg-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.45)] dark:border-slate-950" />
-          <div className="min-w-0 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
-            <p className="text-sm font-semibold line-clamp-2 text-slate-900 dark:text-white">{item.message}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="min-w-0 rounded-2xl bg-white/60 p-3 dark:bg-white/[0.04]">
+            <p className={`line-clamp-2 text-sm font-semibold ${hrTheme.textMain}`}>{item.message}</p>
+            <p className={`mt-1 text-xs font-medium ${hrTheme.textMuted}`}>
               {new Date(item.timestamp).toLocaleTimeString("en-IN", {
                 hour: "numeric",
                 minute: "2-digit",
@@ -865,9 +864,9 @@ function MiniTimeline({ activity }) {
 function EmptyWorkspace({ icon: Icon, title, body, action, actionLabel }) {
   return (
     <div className="col-span-full rounded-[28px] border border-dashed border-slate-300/80 bg-white/50 p-10 text-center backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
-      <Icon className="w-10 h-10 mx-auto mb-4 text-slate-400" />
-      <h4 className="text-lg font-black text-slate-950 dark:text-white">{title}</h4>
-      <p className="max-w-md mx-auto mt-2 text-sm text-slate-500 dark:text-slate-400">{body}</p>
+      <Icon className="w-10 h-10 mx-auto mb-4 text-slate-500 dark:text-slate-400" />
+      <h4 className={`text-lg font-black ${hrTheme.textMain}`}>{title}</h4>
+      <p className={`mx-auto mt-2 max-w-md text-sm font-medium ${hrTheme.textMuted}`}>{body}</p>
       <PremiumButton onClick={action} icon={Plus} compact>
         {actionLabel}
       </PremiumButton>
@@ -883,22 +882,22 @@ function PremiumStatCard({ title, value, icon: Icon, from, to, caption }) {
         show: { opacity: 1, y: 0 },
       }}
       whileHover={{ y: -4, scale: 1.015 }}
-      className="group min-h-[150px] cursor-default rounded-[26px] border border-white/55 bg-white/62 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-white/80 hover:shadow-[0_26px_80px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-slate-950/62 dark:hover:border-white/20"
+      className={`group min-h-[150px] cursor-default rounded-[26px] border p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-white/80 hover:shadow-[0_26px_80px_rgba(15,23,42,0.16)] dark:hover:border-white/20 ${hrTheme.glass}`}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          <p className={`text-xs font-black uppercase tracking-[0.18em] ${hrTheme.textMuted}`}>
             {title}
           </p>
           <motion.p
             key={value}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-3 text-4xl font-black text-slate-950 dark:text-white"
+            className={`mt-3 text-4xl font-black ${hrTheme.textMain}`}
           >
             {value}
           </motion.p>
-          <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{caption}</p>
+          <p className={`mt-2 text-xs font-medium ${hrTheme.textMuted}`}>{caption}</p>
         </div>
 
         <div
@@ -911,13 +910,13 @@ function PremiumStatCard({ title, value, icon: Icon, from, to, caption }) {
   );
 }
 
-function ActionButton({ onClick, icon: Icon, label, gradient }) {
+function ActionButton({ onClick, icon: Icon, label, gradient, textClass = "text-white" }) {
   return (
     <button
       onClick={onClick}
-      className={`group flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r ${gradient} px-5 py-4 font-semibold text-white shadow-lg transition duration-200 hover:scale-[1.02]`}
+      className={`group flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r ${gradient} px-5 py-4 font-semibold ${textClass} shadow-lg transition duration-200 hover:scale-[1.02] ${hrTheme.focusRing}`}
     >
-      <Icon className="w-5 h-5 transition-transform group-hover:scale-110" />
+      <Icon className="w-5 h-5 transition-transform shrink-0 group-hover:scale-110" />
       {label}
       <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
     </button>
@@ -1074,7 +1073,7 @@ function CreateHRModal({
                   <Sparkles className="h-3.5 w-3.5" />
                   HR Onboarding
                 </div>
-                <h2 className="text-2xl font-black tracking-tight text-blue-700 sm:text-3xl">
+                <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
                   Add Team Member
                 </h2>
                 <p className="max-w-2xl mt-2 text-sm leading-6 text-slate-300">
@@ -1423,7 +1422,7 @@ function CreateHRModal({
             type="submit"
             form="create-hr-member-form"
             disabled={createHRLoading || (hrForm.confirmPassword && !passwordsMatch)}
-            className="group flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 px-8 py-3 font-black text-white shadow-[0_16px_45px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_55px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 px-8 py-3 font-black text-white shadow-[0_16px_45px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_55px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-75 disabled:saturate-75"
           >
             {createHRLoading ? (
               <>
@@ -1769,7 +1768,7 @@ function HRMeetingModal({ onClose, onSuccess, hrTeam }) {
             <Button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-white shadow-[0_10px_30px_rgba(99,102,241,0.30)] disabled:opacity-50"
+              className="flex-1 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3 text-white shadow-[0_10px_30px_rgba(99,102,241,0.30)] disabled:cursor-not-allowed disabled:opacity-75 disabled:saturate-75"
             >
               {loading ? "Scheduling..." : "Schedule Meeting"}
             </Button>
