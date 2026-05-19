@@ -557,8 +557,8 @@ export default function DashboardPage() {
                       disabled={hasCheckedInToday || attendanceLoading}
                       className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 ${
                         hasCheckedInToday
-                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed dark:bg-green-900/30 dark:text-green-400 dark:border-green-700/50"
-                          : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white hover:shadow-lg active:scale-95"
+                          ? "bg-blue-500/20 text-blue-700 border border-blue-300/70 shadow-lg shadow-blue-500/15 backdrop-blur-xl cursor-not-allowed dark:bg-blue-500/15 dark:text-blue-200 dark:border-blue-400/40"
+                          : "bg-blue-600/80 hover:bg-blue-700/85 text-white border border-blue-300/60 shadow-lg shadow-blue-500/25 backdrop-blur-xl active:scale-95"
                       }`}
                     >
                       <LogIn size={18} />
@@ -581,10 +581,10 @@ export default function DashboardPage() {
                       disabled={!hasCheckedInToday || hasCheckedOutToday || attendanceLoading}
                       className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all duration-200 ${
                         hasCheckedOutToday
-                          ? "bg-green-50 text-green-600 border border-green-200 cursor-not-allowed dark:bg-green-900/30 dark:text-green-400 dark:border-green-700/50"
+                          ? "bg-red-500/20 text-red-700 border border-red-300/70 shadow-lg shadow-red-500/15 backdrop-blur-xl cursor-not-allowed dark:bg-red-500/15 dark:text-red-200 dark:border-red-400/40"
                           : !hasCheckedInToday
-                          ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed dark:bg-slate-700 dark:text-slate-500 dark:border-slate-600"
-                          : "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white hover:shadow-lg active:scale-95"
+                          ? "bg-red-500/10 text-red-300 border border-red-200/60 cursor-not-allowed backdrop-blur-xl dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20"
+                          : "bg-red-600/80 hover:bg-red-700/85 text-white border border-red-300/60 shadow-lg shadow-red-500/25 backdrop-blur-xl active:scale-95"
                       }`}
                     >
                       <LogOut size={18} />
