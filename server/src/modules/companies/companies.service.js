@@ -4,6 +4,31 @@ import { StatusCodes } from "http-status-codes";
 import { createUser } from "../users/users.service.js";
 import { ROLES } from "../../middleware/roles.js";
 import { User } from "../users/User.model.js";
+import mongoose from "mongoose";
+import { Department } from "../department/Department.model.js";
+import { Designation } from "../department/Designation.model.js";
+import { Attendance } from "../attendance/Attendance.model.js";
+import { Leave } from "../leave/Leave.model.js";
+import { Payroll } from "../payroll/Payroll.model.js";
+import Notification from "../notifications/Notification.model.js";
+import { Policies } from "../policies/Policies.model.js";
+import Policy from "../policy/Policy.model.js";
+import { Event } from "../calendar/Event.model.js";
+import { Complaint } from "../complaints/Complaint.model.js";
+import { Worksheet } from "../worksheet/Worksheet.model.js";
+import { EmployeeDocument } from "../documents/EmployeeDocument.model.js";
+import { DocumentType } from "../documents/DocumentType.model.js";
+import { Task } from "../tasks/Task.model.js";
+import SubTask from "../tasks/SubTask.model.js";
+import TaskHistory from "../tasks/TaskHistory.model.js";
+import EmployeeProductivity from "../tasks/EmployeeProductivity.model.js";
+import { ActivityLog } from "../activity/ActivityLog.model.js";
+import { AuditLog } from "../audit/AuditLog.model.js";
+import { Chat } from "../chat/Chat.model.js";
+import { Message } from "../chat/Message.model.js";
+import { CallLog } from "../calls/CallLog.model.js";
+import { News } from "../news/News.model.js";
+import { LeaveType } from "../leaveType/LeaveType.model.js";
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -20,6 +45,7 @@ export async function listCompaniesWithAdmins() {
   const admins = await User.find({
     companyId: { $in: companyIds },
     role: ROLES.ADMIN,
+    isDeleted: { $ne: true },
   })
     .select("name email companyId")
     .lean();
@@ -98,6 +124,188 @@ export async function createCompanyAdmin(companyId, payload) {
   return user;
 }
 
+function isTransactionUnsupported(error) {
+  const message = String(error?.message || "");
+  return (
+    error?.code === 20 ||
+    error?.codeName === "IllegalOperation" ||
+    message.includes("Transaction numbers are only allowed") ||
+    message.includes("replica set member or mongos") ||
+    message.includes("Transaction") && message.includes("not supported")
+  );
+}
+
+async function deleteManyAndCount(model, filter, session) {
+  const result = await model.deleteMany(filter, session ? { session } : undefined);
+  return result.deletedCount || 0;
+}
+
+async function deleteCollectionManyAndCount(collectionName, filter, session) {
+  const collection = mongoose.connection.collection(collectionName);
+  const result = await collection.deleteMany(filter, session ? { session } : undefined);
+  return result.deletedCount || 0;
+}
+
+async function runCompanyDelete(companyId, session = null) {
+  const company = await Company.findById(companyId).session(session);
+  if (!company) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Company not found");
+  }
+
+  const companyObjectId = company._id;
+  const userIds = await User.find({ companyId: companyObjectId })
+    .session(session)
+    .distinct("_id");
+  const taskIds = await Task.find({ companyId: companyObjectId })
+    .session(session)
+    .distinct("_id");
+  const worksheetIds = userIds.length
+    ? await Worksheet.find({ userId: { $in: userIds } }).session(session).distinct("_id")
+    : [];
+  const chatIds = userIds.length
+    ? await Chat.find({ participants: { $in: userIds } }).session(session).distinct("_id")
+    : [];
+
+  const counts = {};
+  const record = async (name, countPromise) => {
+    counts[name] = await countPromise;
+  };
+
+  const userScoped = userIds.length ? { $in: userIds } : { $in: [] };
+  const taskScoped = taskIds.length ? { $in: taskIds } : { $in: [] };
+  const worksheetScoped = worksheetIds.length ? { $in: worksheetIds } : { $in: [] };
+  const chatScoped = chatIds.length ? { $in: chatIds } : { $in: [] };
+
+  await record("notifications", deleteManyAndCount(Notification, {
+    $or: [
+      { userId: userScoped },
+      { triggeredBy: userScoped },
+      { taskId: taskScoped },
+    ],
+  }, session));
+  await record("messages", deleteManyAndCount(Message, {
+    $or: [
+      { chatId: chatScoped },
+      { sender: userScoped },
+      { readBy: userScoped },
+    ],
+  }, session));
+  await record("callLogs", deleteManyAndCount(CallLog, {
+    $or: [
+      { caller: userScoped },
+      { receiver: userScoped },
+      { initiatedBy: userScoped },
+      { endedBy: userScoped },
+      { conversationId: chatScoped },
+    ],
+  }, session));
+  await record("chats", deleteManyAndCount(Chat, { _id: chatScoped }, session));
+  await record("taskHistory", deleteManyAndCount(TaskHistory, {
+    $or: [
+      { taskId: taskScoped },
+      { performedBy: userScoped },
+      { fromUser: userScoped },
+      { toUser: userScoped },
+    ],
+  }, session));
+  await record("subTasks", deleteManyAndCount(SubTask, {
+    $or: [
+      { taskId: taskScoped },
+      { assignedTo: userScoped },
+    ],
+  }, session));
+  await record("taskExtensionRequests", deleteCollectionManyAndCount("extensionrequests", {
+    $or: [
+      { taskId: taskScoped },
+      { requestedBy: userScoped },
+      { requestedFrom: userScoped },
+      { approvedBy: userScoped },
+      { worksheetId: worksheetScoped },
+      { userId: userScoped },
+    ],
+  }, session));
+  await record("employeeProductivity", deleteManyAndCount(EmployeeProductivity, {
+    employeeId: userScoped,
+  }, session));
+  await record("tasks", deleteManyAndCount(Task, { companyId: companyObjectId }, session));
+  await record("attendance", deleteManyAndCount(Attendance, { userId: userScoped }, session));
+  await record("leaves", deleteManyAndCount(Leave, {
+    $or: [
+      { userId: userScoped },
+      { approvedBy: userScoped },
+      { rejectedBy: userScoped },
+    ],
+  }, session));
+  await record("payroll", deleteManyAndCount(Payroll, {
+    $or: [
+      { userId: userScoped },
+      { createdBy: userScoped },
+      { updatedBy: userScoped },
+    ],
+  }, session));
+  await record("worksheets", deleteManyAndCount(Worksheet, { userId: userScoped }, session));
+  await record("employeeDocuments", deleteManyAndCount(EmployeeDocument, {
+    $or: [
+      { employeeId: userScoped },
+      { reviewedBy: userScoped },
+    ],
+  }, session));
+  await record("documentTypes", deleteManyAndCount(DocumentType, {
+    $or: [
+      { createdBy: userScoped },
+      { departmentIds: { $in: await Department.find({ companyId: companyObjectId }).session(session).distinct("_id") } },
+    ],
+  }, session));
+  await record("complaints", deleteManyAndCount(Complaint, {
+    $or: [
+      { companyId: companyObjectId },
+      { userId: userScoped },
+      { repliedBy: userScoped },
+    ],
+  }, session));
+  await record("events", deleteManyAndCount(Event, {
+    $or: [
+      { companyId: companyObjectId },
+      { userId: userScoped },
+    ],
+  }, session));
+  await record("policies", deleteManyAndCount(Policies, {
+    $or: [
+      { companyId: companyObjectId },
+      { createdBy: userScoped },
+      { updatedBy: userScoped },
+    ],
+  }, session));
+  await record("policy", deleteManyAndCount(Policy, {
+    $or: [
+      { companyId: companyObjectId },
+      { createdBy: userScoped },
+      { updatedBy: userScoped },
+    ],
+  }, session));
+  await record("news", deleteManyAndCount(News, { createdBy: userScoped }, session));
+  await record("leaveTypes", deleteManyAndCount(LeaveType, { createdBy: userScoped }, session));
+  await record("auditLogs", deleteManyAndCount(AuditLog, { userId: userScoped }, session));
+  await record("activityLogs", deleteManyAndCount(ActivityLog, {
+    $or: [
+      { actorId: userScoped },
+      { targetUserId: userScoped },
+    ],
+  }, session));
+  await record("designations", deleteManyAndCount(Designation, { companyId: companyObjectId }, session));
+  await record("departments", deleteManyAndCount(Department, { companyId: companyObjectId }, session));
+  await record("users", deleteManyAndCount(User, { companyId: companyObjectId }, session));
+  await record("companies", deleteManyAndCount(Company, { _id: companyObjectId }, session));
+
+  console.info("[COMPANY_DELETE] Deleted company data", {
+    companyId: String(companyObjectId),
+    companyName: company.name,
+    counts,
+  });
+
+  return { company, counts };
+}
+
 export async function updateCompany(companyId, data) {
   const company = await Company.findById(companyId);
   if (!company) {
@@ -136,11 +344,27 @@ export async function updateCompany(companyId, data) {
 }
 
 export async function deleteCompany(companyId) {
-  const company = await Company.findById(companyId);
-  if (!company) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Company not found");
+  if (!mongoose.Types.ObjectId.isValid(companyId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid company ID");
   }
 
-  await Company.deleteOne({ _id: companyId });
-  return company;
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await runCompanyDelete(companyId, session);
+    });
+    return result;
+  } catch (error) {
+    if (isTransactionUnsupported(error)) {
+      console.warn("[COMPANY_DELETE] MongoDB transactions are unavailable; running scoped cleanup without a transaction", {
+        companyId,
+        reason: error.message,
+      });
+      return await runCompanyDelete(companyId);
+    }
+    throw error;
+  } finally {
+    await session.endSession();
+  }
 }

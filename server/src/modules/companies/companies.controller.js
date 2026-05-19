@@ -26,6 +26,6 @@ export const updateCompanyCtrl = asyncHandler(async (req, res) => {
 });
 
 export const deleteCompanyCtrl = asyncHandler(async (req, res) => {
-  const company = await deleteCompany(req.params.companyId);
-  res.json({ company });
+  const { company, counts } = await deleteCompany(req.params.companyId);
+  res.json({ company, deletedCounts: counts });
 });
