@@ -239,7 +239,11 @@ export async function performCheckIn(
     const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user already has active attendance for today
-    const existingAttendance = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
+    const existingAttendance = await Attendance.findOne({
+      userId,
+      date,
+      ...companyOrLegacyAttendanceFilter(effectiveCompanyId)
+    });
 
     if (existingAttendance && existingAttendance.checkIn) {
       throw new ApiError(
@@ -288,8 +292,12 @@ export async function performCheckIn(
       : "PRESENT"; // Could be calculated more precisely, but PRESENT for active check-in
 
     // Update or create attendance record
+    const checkInFilter = existingAttendance
+      ? { _id: existingAttendance._id }
+      : { userId, date, companyId: effectiveCompanyId };
+
     const doc = await Attendance.findOneAndUpdate(
-      { userId, date, companyId: effectiveCompanyId },
+      checkInFilter,
       {
         $set: {
           checkIn: checkInTime24,
@@ -366,7 +374,11 @@ export async function performCheckOut(
     const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user has active check-in
-    const existingAttendance = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
+    const existingAttendance = await Attendance.findOne({
+      userId,
+      date,
+      ...companyOrLegacyAttendanceFilter(effectiveCompanyId)
+    });
 
     if (!existingAttendance || !existingAttendance.checkIn) {
       throw new ApiError(
@@ -435,7 +447,7 @@ export async function performCheckOut(
 
     // Update attendance record
     const doc = await Attendance.findOneAndUpdate(
-      { userId, date, companyId: effectiveCompanyId },
+      { _id: existingAttendance._id },
       {
         $set: {
           checkOut: checkOutTime24,
@@ -479,7 +491,11 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
     if (!effectiveCompanyId) {
       throw new ApiError(StatusCodes.FORBIDDEN, "Company context is required");
     }
-    const existing = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
+    const existing = await Attendance.findOne({
+      userId,
+      date,
+      ...companyOrLegacyAttendanceFilter(effectiveCompanyId)
+    });
     const newCheckIn = checkIn ?? existing?.checkIn ?? "";
     const newCheckOut = checkOut ?? existing?.checkOut ?? "";
     const { shiftStart, shiftEnd } = await getShiftForDate(date, effectiveCompanyId);
@@ -644,8 +660,23 @@ async function getCompanyUserIds(companyId) {
   return users.map((u) => u._id);
 }
 
+function companyOrLegacyAttendanceFilter(companyId) {
+  if (!companyId) return {};
+  return {
+    $or: [
+      { companyId },
+      { companyId: null },
+      { companyId: { $exists: false } }
+    ]
+  };
+}
+
 export async function getMyAttendance(userId, from, to, companyId = null) {
-  const records = await Attendance.find({ userId, ...(companyId ? { companyId } : {}), date: { $gte: from, $lte: to } }).sort({ date: 1 });
+  const records = await Attendance.find({
+    userId,
+    ...companyOrLegacyAttendanceFilter(companyId),
+    date: { $gte: from, $lte: to }
+  }).sort({ date: 1 });
   const effectiveFrom = from || records[0]?.date;
   const effectiveTo = to || records[records.length - 1]?.date;
   const holidayMap = await getPublicHolidayMap(effectiveFrom, effectiveTo, companyId);
@@ -679,8 +710,10 @@ export async function getAllAttendance(from, to, userRole, userId = null, compan
       fromDate = thirtyDaysAgo.toISOString().split("T")[0];
     }
     
-    const query = { date: { $gte: fromDate, $lte: toDate } };
-    if (companyId) query.companyId = companyId;
+    const query = {
+      date: { $gte: fromDate, $lte: toDate },
+      ...companyOrLegacyAttendanceFilter(companyId)
+    };
 
     // Always scope to company first
     const companyUserIds = companyId ? await getCompanyUserIds(companyId) : null;
@@ -790,7 +823,7 @@ async function buildUpdatedAttendanceFields(baseRecord, patch) {
 }
 
 export async function editAttendanceHRorAdmin(userId, date, patch, companyId = null) {
-  const existing = await Attendance.findOne({ userId, date, ...(companyId ? { companyId } : {}) });
+  const existing = await Attendance.findOne({ userId, date, ...companyOrLegacyAttendanceFilter(companyId) });
   const baseRecord = existing || {
     userId,
     date,
@@ -803,7 +836,7 @@ export async function editAttendanceHRorAdmin(userId, date, patch, companyId = n
   const updatedFields = await buildUpdatedAttendanceFields(baseRecord, patch);
 
   const doc = await Attendance.findOneAndUpdate(
-    { userId, date, ...(companyId ? { companyId } : {}) },
+    existing ? { _id: existing._id } : { userId, date, ...(companyId ? { companyId } : {}) },
     { $set: { ...updatedFields, ...(companyId ? { companyId } : {}) } },
     { upsert: true, returnDocument: "after" }
   );
@@ -920,7 +953,7 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
       const existingRecord = await Attendance.findOne({
         userId: staff._id,
         date: targetDate,
-        ...(companyId ? { companyId } : {})
+        ...companyOrLegacyAttendanceFilter(companyId)
       });
 
       if (!existingRecord) {
@@ -1130,7 +1163,7 @@ export async function getAttendanceSummaryForToday(companyId) {
     const today = getCurrentDateIST();
 
     // Build match stage with date and optional company filter
-    const matchStage = { $match: { date: today } };
+    const matchStage = { $match: { date: today, ...companyOrLegacyAttendanceFilter(companyId) } };
     
     if (companyId) {
       const companyUserIds = await getCompanyUserIds(companyId);

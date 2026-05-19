@@ -4,6 +4,7 @@ import Spinner from "../../components/ui/Spinner.jsx";
 import { toast } from "../../store/toastStore.js";
 import api from "../../lib/api.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
+import { todayISO } from "../../lib/date.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import { Clock, LogIn, LogOut, Timer, CheckCircle } from "lucide-react";
 
@@ -72,7 +73,7 @@ export default function QuickAttendanceMarking() {
   const loadAttendanceStatus = async () => {
     try {
       setInitialLoading(true);
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
       const res = await api.get("/attendance/me", {
         params: { from: today, to: today }
       });

@@ -4,11 +4,23 @@ import { User } from "../users/User.model.js";
 import { Department } from "../department/Department.model.js";
 import { Payroll } from "../payroll/Payroll.model.js";
 import { LeaveType } from "../leaveType/LeaveType.model.js";
+import { getCurrentDateIST } from "../../utils/istDateTime.js";
 
 async function getCompanyUserIds(companyId) {
   if (!companyId) return [];
   const users = await User.find({ companyId }).select("_id").lean();
   return users.map((u) => u._id);
+}
+
+function companyOrLegacyAttendanceFilter(companyId) {
+  if (!companyId) return {};
+  return {
+    $or: [
+      { companyId },
+      { companyId: null },
+      { companyId: { $exists: false } }
+    ]
+  };
 }
 
 // Calculate leave balance for a user - supports multiple leave types
@@ -80,13 +92,15 @@ export async function getLeaveBalance(userId) {
 
 export async function getDashboardStats(companyId) {
   const companyUserIds = await getCompanyUserIds(companyId);
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const today = getCurrentDateIST(); // YYYY-MM-DD in company/server timezone
   const todayDate = new Date(today);
+  const attendanceCompanyFilter = companyOrLegacyAttendanceFilter(companyId);
 
   // Count attended today (includes full day, short hours, and half day)
   const presentToday = await Attendance.countDocuments({
     date: today,
     status: { $in: ["PRESENT", "SHORT_HOURS", "HALF_DAY"] },
+    ...attendanceCompanyFilter,
     userId: { $in: companyUserIds }
   });
 
@@ -94,6 +108,7 @@ export async function getDashboardStats(companyId) {
   const shortHoursToday = await Attendance.countDocuments({
     date: today,
     status: "SHORT_HOURS",
+    ...attendanceCompanyFilter,
     userId: { $in: companyUserIds }
   });
 
@@ -101,6 +116,7 @@ export async function getDashboardStats(companyId) {
   const halfDayToday = await Attendance.countDocuments({
     date: today,
     status: "HALF_DAY",
+    ...attendanceCompanyFilter,
     userId: { $in: companyUserIds }
   });
 
@@ -114,6 +130,7 @@ export async function getDashboardStats(companyId) {
   // Get employees who have attendance records today (any status)
   const employeesWithAttendanceToday = await Attendance.distinct('userId', {
     date: today,
+    ...attendanceCompanyFilter,
     userId: { $in: companyUserIds }
   });
 
@@ -158,8 +175,9 @@ export async function getDashboardStats(companyId) {
 // rolesFilter: optional array of roles to limit results (e.g. ["USER"] for HR dashboard)
 export async function getAbsentEmployees(rolesFilter, companyId) {
   const companyUserIds = await getCompanyUserIds(companyId);
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const today = getCurrentDateIST(); // YYYY-MM-DD in company/server timezone
   const todayDate = new Date(today);
+  const attendanceCompanyFilter = companyOrLegacyAttendanceFilter(companyId);
 
   // Use provided rolesFilter or default to HR + USER
   const rolesToQuery = (rolesFilter && rolesFilter.length > 0)
@@ -175,6 +193,7 @@ export async function getAbsentEmployees(rolesFilter, companyId) {
   // Get employees who have attendance records today
   const employeesWithAttendanceToday = await Attendance.distinct('userId', {
     date: today,
+    ...attendanceCompanyFilter,
     userId: { $in: companyUserIds }
   });
 

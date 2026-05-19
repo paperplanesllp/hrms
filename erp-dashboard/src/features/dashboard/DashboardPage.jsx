@@ -11,6 +11,7 @@ import { toast } from "../../store/toastStore.js";
 import { useAuthStore } from "../../store/authStore.js";
 import { ROLES } from "../../app/constants.js";
 import { requestGeolocation } from "../../lib/geolocation.js";
+import { todayISO } from "../../lib/date.js";
 import { getSocket } from "../../lib/socket.js";
 import { convertTo12HourFormat } from "../attendance/attendanceUtils.js";
 import QuickAttendanceMarking from "./QuickAttendanceMarking.jsx";
@@ -162,7 +163,7 @@ export default function DashboardPage() {
   // Load attendance status
   const loadAttendanceStatus = async () => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
       const res = await api.get("/attendance", {
         params: { from: today, to: today }
       });
@@ -318,7 +319,7 @@ export default function DashboardPage() {
             Promise.resolve({ data: [] })
           );
 
-          const today = new Date().toISOString().split("T")[0];
+          const today = todayISO();
           todayAttendancePromise = api.get("/attendance", { params: { from: today, to: today } }).catch(() =>
             Promise.resolve({ data: [] })
           );

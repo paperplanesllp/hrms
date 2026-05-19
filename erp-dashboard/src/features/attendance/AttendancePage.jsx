@@ -74,7 +74,7 @@ export default function AttendancePage() {
   const [rows, setRows] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateIST());
   const [filterHROnly, setFilterHROnly] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
