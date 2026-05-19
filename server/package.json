@@ -15,7 +15,10 @@
     "timing:backfill:apply": "node src/scripts/backfillTaskTiming.js --apply",
     "migrate:task-company-id": "node scripts/backfill-task-company-id.js",
     "tenant:backfill:dry": "node scripts/backfill-tenant-company-id.js",
-    "tenant:backfill:apply": "node scripts/backfill-tenant-company-id.js --apply"
+    "tenant:backfill:apply": "node scripts/backfill-tenant-company-id.js --apply",
+    "orphan:check": "node scripts/orphan-check.js",
+    "orphan:cleanup": "node scripts/orphan-cleanup.js",
+    "orphan:verify": "node scripts/verify-orphan-fix.js"
   },
   "keywords": [],
   "author": "",

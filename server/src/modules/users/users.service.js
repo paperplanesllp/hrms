@@ -4,6 +4,7 @@ import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
 import { User } from "./User.model.js";
 import { ROLES, normalizeRole } from "../../middleware/roles.js";
+import { isOrphanEmailConflict, safeDeleteOrphanUser } from "../companies/orphan.service.js";
 
 function getEmailDomain(email = "") {
   const parts = String(email || "").trim().toLowerCase().split("@");
@@ -24,8 +25,24 @@ function normalizeRoleFilter(roleFilter = null) {
 }
 
 export async function createUser(data) {
-  const exists = await User.findOne({ email: data.email });
-  if (exists) throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
+  const email = String(data.email || "").trim().toLowerCase();
+  const exists = await User.findOne({ email });
+  
+  if (exists) {
+    // Check if it's an orphan user (belongs to non-existent company)
+    const orphanUser = await isOrphanEmailConflict(email);
+    if (orphanUser) {
+      // Safely delete the orphan user to allow new user creation
+      console.info("[CREATE_USER] Found orphan user with conflicting email. Auto-deleting orphan...", {
+        email,
+        orphanCompanyId: String(orphanUser.companyId),
+      });
+      await safeDeleteOrphanUser(email, true);
+    } else {
+      // Email belongs to a real user in an existing company
+      throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
+    }
+  }
 
   if (!data.companyId) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Company is required");
@@ -34,7 +51,7 @@ export async function createUser(data) {
   const passwordHash = await bcrypt.hash(data.password, 10);
   const user = await User.create({
     name: data.name,
-    email: data.email,
+    email,
     companyId: data.companyId,
     phone: data.phone || "",
     role: data.role,

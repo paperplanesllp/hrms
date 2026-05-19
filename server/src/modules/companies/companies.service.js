@@ -4,6 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import { createUser } from "../users/users.service.js";
 import { ROLES } from "../../middleware/roles.js";
 import { User } from "../users/User.model.js";
+import { isOrphanEmailConflict, safeDeleteOrphanUser } from "./orphan.service.js";
 import mongoose from "mongoose";
 import { Department } from "../department/Department.model.js";
 import { Designation } from "../department/Designation.model.js";
@@ -112,9 +113,29 @@ export async function createCompanyAdmin(companyId, payload) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Company not found");
   }
 
+  const email = String(payload.email || "").trim().toLowerCase();
+
+  // Check if email already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    // Check if it's an orphan user (belongs to non-existent company)
+    const orphanUser = await isOrphanEmailConflict(email);
+    if (orphanUser) {
+      // Safely delete the orphan user to allow new user creation
+      console.info("[CREATE_COMPANY_ADMIN] Found orphan user with conflicting email. Auto-deleting orphan...", {
+        email,
+        orphanCompanyId: String(orphanUser.companyId),
+      });
+      await safeDeleteOrphanUser(email, true);
+    } else {
+      // Email belongs to a real user in an existing company
+      throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
+    }
+  }
+
   const user = await createUser({
     name: payload.name,
-    email: String(payload.email || "").trim().toLowerCase(),
+    email,
     phone: payload.phone || "",
     role: ROLES.ADMIN,
     password: payload.password,
