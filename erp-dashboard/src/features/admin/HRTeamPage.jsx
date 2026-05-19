@@ -41,6 +41,8 @@ import {
   Layers,
   ShieldCheck,
   MoreHorizontal,
+  UploadCloud,
+  CheckCircle,
 } from "lucide-react";
 import HRDiscussionPanel from "./HRDiscussionPanel.jsx";
 import HRMeetingPanel from "./HRMeetingPanel.jsx";
@@ -356,11 +358,11 @@ export default function HRTeamPage() {
   }
 
   return (
-    <div className="relative -m-4 min-h-screen overflow-hidden p-4 text-slate-950 dark:text-white sm:-m-6 sm:p-6">
+    <div className="relative min-h-screen p-4 -m-4 overflow-hidden text-slate-950 dark:text-white sm:-m-6 sm:p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_5%,rgba(20,184,166,0.18),transparent_28%),radial-gradient(circle_at_82%_4%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,rgba(248,250,252,0.94),rgba(226,232,240,0.72))] dark:bg-[radial-gradient(circle_at_12%_5%,rgba(20,184,166,0.13),transparent_30%),radial-gradient(circle_at_82%_4%,rgba(124,58,237,0.18),transparent_34%),linear-gradient(135deg,#070b16,#0f172a_45%,#111827)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.16] dark:opacity-[0.08] [background-image:linear-gradient(rgba(15,23,42,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.22)_1px,transparent_1px)] [background-size:72px_72px]" />
       <motion.div
-        className="pointer-events-none absolute left-1/2 top-10 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl"
+        className="absolute rounded-full pointer-events-none left-1/2 top-10 h-72 w-72 bg-violet-500/20 blur-3xl"
         animate={{ x: [-40, 30, -40], y: [0, 28, 0], scale: [1, 1.08, 1] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -374,7 +376,7 @@ export default function HRTeamPage() {
           <RefreshStatus
             isRefreshing={hrTeamRefresh.isRefreshing}
             lastUpdatedAt={hrTeamRefresh.lastUpdatedAt}
-            className="w-fit border-white/40 bg-white/60 text-slate-700 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200"
+            className="shadow-lg w-fit border-white/40 bg-white/60 text-slate-700 shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200"
           />
         </div>
 
@@ -385,16 +387,16 @@ export default function HRTeamPage() {
           className="relative overflow-hidden rounded-[32px] border border-white/50 bg-white/55 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62 md:p-7"
         >
           <motion.div
-            className="absolute -right-16 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-violet-500/35 to-cyan-400/25 blur-3xl"
+            className="absolute rounded-full -right-16 -top-20 h-72 w-72 bg-gradient-to-br from-violet-500/35 to-cyan-400/25 blur-3xl"
             animate={{ rotate: [0, 18, 0], scale: [1, 1.12, 1] }}
             transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
           />
-          <div className="absolute bottom-0 left-0 h-32 w-full bg-gradient-to-r from-teal-400/10 via-transparent to-violet-500/10" />
+          <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-r from-teal-400/10 via-transparent to-violet-500/10" />
 
           <div className="relative grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/65 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-white/80">
-                <Sparkles className="h-4 w-4 text-violet-500 dark:text-violet-300" />
+              <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold border rounded-full shadow-sm border-white/60 bg-white/65 text-slate-700 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-white/80">
+                <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-300" />
                 Collaboration Control Center
               </div>
 
@@ -402,7 +404,7 @@ export default function HRTeamPage() {
                 <h2 className="max-w-4xl text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white md:text-5xl">
                   A premium HR workspace for people, conversations, and decisions.
                 </h2>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
+                <p className="max-w-2xl mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
                   Coordinate the HR team, follow live presence, launch discussions, and schedule meetings from one calm collaboration surface.
                 </p>
               </div>
@@ -429,7 +431,7 @@ export default function HRTeamPage() {
                 caption={`${hrTeam.length} total HR members`}
               />
               <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                     Active Indicators
                   </p>
@@ -440,7 +442,7 @@ export default function HRTeamPage() {
                     <div
                       key={member._id}
                       title={member.name}
-                      className="relative flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-white bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg dark:border-slate-950"
+                      className="relative flex items-center justify-center w-12 h-12 text-sm font-bold text-white border-2 border-white shadow-lg rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 dark:border-slate-950"
                     >
                       {member?.name?.charAt(0)?.toUpperCase() || "H"}
                       <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-950 ${getMemberDotClass(member._id)}`} />
@@ -607,7 +609,7 @@ function PremiumButton({ children, onClick, icon: Icon, tone = "violet", compact
         compact ? "px-4 py-2.5 text-sm" : "px-5 py-3"
       } font-bold shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02]`}
     >
-      <Icon className="h-4 w-4 transition-transform group-hover:scale-110" />
+      <Icon className="w-4 h-4 transition-transform group-hover:scale-110" />
       {children}
     </button>
   );
@@ -617,8 +619,8 @@ function HeroGlassPanel({ icon: Icon, label, value, caption }) {
   return (
     <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-cyan-500 shadow-lg shadow-cyan-500/20">
-          <Icon className="h-6 w-6 text-slate-950" />
+        <div className="flex items-center justify-center w-12 h-12 shadow-lg rounded-2xl bg-gradient-to-br from-teal-400 to-cyan-500 shadow-cyan-500/20">
+          <Icon className="w-6 h-6 text-slate-950" />
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -644,10 +646,10 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
       whileHover={{ y: -5, scale: 1.01 }}
       className="group relative overflow-hidden rounded-[28px] border border-white/55 bg-white/62 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-violet-300/60 hover:shadow-[0_28px_80px_rgba(99,102,241,0.18)] dark:border-white/10 dark:bg-slate-950/62 dark:hover:border-violet-400/30"
     >
-      <div className="absolute -right-12 -top-16 h-36 w-36 rounded-full bg-violet-500/12 blur-3xl transition-opacity group-hover:opacity-100" />
+      <div className="absolute transition-opacity rounded-full -right-12 -top-16 h-36 w-36 bg-violet-500/12 blur-3xl group-hover:opacity-100" />
 
       <div className="relative flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex items-center min-w-0 gap-4">
           <div className="relative">
             <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-xl font-black text-white shadow-xl shadow-violet-500/20">
               {member?.name?.charAt(0)?.toUpperCase() || "H"}
@@ -658,10 +660,10 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
           </div>
 
           <div className="min-w-0">
-            <h4 className="truncate text-lg font-black text-slate-950 dark:text-white">
+            <h4 className="text-lg font-black truncate text-slate-950 dark:text-white">
               {member.name}
             </h4>
-            <p className="truncate text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm truncate text-slate-500 dark:text-slate-400">
               {member.email}
             </p>
             <p className={`mt-1 text-xs font-semibold ${presenceTextColor}`} title={presenceLabel.tooltip}>
@@ -670,13 +672,13 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
           </div>
         </div>
 
-        <button className="rounded-2xl border border-slate-200/70 bg-white/60 p-2 text-slate-500 shadow-sm backdrop-blur-xl transition hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-white">
-          <MoreHorizontal className="h-4 w-4" />
+        <button className="p-2 transition border shadow-sm rounded-2xl border-slate-200/70 bg-white/60 text-slate-500 backdrop-blur-xl hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-white">
+          <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="relative mt-5 flex flex-wrap gap-2">
-        <Badge className="rounded-full border border-violet-300/40 bg-gradient-to-r from-violet-500/15 to-indigo-500/15 px-3 py-1 text-xs font-bold text-violet-700 dark:border-violet-400/20 dark:text-violet-200">
+      <div className="relative flex flex-wrap gap-2 mt-5">
+        <Badge className="px-3 py-1 text-xs font-bold border rounded-full border-violet-300/40 bg-gradient-to-r from-violet-500/15 to-indigo-500/15 text-violet-700 dark:border-violet-400/20 dark:text-violet-200">
           {member.role || "HR"}
         </Badge>
         <Badge
@@ -690,7 +692,7 @@ function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) 
         </Badge>
       </div>
 
-      <div className="relative mt-5 grid grid-cols-3 gap-2 border-t border-slate-200/70 pt-4 dark:border-white/10">
+      <div className="relative grid grid-cols-3 gap-2 pt-4 mt-5 border-t border-slate-200/70 dark:border-white/10">
         <IconAction icon={MessageCircle} label="Message" color="teal" />
         <IconAction icon={Video} label="Video" color="indigo" />
         <IconAction icon={Mail} label="Mail" color="amber" />
@@ -711,7 +713,7 @@ function IconAction({ icon: Icon, label, color }) {
       title={label}
       className={`flex items-center justify-center rounded-2xl border border-slate-200/70 bg-white/55 py-3 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5 ${colors[color]}`}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="w-4 h-4" />
     </button>
   );
 }
@@ -739,7 +741,7 @@ function WorkspaceSidebar({
           empty="No active discussions"
           render={(discussion) => (
             <>
-              <p className="line-clamp-1 text-sm font-bold text-slate-900 dark:text-white">
+              <p className="text-sm font-bold line-clamp-1 text-slate-900 dark:text-white">
                 {discussion.title || "Untitled discussion"}
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -756,7 +758,7 @@ function WorkspaceSidebar({
           empty="No upcoming meetings"
           render={(meeting) => (
             <>
-              <p className="line-clamp-1 text-sm font-bold text-slate-900 dark:text-white">
+              <p className="text-sm font-bold line-clamp-1 text-slate-900 dark:text-white">
                 {meeting.title || "Untitled meeting"}
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -778,7 +780,7 @@ function WorkspaceSidebar({
             <div key={member._id} className="flex items-center gap-3 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{member.name}</p>
+                <p className="text-sm font-bold truncate text-slate-900 dark:text-white">{member.name}</p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-300">Active now</p>
               </div>
             </div>
@@ -801,9 +803,9 @@ function SidebarPanel({ title, icon: Icon, children }) {
       animate={{ opacity: 1, x: 0 }}
       className="rounded-[28px] border border-white/55 bg-white/62 p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62"
     >
-      <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white/10">
-          <Icon className="h-4 w-4" />
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center justify-center text-white h-9 w-9 rounded-2xl bg-slate-950 dark:bg-white/10">
+          <Icon className="w-4 h-4" />
         </div>
         <h4 className="text-sm font-black uppercase tracking-[0.16em] text-slate-700 dark:text-slate-300">
           {title}
@@ -832,7 +834,7 @@ function MiniTimeline({ activity }) {
   if (!activity.length) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300/70 bg-white/35 p-5 text-center dark:border-white/10 dark:bg-white/[0.03]">
-        <AlertCircle className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+        <AlertCircle className="w-6 h-6 mx-auto mb-2 text-slate-400" />
         <p className="text-sm text-slate-500 dark:text-slate-400">Realtime activity will appear here</p>
       </div>
     );
@@ -844,7 +846,7 @@ function MiniTimeline({ activity }) {
         <div key={idx} className="relative flex gap-3 pl-1">
           <span className="mt-1.5 h-7 w-7 rounded-full border-4 border-white bg-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.45)] dark:border-slate-950" />
           <div className="min-w-0 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
-            <p className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-white">{item.message}</p>
+            <p className="text-sm font-semibold line-clamp-2 text-slate-900 dark:text-white">{item.message}</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {new Date(item.timestamp).toLocaleTimeString("en-IN", {
                 hour: "numeric",
@@ -863,9 +865,9 @@ function MiniTimeline({ activity }) {
 function EmptyWorkspace({ icon: Icon, title, body, action, actionLabel }) {
   return (
     <div className="col-span-full rounded-[28px] border border-dashed border-slate-300/80 bg-white/50 p-10 text-center backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
-      <Icon className="mx-auto mb-4 h-10 w-10 text-slate-400" />
+      <Icon className="w-10 h-10 mx-auto mb-4 text-slate-400" />
       <h4 className="text-lg font-black text-slate-950 dark:text-white">{title}</h4>
-      <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">{body}</p>
+      <p className="max-w-md mx-auto mt-2 text-sm text-slate-500 dark:text-slate-400">{body}</p>
       <PremiumButton onClick={action} icon={Plus} compact>
         {actionLabel}
       </PremiumButton>
@@ -1008,9 +1010,16 @@ function CreateHRModal({
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   const handleFormChange = (field, value) => {
     setHRForm({ ...hrForm, [field]: value });
+  };
+
+  const handleAvatarPreview = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
   };
 
   const passwordsMatch =
@@ -1018,30 +1027,65 @@ function CreateHRModal({
     hrForm.confirmPassword &&
     hrForm.password === hrForm.confirmPassword;
 
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
+
   return (
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 overflow-hidden bg-slate-950/82 backdrop-blur-xl sm:p-5"
     >
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1020] shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
-        <div className="sticky top-0 z-10 border-b border-white/10 bg-gradient-to-r from-[#111827] to-[#0b1020] px-8 py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 ring-1 ring-violet-400/20">
-                <UserPlus className="w-6 h-6 text-violet-300" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Add Team Member</h2>
-                <p className="mt-0.5 text-sm text-slate-400">
-                  Create a new HR staff account with complete details
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 18, scale: 0.98 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-white/12 bg-[#07101f]/92 shadow-[0_34px_120px_rgba(0,0,0,0.62)] ring-1 ring-violet-300/10"
+      >
+        <motion.div
+          className="absolute rounded-full pointer-events-none -right-20 -top-24 h-80 w-80 bg-violet-500/28 blur-3xl"
+          animate={{ scale: [1, 1.12, 1], x: [0, -24, 0], y: [0, 18, 0] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute rounded-full pointer-events-none -left-20 top-28 h-72 w-72 bg-cyan-400/16 blur-3xl"
+          animate={{ scale: [1, 1.1, 1], x: [0, 18, 0], y: [0, -12, 0] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <div className="relative border-b border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.035] to-transparent px-5 py-5 backdrop-blur-2xl sm:px-7 sm:py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start min-w-0 gap-4">
+              <motion.div
+                className="relative flex items-center justify-center flex-shrink-0 shadow-2xl h-14 w-14 rounded-3xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-violet-700/35"
+                animate={{ y: [0, -4, 0], rotate: [0, 2, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <UserPlus className="text-white h-7 w-7" />
+                <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-[#07101f] bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.95)]" />
+              </motion.div>
+              <div className="min-w-0">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  HR Onboarding
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-blue-700 sm:text-3xl">
+                  Add Team Member
+                </h2>
+                <p className="max-w-2xl mt-2 text-sm leading-6 text-slate-300">
+                  Create a polished HR staff profile, set secure access, and get the employee ready for collaboration.
                 </p>
               </div>
             </div>
+
             <button
               onClick={onClose}
-              className="p-2 transition-colors rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
+              className="flex items-center justify-center flex-shrink-0 transition border h-11 w-11 rounded-2xl border-white/10 bg-white/5 text-slate-300 hover:scale-105 hover:bg-white/10 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1049,10 +1093,19 @@ function CreateHRModal({
         </div>
 
         <form
+          id="create-hr-member-form"
           onSubmit={handleCreateHR}
-          className="max-h-[calc(90vh-160px)] overflow-y-auto bg-[#0b1020] px-8 py-6"
+          className="relative flex-1 px-4 py-5 overflow-y-auto sm:px-7 sm:py-6"
         >
-          <div className="space-y-8">
+          <div className="max-w-5xl mx-auto space-y-7">
+            <ProfilePreviewPanel
+              name={hrForm.name}
+              email={hrForm.email}
+              role="HR"
+              avatarPreview={avatarPreview}
+              onAvatarChange={handleAvatarPreview}
+            />
+
             <FormSection
               title="Basic Details"
               subtitle="Essential information about the employee"
@@ -1353,44 +1406,113 @@ function CreateHRModal({
           </div>
         </form>
 
-        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-white/10 bg-[#111827] px-8 py-4">
+        <div className="relative flex flex-col gap-3 border-t border-white/10 bg-[#07101f]/92 px-5 py-4 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between sm:px-7">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <ShieldCheck className="w-4 h-4 text-emerald-300" />
+            Details are saved securely to the existing HR account workflow.
+          </div>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/5 px-6 py-2.5 font-medium text-slate-200 transition-colors hover:bg-white/10"
+            className="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 font-semibold text-slate-200 transition-all hover:scale-[1.02] hover:bg-white/10"
           >
             Cancel
           </Button>
           <Button
             type="submit"
+            form="create-hr-member-form"
             disabled={createHRLoading || (hrForm.confirmPassword && !passwordsMatch)}
-            onClick={handleCreateHR}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-8 py-2.5 font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-violet-700/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 px-8 py-3 font-black text-white shadow-[0_16px_45px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_20px_55px_rgba(34,211,238,0.22)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {createHRLoading ? (
               <>
-                <div className="w-4 h-4 border-2 rounded-full animate-spin border-white/30 border-t-white" />
+                <div className="w-4 h-4 border-2 rounded-full border-white/30 border-t-white animate-spin" />
                 Creating...
               </>
             ) : (
               <>
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4 transition-transform group-hover:scale-110" />
                 Create Staff Member
               </>
             )}
           </Button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ProfilePreviewPanel({ name, email, role, avatarPreview, onAvatarChange }) {
+  const initial = name?.charAt(0)?.toUpperCase() || "H";
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_18px_70px_rgba(2,6,23,0.28)] backdrop-blur-2xl"
+    >
+      <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-cyan-400/14 blur-3xl" />
+      <div className="relative grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-center">
+        <label className="group relative flex cursor-pointer flex-col items-center justify-center rounded-[26px] border border-dashed border-violet-300/30 bg-gradient-to-br from-violet-500/10 to-cyan-500/5 p-5 text-center transition hover:border-cyan-300/50 hover:from-violet-500/16 hover:to-cyan-500/10">
+          <input type="file" accept="image/*" onChange={onAvatarChange} className="sr-only" />
+          <div className="relative">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[30px] border border-white/15 bg-gradient-to-br from-violet-500 via-indigo-500 to-cyan-500 text-4xl font-black text-white shadow-2xl shadow-violet-700/25">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                initial
+              )}
+            </div>
+            <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-[3px] border-[#07101f] bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.95)]" />
+          </div>
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-bold text-cyan-100 transition group-hover:bg-white/15">
+            <UploadCloud className="h-4 w-4" />
+            Upload profile photo
+          </div>
+          <p className="mt-2 text-xs text-slate-400">PNG or JPG preview only. Profile API remains unchanged.</p>
+        </label>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-violet-200">
+              Employee preview
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-white">
+              {name || "New HR team member"}
+            </h3>
+            <p className="mt-1 text-sm text-slate-400">{email || "email@company.com"}</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
+              <p className="text-xs text-slate-500">Role</p>
+              <p className="mt-1 font-bold text-white">{role}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
+              <p className="text-xs text-slate-500">Status</p>
+              <p className="mt-1 flex items-center gap-2 font-bold text-emerald-300">
+                <CheckCircle className="h-4 w-4" />
+                Active
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
+              <p className="text-xs text-slate-500">Workspace</p>
+              <p className="mt-1 font-bold text-cyan-200">HR Hub</p>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </motion.section>
   );
 }
 
 function FormSection({ title, subtitle, icon: Icon, color, children }) {
   const colorMap = {
-    violet: "from-violet-500/10 to-indigo-500/5 border-violet-500/20",
-    teal: "from-teal-500/10 to-cyan-500/5 border-teal-500/20",
-    indigo: "from-indigo-500/10 to-blue-500/5 border-indigo-500/20",
-    amber: "from-amber-500/10 to-orange-500/5 border-amber-500/20",
+    violet: "from-violet-500/14 via-indigo-500/6 to-white/[0.03] border-violet-400/24 shadow-violet-950/18",
+    teal: "from-teal-500/14 via-cyan-500/6 to-white/[0.03] border-teal-400/24 shadow-teal-950/18",
+    indigo: "from-indigo-500/14 via-blue-500/6 to-white/[0.03] border-indigo-400/24 shadow-indigo-950/18",
+    amber: "from-amber-500/14 via-orange-500/6 to-white/[0.03] border-amber-400/24 shadow-amber-950/18",
   };
 
   const iconColorMap = {
@@ -1408,33 +1530,52 @@ function FormSection({ title, subtitle, icon: Icon, color, children }) {
   };
 
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br ${colorMap[color]} p-6 backdrop-blur-sm`}>
-      <div className="flex items-center gap-3 pb-4 mb-5 border-b border-white/10">
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative overflow-hidden rounded-[30px] border bg-gradient-to-br ${colorMap[color]} p-5 shadow-[0_18px_70px_rgba(2,6,23,0.22)] backdrop-blur-2xl sm:p-6`}
+    >
+      <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/8 blur-3xl" />
+      <div className="relative mb-6 flex items-center gap-3 border-b border-white/10 pb-4">
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBgMap[color]} ${iconColorMap[color]}`}
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${iconBgMap[color]} ${iconColorMap[color]} ring-1 ring-white/10 shadow-lg`}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="h-5 w-5" />
         </div>
         <div>
-          <h3 className="text-base font-bold text-white">{title}</h3>
-          <p className="text-sm text-slate-400">{subtitle}</p>
+          <h3 className="text-lg font-black text-white">{title}</h3>
+          <p className="mt-0.5 text-sm leading-5 text-slate-400">{subtitle}</p>
         </div>
       </div>
-      {children}
-    </div>
+      <motion.div
+        className="relative"
+        initial="hidden"
+        animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
+      >
+        {children}
+      </motion.div>
+    </motion.section>
   );
 }
 
 function FormField({ label, required, hint, children, error }) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-sm font-semibold text-slate-200">
-        {label} {required && <span className="ml-1 text-red-400">*</span>}
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+      className="group space-y-2"
+    >
+      <label className="inline-flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.045] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-300 transition-colors group-focus-within:border-violet-300/30 group-focus-within:text-violet-100">
+        {label} {required && <span className="text-red-300">*</span>}
       </label>
-      {children}
-      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+      <div className="rounded-[18px] bg-gradient-to-r from-white/10 via-white/5 to-white/10 p-px transition group-focus-within:from-violet-400/70 group-focus-within:via-cyan-300/60 group-focus-within:to-violet-400/70">
+        <div className="rounded-[17px] bg-[#08111f]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          {children}
+        </div>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-    </div>
+    </motion.div>
   );
 }
 
