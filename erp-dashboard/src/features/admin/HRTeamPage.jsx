@@ -257,41 +257,6 @@ export default function HRTeamPage() {
     [hrTeam, presenceUsers]
   );
 
-  const activeDiscussions = useMemo(
-    () =>
-      discussions
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt || 0) -
-            new Date(a.updatedAt || a.createdAt || 0)
-        )
-        .slice(0, 4),
-    [discussions]
-  );
-
-  const upcomingMeetings = useMemo(
-    () =>
-      meetings
-        .filter((meeting) => new Date(meeting.date || meeting.scheduledFor || 0) >= new Date())
-        .sort(
-          (a, b) =>
-            new Date(a.date || a.scheduledFor || 0) -
-            new Date(b.date || b.scheduledFor || 0)
-        )
-        .slice(0, 4),
-    [meetings]
-  );
-
-  const activeTeam = useMemo(
-    () =>
-      sortedHrTeam.filter((member) => {
-        const { status } = getMemberPresence(member._id);
-        return ["online", "active-now", "active-recently", "typing"].includes(status);
-      }),
-    [sortedHrTeam, presenceUsers]
-  );
-
   const getMemberPresence = (memberId) =>
     getDerivedPresenceStatus(presenceUsers[memberId]);
 
@@ -335,6 +300,41 @@ export default function HRTeamPage() {
     if (status === "away") return "text-amber-300";
     return "text-slate-500";
   };
+
+  const activeDiscussions = useMemo(
+    () =>
+      discussions
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt || 0) -
+            new Date(a.updatedAt || a.createdAt || 0)
+        )
+        .slice(0, 4),
+    [discussions]
+  );
+
+  const upcomingMeetings = useMemo(
+    () =>
+      meetings
+        .filter((meeting) => new Date(meeting.date || meeting.scheduledFor || 0) >= new Date())
+        .sort(
+          (a, b) =>
+            new Date(a.date || a.scheduledFor || 0) -
+            new Date(b.date || b.scheduledFor || 0)
+        )
+        .slice(0, 4),
+    [meetings]
+  );
+
+  const activeTeam = useMemo(
+    () =>
+      sortedHrTeam.filter((member) => {
+        const { status } = getMemberPresence(member._id);
+        return ["online", "active-now", "active-recently", "typing"].includes(status);
+      }),
+    [sortedHrTeam, presenceUsers]
+  );
 
   if (loading) {
     return (
