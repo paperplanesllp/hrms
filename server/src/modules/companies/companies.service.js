@@ -227,7 +227,12 @@ async function runCompanyDelete(companyId, session = null) {
       { updatedBy: userScoped },
     ],
   }, session));
-  await record("news", deleteManyAndCount(News, { createdBy: userScoped }, session));
+  await record("news", deleteManyAndCount(News, {
+    $or: [
+      { companyId: companyObjectId },
+      { createdBy: userScoped },
+    ],
+  }, session));
   await record("leaveTypes", deleteManyAndCount(LeaveType, { createdBy: userScoped }, session));
   await record("auditLogs", deleteManyAndCount(AuditLog, { companyId: companyObjectId }, session));
   await record("activityLogs", deleteManyAndCount(ActivityLog, { companyId: companyObjectId }, session));

@@ -27,6 +27,7 @@ import { Calendar } from "../src/modules/calendar/Calendar.model.js";
 import { Complaint } from "../src/modules/complaints/Complaint.model.js";
 import { Policies } from "../src/modules/policies/Policies.model.js";
 import Policy from "../src/modules/policy/Policy.model.js";
+import { News } from "../src/modules/news/News.model.js";
 
 dotenv.config();
 
@@ -406,6 +407,7 @@ async function main() {
   await backfillByUser(Complaint, "Complaint", "userId", usersById);
   await backfillByUser(Policies, "Policies", "createdBy", usersById);
   await backfillByUser(Policy, "Policy", "createdBy", usersById);
+  await backfillByUser(News, "News", "createdBy", usersById);
 
   const designationDocs = await Designation.find(missingCompany).select("_id departmentId").lean();
   const departments = await Department.find({ companyId: { $ne: null } }).select("_id companyId").lean();

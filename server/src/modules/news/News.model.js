@@ -10,6 +10,7 @@ const newsSchema = new mongoose.Schema(
     publishDate: { type: Date, default: Date.now, index: true },
     isPolicyUpdate: { type: Boolean, default: false }, // Privacy Policy Update toggle
     isImportant: { type: Boolean, default: false, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     viewedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // For tracking policy update views
     status: { type: String, enum: ["draft", "published"], default: "published" }
@@ -18,5 +19,6 @@ const newsSchema = new mongoose.Schema(
 );
 
 newsSchema.index({ publishDate: -1 }); // Sort by latest first
+newsSchema.index({ companyId: 1, publishDate: -1 });
 
 export const News = mongoose.model("News", newsSchema);

@@ -1,10 +1,12 @@
 import { News } from "./News.model.js";
 import { ApiError } from "../../utils/apiError.js";
 import { StatusCodes } from "http-status-codes";
+import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { deleteFromCloudinary } from "../../utils/cloudinary.js";
+import { normalizeRole, ROLES } from "../../middleware/roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, "../../../uploads/news");
@@ -41,9 +43,53 @@ async function deleteNewsImage(doc) {
   deleteImageFile(doc.imageUrl);
 }
 
-export async function createNews(userId, data) {
+function normalizeCompanyId(companyId) {
+  return companyId ? String(companyId) : null;
+}
+
+function requireCompanyId(companyId) {
+  const normalized = normalizeCompanyId(companyId);
+  if (!normalized || !mongoose.Types.ObjectId.isValid(normalized)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Company context is required");
+  }
+  return normalized;
+}
+
+function newsCompanyScope(user, selectedCompanyId = null) {
+  const role = normalizeRole(user?.role);
+
+  if (role === ROLES.SUPERADMIN) {
+    const companyId = normalizeCompanyId(selectedCompanyId);
+    if (!companyId) return {};
+    if (!mongoose.Types.ObjectId.isValid(companyId)) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid companyId");
+    }
+    return { companyId };
+  }
+
+  return { companyId: requireCompanyId(user?.companyId) };
+}
+
+function newsTenantMutationScope(user, selectedCompanyId = null) {
+  const role = normalizeRole(user?.role);
+  if (role === ROLES.SUPERADMIN) {
+    return { companyId: requireCompanyId(selectedCompanyId) };
+  }
+  return { companyId: requireCompanyId(user?.companyId) };
+}
+
+export function buildNewsListFilter(user, selectedCompanyId = null) {
+  return { status: "published", ...newsCompanyScope(user, selectedCompanyId) };
+}
+
+export function buildNewsTenantMutationFilter(id, user, selectedCompanyId = null) {
+  return { _id: id, ...newsTenantMutationScope(user, selectedCompanyId) };
+}
+
+export async function createNews(userId, data, companyId) {
   const newsData = {
     ...data,
+    companyId: requireCompanyId(companyId),
     createdBy: userId,
     publishDate: data.publishDate ? new Date(data.publishDate) : new Date(),
     status: "published"
@@ -51,9 +97,9 @@ export async function createNews(userId, data) {
   return News.create(newsData);
 }
 
-export async function listNews() {
+export async function listNews(user, selectedCompanyId = null) {
   try {
-    return await News.find({ status: "published" })
+    return await News.find(buildNewsListFilter(user, selectedCompanyId))
       .populate("createdBy", "name role email")
       .sort({ publishDate: -1 });
   } catch (error) {
@@ -62,32 +108,37 @@ export async function listNews() {
   }
 }
 
-export async function getNewsById(id) {
-  const news = await News.findById(id).populate("createdBy", "name role email");
+export async function getNewsById(id, user, selectedCompanyId = null) {
+  const news = await News.findOne({ _id: id, ...newsCompanyScope(user, selectedCompanyId) })
+    .populate("createdBy", "name role email");
   if (!news) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
   return news;
 }
 
-export async function updateNews(id, patch) {
+export async function updateNews(id, patch, user, selectedCompanyId = null) {
+  const filter = buildNewsTenantMutationFilter(id, user, selectedCompanyId);
   if (patch.publishDate) {
     patch.publishDate = new Date(patch.publishDate);
   }
+  delete patch.companyId;
   
   // If updating with a new image, delete the old one
   if (Object.prototype.hasOwnProperty.call(patch, "imageUrl")) {
-    const oldDoc = await News.findById(id);
+    const oldDoc = await News.findOne(filter);
+    if (!oldDoc) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
     if (oldDoc?.imageUrl) {
       await deleteNewsImage(oldDoc);
     }
   }
   
-  const doc = await News.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after" }).populate("createdBy", "name role email");
+  const doc = await News.findOneAndUpdate(filter, { $set: patch }, { returnDocument: "after" })
+    .populate("createdBy", "name role email");
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
   return doc;
 }
 
-export async function deleteNews(id) {
-  const doc = await News.findByIdAndDelete(id);
+export async function deleteNews(id, user, selectedCompanyId = null) {
+  const doc = await News.findOneAndDelete(buildNewsTenantMutationFilter(id, user, selectedCompanyId));
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
   
   // Clean up image file if exists
@@ -102,9 +153,9 @@ export async function deleteNews(id) {
  * Mark a policy update as viewed by a user
  * Used to track which users have seen privacy policy updates
  */
-export async function markPolicyViewed(newsId, userId) {
+export async function markPolicyViewed(newsId, userId, user, selectedCompanyId = null) {
   try {
-    const news = await News.findById(newsId);
+    const news = await News.findOne(buildNewsTenantMutationFilter(newsId, user, selectedCompanyId));
     if (!news) throw new ApiError(StatusCodes.NOT_FOUND, "News not found");
     
     // Add user to viewedBy array if not already there

@@ -47,8 +47,8 @@ export const postNews = asyncHandler(async (req, res) => {
   
   const data = await attachNewsImage(req, newsCreateSchema.parse(req.body));
   
-  const created = await createNews(req.user.id, data);
-  const doc = await getNewsById(created._id);
+  const created = await createNews(req.user.id, data, req.user.companyId);
+  const doc = await getNewsById(created._id, req.user);
   
   const users = await User.find({
     ...(req.user.companyId ? { companyId: req.user.companyId } : {}),
@@ -57,6 +57,7 @@ export const postNews = asyncHandler(async (req, res) => {
   
   await createBulkNotifications({
     userIds,
+    companyId: req.user.companyId,
     type: data.isPolicyUpdate ? "policy" : "news",
     title: data.isPolicyUpdate
       ? "Policy Update: " + data.title
@@ -79,12 +80,12 @@ export const postNews = asyncHandler(async (req, res) => {
 });
 
 export const getNews = asyncHandler(async (req, res) => {
-  const rows = await listNews();
+  const rows = await listNews(req.user, req.query.companyId);
   res.json(rows);
 });
 
 export const getNewsDetail = asyncHandler(async (req, res) => {
-  const news = await getNewsById(req.params.id);
+  const news = await getNewsById(req.params.id, req.user, req.query.companyId);
   res.json(news);
 });
 
@@ -106,15 +107,15 @@ export const patchNews = asyncHandler(async (req, res) => {
     patch.imageProvider = null;
   }
   
-  const doc = await updateNews(req.params.id, patch);
+  const doc = await updateNews(req.params.id, patch, req.user, req.query.companyId);
   res.json({ news: doc });
 });
 
 export const removeNews = asyncHandler(async (req, res) => {
-  await deleteNews(req.params.id);
+  const deleted = await deleteNews(req.params.id, req.user, req.query.companyId);
   
   // Emit socket event for real-time deletion
-  notifyNewsDeleted(req.params.id);
+  notifyNewsDeleted(deleted);
   
   res.json({ ok: true });
 });
@@ -124,7 +125,7 @@ export const removeNews = asyncHandler(async (req, res) => {
  * POST /news/:id/viewed (for policy updates)
  */
 export const markViewed = asyncHandler(async (req, res) => {
-  const news = await markPolicyViewed(req.params.id, req.user.id);
+  const news = await markPolicyViewed(req.params.id, req.user.id, req.user, req.query.companyId);
   res.json({ ok: true, news });
 });
 

@@ -208,6 +208,10 @@ export const initializeSocket = (server) => {
         userId: socket.userId,
         room: `user_${socket.userId}`,
       });
+
+      if (socket.companyId) {
+        socket.join(`company_${socket.companyId}`);
+      }
       
       // Join HR/Admin to management room
       if (socket.userRole === "HR" || socket.userRole === "ADMIN") {
@@ -588,32 +592,43 @@ export const notifyHRMeetingStatusChanged = (meetingId, oldStatus, newStatus, up
 };
 
 // ============ NEWS/UPDATES BROADCASTERS ============
-export const notifyNewsCreated = (newsItem) => {
-  if (io) {
-    const payload = typeof newsItem?.toObject === "function" ? newsItem.toObject() : newsItem;
-    io.emit("news_created", {
-      ...payload,
-      timestamp: new Date().toISOString()
-    });
+const emitToCompanyOrAll = (event, payload, companyId) => {
+  const normalizedCompanyId = companyId ? String(companyId) : null;
+  if (normalizedCompanyId) {
+    io.to(`company_${normalizedCompanyId}`).emit(event, payload);
+  } else {
+    io.emit(event, payload);
   }
 };
 
-export const notifyNewsDeleted = (newsId) => {
+export const notifyNewsCreated = (newsItem) => {
   if (io) {
-    io.emit("news_deleted", newsId);
+    const payload = typeof newsItem?.toObject === "function" ? newsItem.toObject() : newsItem;
+    emitToCompanyOrAll("news_created", {
+      ...payload,
+      timestamp: new Date().toISOString()
+    }, payload.companyId);
+  }
+};
+
+export const notifyNewsDeleted = (news) => {
+  if (io) {
+    const payload = typeof news?.toObject === "function" ? news.toObject() : news;
+    const newsId = payload?._id || payload;
+    emitToCompanyOrAll("news_deleted", newsId, payload?.companyId);
   }
 };
 
 export const notifyNewsPolicyUpdate = (newsItem, policyTitle) => {
   if (io) {
     const payload = typeof newsItem?.toObject === "function" ? newsItem.toObject() : newsItem;
-    io.emit("new_policy_update", {
+    emitToCompanyOrAll("new_policy_update", {
       ...payload,
       type: "policy_update",
       notificationTitle: "📋 New Policy Update",
       message: `Important: ${policyTitle}`,
       timestamp: new Date().toISOString()
-    });
+    }, payload.companyId);
   }
 };
 
