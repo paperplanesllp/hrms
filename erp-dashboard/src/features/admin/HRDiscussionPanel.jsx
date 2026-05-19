@@ -3,6 +3,7 @@ import { MessageCircle, Heart, Reply, Pin, Trash2, Edit2, Users } from "lucide-r
 import api from "../../lib/api.js";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
+import Button from "../../components/ui/Button.jsx";
 import { toast } from "../../store/toastStore.js";
 
 export default function HRDiscussionPanel({ discussions, onRefresh, onNewDiscussion }) {

@@ -5,6 +5,7 @@ import {
 import api from "../../lib/api.js";
 import Card from "../../components/ui/Card.jsx";
 import Badge from "../../components/ui/Badge.jsx";
+import Button from "../../components/ui/Button.jsx";
 import { toast } from "../../store/toastStore.js";
 
 export default function HRMeetingPanel({ meetings, onRefresh, onNewMeeting }) {

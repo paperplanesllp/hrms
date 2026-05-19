@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { getSocket } from "../../lib/socket.js";
 import { usePresenceStore } from "../../store/presenceStore.js";
 import api from "../../lib/api.js";
@@ -36,6 +37,10 @@ import {
   Eye,
   EyeOff,
   Briefcase,
+  Activity,
+  Layers,
+  ShieldCheck,
+  MoreHorizontal,
 } from "lucide-react";
 import HRDiscussionPanel from "./HRDiscussionPanel.jsx";
 import HRMeetingPanel from "./HRMeetingPanel.jsx";
@@ -252,6 +257,41 @@ export default function HRTeamPage() {
     [hrTeam, presenceUsers]
   );
 
+  const activeDiscussions = useMemo(
+    () =>
+      discussions
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt || 0) -
+            new Date(a.updatedAt || a.createdAt || 0)
+        )
+        .slice(0, 4),
+    [discussions]
+  );
+
+  const upcomingMeetings = useMemo(
+    () =>
+      meetings
+        .filter((meeting) => new Date(meeting.date || meeting.scheduledFor || 0) >= new Date())
+        .sort(
+          (a, b) =>
+            new Date(a.date || a.scheduledFor || 0) -
+            new Date(b.date || b.scheduledFor || 0)
+        )
+        .slice(0, 4),
+    [meetings]
+  );
+
+  const activeTeam = useMemo(
+    () =>
+      sortedHrTeam.filter((member) => {
+        const { status } = getMemberPresence(member._id);
+        return ["online", "active-now", "active-recently", "typing"].includes(status);
+      }),
+    [sortedHrTeam, presenceUsers]
+  );
+
   const getMemberPresence = (memberId) =>
     getDerivedPresenceStatus(presenceUsers[memberId]);
 
@@ -316,92 +356,115 @@ export default function HRTeamPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      <PageTitle
-        title="HR Team Hub"
-        subtitle="Unified HR collaboration, team management, discussions, and meetings"
-      />
-      <RefreshStatus
-        isRefreshing={hrTeamRefresh.isRefreshing}
-        lastUpdatedAt={hrTeamRefresh.lastUpdatedAt}
-        className="bg-slate-950/80 text-slate-200 border-slate-700"
+    <div className="relative -m-4 min-h-screen overflow-hidden p-4 text-slate-950 dark:text-white sm:-m-6 sm:p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_5%,rgba(20,184,166,0.18),transparent_28%),radial-gradient(circle_at_82%_4%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,rgba(248,250,252,0.94),rgba(226,232,240,0.72))] dark:bg-[radial-gradient(circle_at_12%_5%,rgba(20,184,166,0.13),transparent_30%),radial-gradient(circle_at_82%_4%,rgba(124,58,237,0.18),transparent_34%),linear-gradient(135deg,#070b16,#0f172a_45%,#111827)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.16] dark:opacity-[0.08] [background-image:linear-gradient(rgba(15,23,42,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.22)_1px,transparent_1px)] [background-size:72px_72px]" />
+      <motion.div
+        className="pointer-events-none absolute left-1/2 top-10 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl"
+        animate={{ x: [-40, 30, -40], y: [0, 28, 0], scale: [1, 1.08, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <div
-        className={`relative overflow-hidden rounded-[30px] border ${palette.border} bg-gradient-to-br ${palette.bg} p-7 shadow-[0_28px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl md:p-10`}
-      >
-        <div className="absolute rounded-full -right-10 -top-10 h-72 w-72 bg-indigo-500/18 blur-3xl" />
-        <div className="absolute w-64 h-64 rounded-full -bottom-10 -left-10 bg-violet-500/14 blur-3xl" />
-        <div className="absolute -translate-y-1/2 rounded-full right-1/3 top-1/2 h-44 w-44 bg-teal-400/10 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-[1800px] space-y-7">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <PageTitle
+            title="HR Team Hub"
+            subtitle="Unified HR collaboration, team management, discussions, and meetings"
+          />
+          <RefreshStatus
+            isRefreshing={hrTeamRefresh.isRefreshing}
+            lastUpdatedAt={hrTeamRefresh.lastUpdatedAt}
+            className="w-fit border-white/40 bg-white/60 text-slate-700 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200"
+          />
+        </div>
 
-        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 border rounded-full border-white/10 bg-white/10 text-white/80 backdrop-blur-xl">
-              <Sparkles className="w-4 h-4 text-violet-300" />
-              <span className="text-sm font-medium">Collaboration Control Center</span>
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55 }}
+          className="relative overflow-hidden rounded-[32px] border border-white/50 bg-white/55 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62 md:p-7"
+        >
+          <motion.div
+            className="absolute -right-16 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-violet-500/35 to-cyan-400/25 blur-3xl"
+            animate={{ rotate: [0, 18, 0], scale: [1, 1.12, 1] }}
+            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <div className="absolute bottom-0 left-0 h-32 w-full bg-gradient-to-r from-teal-400/10 via-transparent to-violet-500/10" />
+
+          <div className="relative grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/65 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-white/80">
+                <Sparkles className="h-4 w-4 text-violet-500 dark:text-violet-300" />
+                Collaboration Control Center
+              </div>
+
+              <div>
+                <h2 className="max-w-4xl text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white md:text-5xl">
+                  A premium HR workspace for people, conversations, and decisions.
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300 md:text-base">
+                  Coordinate the HR team, follow live presence, launch discussions, and schedule meetings from one calm collaboration surface.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <PremiumButton onClick={() => setShowCreateHRModal(true)} icon={UserPlus}>
+                  Add Team Member
+                </PremiumButton>
+                <PremiumButton
+                  onClick={() => setShowNewMeeting(true)}
+                  icon={Calendar}
+                  tone="teal"
+                >
+                  Schedule Meeting
+                </PremiumButton>
+              </div>
             </div>
 
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-white md:text-4xl">
-              Manage your HR team from one premium workspace
-            </h2>
-            <p className="max-w-xl mt-3 text-sm leading-7 text-slate-300 md:text-base">
-              View HR staff, start discussions, schedule meetings, and track live
-              team activity in real time.
-            </p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <HeroGlassPanel
+                icon={Activity}
+                label="Live Team"
+                value={`${activeTeam.length || onlineCount} active`}
+                caption={`${hrTeam.length} total HR members`}
+              />
+              <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    Active Indicators
+                  </p>
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.9)]" />
+                </div>
+                <div className="flex -space-x-3">
+                  {sortedHrTeam.slice(0, 6).map((member) => (
+                    <div
+                      key={member._id}
+                      title={member.name}
+                      className="relative flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-white bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-lg dark:border-slate-950"
+                    >
+                      {member?.name?.charAt(0)?.toUpperCase() || "H"}
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-950 ${getMemberDotClass(member._id)}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
+        </motion.section>
 
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={() => setShowCreateHRModal(true)}
-              className="px-5 py-3 font-semibold text-white transition-all duration-300 shadow-lg rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 shadow-violet-900/40 hover:scale-105 hover:shadow-violet-700/30"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Team Member
-            </Button>
+        <motion.div
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
+        >
+          <PremiumStatCard title="Team Members" value={hrTeam.length} icon={Users} from="from-indigo-500" to="to-violet-500" caption="People operations" />
+          <PremiumStatCard title="Discussions" value={discussions.length} icon={MessageCircle} from="from-violet-500" to="to-fuchsia-500" caption="Open knowledge loops" />
+          <PremiumStatCard title="Meetings" value={meetings.length} icon={Calendar} from="from-amber-400" to="to-orange-500" caption="Scheduled syncs" />
+          <PremiumStatCard title="Online Now" value={onlineCount} icon={Zap} from="from-teal-400" to="to-emerald-500" caption="Realtime presence" />
+        </motion.div>
 
-            <Button
-              onClick={() => setShowNewMeeting(true)}
-              className="px-5 py-3 font-semibold transition-all duration-300 shadow-lg rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-teal-900/30 hover:scale-105 hover:shadow-teal-500/30"
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Schedule Meeting
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <PremiumStatCard
-          title="Team Members"
-          value={hrTeam.length}
-          icon={Users}
-          from="from-indigo-500"
-          to="to-violet-500"
-        />
-        <PremiumStatCard
-          title="Discussions"
-          value={discussions.length}
-          icon={MessageCircle}
-          from="from-violet-500"
-          to="to-fuchsia-500"
-        />
-        <PremiumStatCard
-          title="Meetings"
-          value={meetings.length}
-          icon={Calendar}
-          from="from-amber-400"
-          to="to-orange-500"
-        />
-        <PremiumStatCard
-          title="Online Now"
-          value={onlineCount}
-          icon={Zap}
-          from="from-teal-400"
-          to="to-emerald-500"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#0b1020]/80 p-1.5 backdrop-blur-xl">
+        <div className="flex flex-wrap gap-2 rounded-3xl border border-white/50 bg-white/55 p-1.5 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/72">
         {[
           { id: "overview", label: "Overview", icon: Users },
           { id: "discussions", label: "Discussions", icon: MessageCircle },
@@ -416,10 +479,10 @@ export default function HRTeamPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all ${
                 active
-                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/30"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+                  ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/25"
+                  : "text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -429,262 +492,63 @@ export default function HRTeamPage() {
         })}
       </div>
 
-      <div className="space-y-6">
+        <div className="space-y-6">
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="space-y-4 xl:col-span-2">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className={`flex items-center gap-2 text-lg font-bold ${palette.textMain}`}>
+                <h3 className="flex items-center gap-2 text-xl font-black text-slate-950 dark:text-white">
                   <Users className="w-5 h-5 text-violet-400" />
                   Team Members
                 </h3>
 
                 <div className="flex gap-2">
-                  <Button
-                    onClick={() => setShowCreateHRModal(true)}
-                    className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-violet-700/30"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
+                  <PremiumButton onClick={() => setShowCreateHRModal(true)} icon={Plus} compact>
                     Add Member
-                  </Button>
-
-                  <Button
-                    onClick={() => setShowNewMeeting(true)}
-                    className="rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-cyan-500/20"
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
+                  </PremiumButton>
+                  <PremiumButton onClick={() => setShowNewMeeting(true)} icon={Calendar} tone="teal" compact>
                     Meeting
-                  </Button>
+                  </PremiumButton>
                 </div>
               </div>
 
-              <Card className="overflow-hidden rounded-[24px] border border-white/10 bg-[#0f172a]/72 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl transition-all duration-300 hover:border-white/15">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px]">
-                    <thead className="border-b border-white/10 bg-white/[0.03]">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Member
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Email
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Role
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+              <motion.div
+                className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+                initial="hidden"
+                animate="show"
+                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+              >
+                {sortedHrTeam.map((member) => (
+                  <TeamMemberCard
+                    key={member._id}
+                    member={member}
+                    dotClass={getMemberDotClass(member._id)}
+                    presenceLabel={getMemberPresenceLabel(member._id)}
+                    presenceTextColor={getMemberPresenceTextColor(member._id)}
+                  />
+                ))}
 
-                    <tbody>
-                      {sortedHrTeam.map((member) => (
-                        <tr
-                          key={member._id}
-                          className="border-b border-white/5 transition-all duration-200 hover:bg-white/[0.04]"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="relative">
-                                <div className="flex items-center justify-center text-sm font-bold text-white shadow-lg h-11 w-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600">
-                                  {member?.name?.charAt(0)?.toUpperCase() || "H"}
-                                </div>
-                                <span
-                                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-[2px] border-slate-900 transition-colors duration-300 ${getMemberDotClass(
-                                    member._id
-                                  )}`}
-                                />
-                              </div>
-
-                              <div>
-                                <p className="font-semibold text-white">{member.name}</p>
-                                <p className="text-xs text-slate-400">
-                                  {member.phone || "No phone"}
-                                </p>
-                                <p
-                                  className={`mt-0.5 cursor-default text-[11px] ${getMemberPresenceTextColor(
-                                    member._id
-                                  )}`}
-                                  title={getMemberPresenceLabel(member._id).tooltip}
-                                >
-                                  {getMemberPresenceLabel(member._id).label}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-4 text-sm text-slate-300">
-                            {member.email}
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <Badge className="px-3 py-1 text-xs border rounded-full border-violet-400/20 bg-violet-500/10 text-violet-200">
-                              {member.role || "HR"}
-                            </Badge>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`rounded-full px-3 py-1 text-xs ${
-                                (member.status || "Active") === "Active"
-                                  ? "border border-teal-400/20 bg-teal-500/10 text-teal-200"
-                                  : "border border-slate-400/20 bg-slate-500/10 text-slate-300"
-                              }`}
-                            >
-                              {member.status || "Active"}
-                            </Badge>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <button className="p-2 text-teal-300 transition rounded-xl hover:bg-teal-500/10">
-                                <MessageCircle className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 text-indigo-300 transition rounded-xl hover:bg-indigo-500/10">
-                                <Video className="w-4 h-4" />
-                              </button>
-                              <button className="p-2 transition rounded-xl text-amber-300 hover:bg-amber-500/10">
-                                <Mail className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-
-                      {hrTeam.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center">
-                            <Users className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-                            <p className="font-medium text-slate-300">
-                              No HR team members found
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">
-                              Add your first HR team member to get started
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+                {hrTeam.length === 0 && (
+                  <EmptyWorkspace
+                    icon={Users}
+                    title="No HR team members found"
+                    body="Add your first HR team member to begin building the collaboration workspace."
+                    action={() => setShowCreateHRModal(true)}
+                    actionLabel="Add HR Member"
+                  />
+                )}
+              </motion.div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className={`flex items-center gap-2 text-lg font-bold ${palette.textMain}`}>
-                <Zap className="w-5 h-5 text-amber-400" />
-                Quick Actions
-              </h3>
-
-              <Card className="space-y-4 rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl">
-                <ActionButton
-                  onClick={() => setShowCreateHRModal(true)}
-                  icon={UserPlus}
-                  label="Add HR Staff"
-                  gradient="from-violet-600 to-indigo-600"
-                />
-                <ActionButton
-                  onClick={() => setActiveTab("discussions")}
-                  icon={MessageCircle}
-                  label="Open Discussions"
-                  gradient="from-indigo-600 to-blue-500"
-                />
-                <ActionButton
-                  onClick={() => setShowNewMeeting(true)}
-                  icon={Calendar}
-                  label="Schedule Meeting"
-                  gradient="from-teal-500 to-cyan-500"
-                />
-                <ActionButton
-                  onClick={() =>
-                    toast({
-                      title: "Video call",
-                      message: "Video call service can be connected here",
-                      type: "success",
-                    })
-                  }
-                  icon={Video}
-                  label="Start Video Call"
-                  gradient="from-amber-400 to-orange-500"
-                />
-
-                <div className="pt-4 border-t border-white/10">
-                  <p className="mb-3 text-center text-xs uppercase tracking-[0.2em] text-slate-500">
-                    Quick Contact
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() =>
-                        toast({
-                          title: "Chat",
-                          message: "Open HR team chat here",
-                          type: "success",
-                        })
-                      }
-                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium text-teal-200 transition rounded-2xl bg-teal-500/10 hover:bg-teal-500/20"
-                    >
-                      <Send className="w-4 h-4" />
-                      Chat
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        toast({
-                          title: "Call",
-                          message: "Phone call action can be integrated here",
-                          type: "success",
-                        })
-                      }
-                      className="flex items-center justify-center gap-2 px-4 py-3 font-medium transition rounded-2xl bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
-                    >
-                      <Phone className="w-4 h-4" />
-                      Call
-                    </button>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.32)] backdrop-blur-xl">
-                <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-slate-300">
-                  <Clock className="w-4 h-4 text-indigo-300" />
-                  Recent Activity
-                </h4>
-
-                <div className="pr-1 space-y-3 overflow-y-auto max-h-72">
-                  {activity.slice(0, 5).map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-2xl border border-white/5 bg-white/[0.03] p-3"
-                    >
-                      <p className="text-sm font-medium text-white">{item.message}</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {new Date(item.timestamp).toLocaleString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                          hour12: true,
-                          timeZone: "Asia/Kolkata",
-                        })}
-                      </p>
-                    </div>
-                  ))}
-
-                  {activity.length === 0 && (
-                    <div className="py-8 text-center">
-                      <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-600" />
-                      <p className="text-sm text-slate-400">No recent activity</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </div>
+            <WorkspaceSidebar
+              activeDiscussions={activeDiscussions}
+              upcomingMeetings={upcomingMeetings}
+              activeTeam={activeTeam}
+              activity={activity}
+              onAddMember={() => setShowCreateHRModal(true)}
+              onOpenDiscussions={() => setActiveTab("discussions")}
+              onNewMeeting={() => setShowNewMeeting(true)}
+            />
           </div>
         )}
 
@@ -703,7 +567,7 @@ export default function HRTeamPage() {
 
         {activeTab === "timeline" && <HRTimelineFeed />}
         {activeTab === "activity" && <HRActivityFeed activity={activity} />}
-      </div>
+        </div>
 
       {showCreateHRModal && (
         <CreateHRModal
@@ -725,19 +589,314 @@ export default function HRTeamPage() {
           hrTeam={hrTeam}
         />
       )}
+      </div>
     </div>
   );
 }
 
-function PremiumStatCard({ title, value, icon: Icon, from, to }) {
+function PremiumButton({ children, onClick, icon: Icon, tone = "violet", compact = false }) {
+  const tones = {
+    violet: "from-violet-600 to-indigo-600 text-white shadow-violet-700/25",
+    teal: "from-teal-400 to-cyan-500 text-slate-950 shadow-cyan-500/25",
+  };
+
   return (
-    <Card className="group cursor-default rounded-[24px] border border-white/10 bg-[#0f172a]/72 p-5 shadow-[0_15px_40px_rgba(2,6,23,0.25)] backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:border-white/20 hover:shadow-[0_20px_60px_rgba(2,6,23,0.38)]">
+    <button
+      onClick={onClick}
+      className={`group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${tones[tone]} ${
+        compact ? "px-4 py-2.5 text-sm" : "px-5 py-3"
+      } font-bold shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02]`}
+    >
+      <Icon className="h-4 w-4 transition-transform group-hover:scale-110" />
+      {children}
+    </button>
+  );
+}
+
+function HeroGlassPanel({ icon: Icon, label, value, caption }) {
+  return (
+    <div className="rounded-3xl border border-white/55 bg-white/55 p-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.07]">
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-cyan-500 shadow-lg shadow-cyan-500/20">
+          <Icon className="h-6 w-6 text-slate-950" />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+            {label}
+          </p>
+          <p className="text-2xl font-black text-slate-950 dark:text-white">{value}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamMemberCard({ member, dotClass, presenceLabel, presenceTextColor }) {
+  const status = member.status || "Active";
+
+  return (
+    <motion.article
+      variants={{
+        hidden: { opacity: 0, y: 16 },
+        show: { opacity: 1, y: 0 },
+      }}
+      whileHover={{ y: -5, scale: 1.01 }}
+      className="group relative overflow-hidden rounded-[28px] border border-white/55 bg-white/62 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-violet-300/60 hover:shadow-[0_28px_80px_rgba(99,102,241,0.18)] dark:border-white/10 dark:bg-slate-950/62 dark:hover:border-violet-400/30"
+    >
+      <div className="absolute -right-12 -top-16 h-36 w-36 rounded-full bg-violet-500/12 blur-3xl transition-opacity group-hover:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="relative">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-xl font-black text-white shadow-xl shadow-violet-500/20">
+              {member?.name?.charAt(0)?.toUpperCase() || "H"}
+            </div>
+            <span
+              className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-[3px] border-white dark:border-slate-950 ${dotClass}`}
+            />
+          </div>
+
+          <div className="min-w-0">
+            <h4 className="truncate text-lg font-black text-slate-950 dark:text-white">
+              {member.name}
+            </h4>
+            <p className="truncate text-sm text-slate-500 dark:text-slate-400">
+              {member.email}
+            </p>
+            <p className={`mt-1 text-xs font-semibold ${presenceTextColor}`} title={presenceLabel.tooltip}>
+              {presenceLabel.label}
+            </p>
+          </div>
+        </div>
+
+        <button className="rounded-2xl border border-slate-200/70 bg-white/60 p-2 text-slate-500 shadow-sm backdrop-blur-xl transition hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-white">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="relative mt-5 flex flex-wrap gap-2">
+        <Badge className="rounded-full border border-violet-300/40 bg-gradient-to-r from-violet-500/15 to-indigo-500/15 px-3 py-1 text-xs font-bold text-violet-700 dark:border-violet-400/20 dark:text-violet-200">
+          {member.role || "HR"}
+        </Badge>
+        <Badge
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            status === "Active"
+              ? "border border-teal-300/40 bg-teal-500/12 text-teal-700 dark:border-teal-400/20 dark:text-teal-200"
+              : "border border-slate-300/40 bg-slate-500/10 text-slate-600 dark:border-slate-400/20 dark:text-slate-300"
+          }`}
+        >
+          {status}
+        </Badge>
+      </div>
+
+      <div className="relative mt-5 grid grid-cols-3 gap-2 border-t border-slate-200/70 pt-4 dark:border-white/10">
+        <IconAction icon={MessageCircle} label="Message" color="teal" />
+        <IconAction icon={Video} label="Video" color="indigo" />
+        <IconAction icon={Mail} label="Mail" color="amber" />
+      </div>
+    </motion.article>
+  );
+}
+
+function IconAction({ icon: Icon, label, color }) {
+  const colors = {
+    teal: "text-teal-600 hover:bg-teal-500/10 dark:text-teal-300",
+    indigo: "text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-300",
+    amber: "text-amber-600 hover:bg-amber-500/10 dark:text-amber-300",
+  };
+
+  return (
+    <button
+      title={label}
+      className={`flex items-center justify-center rounded-2xl border border-slate-200/70 bg-white/55 py-3 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5 ${colors[color]}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function WorkspaceSidebar({
+  activeDiscussions,
+  upcomingMeetings,
+  activeTeam,
+  activity,
+  onAddMember,
+  onOpenDiscussions,
+  onNewMeeting,
+}) {
+  return (
+    <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+      <SidebarPanel title="Quick Actions" icon={Zap}>
+        <ActionButton onClick={onAddMember} icon={UserPlus} label="Add HR Staff" gradient="from-violet-600 to-indigo-600" />
+        <ActionButton onClick={onOpenDiscussions} icon={MessageCircle} label="Open Discussions" gradient="from-indigo-600 to-blue-500" />
+        <ActionButton onClick={onNewMeeting} icon={Calendar} label="Schedule Meeting" gradient="from-teal-500 to-cyan-500" />
+      </SidebarPanel>
+
+      <SidebarPanel title="Active Discussions" icon={MessageCircle}>
+        <CompactList
+          items={activeDiscussions}
+          empty="No active discussions"
+          render={(discussion) => (
+            <>
+              <p className="line-clamp-1 text-sm font-bold text-slate-900 dark:text-white">
+                {discussion.title || "Untitled discussion"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {discussion.replies?.length || 0} replies • {discussion.category || "General"}
+              </p>
+            </>
+          )}
+        />
+      </SidebarPanel>
+
+      <SidebarPanel title="Upcoming Meetings" icon={Calendar}>
+        <CompactList
+          items={upcomingMeetings}
+          empty="No upcoming meetings"
+          render={(meeting) => (
+            <>
+              <p className="line-clamp-1 text-sm font-bold text-slate-900 dark:text-white">
+                {meeting.title || "Untitled meeting"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {new Date(meeting.date || meeting.scheduledFor).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  timeZone: "Asia/Kolkata",
+                })}{" "}
+                • {meeting.time || "Scheduled"}
+              </p>
+            </>
+          )}
+        />
+      </SidebarPanel>
+
+      <SidebarPanel title="Live Team Status" icon={Activity}>
+        <div className="space-y-2">
+          {activeTeam.slice(0, 5).map((member) => (
+            <div key={member._id} className="flex items-center gap-3 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{member.name}</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-300">Active now</p>
+              </div>
+            </div>
+          ))}
+          {activeTeam.length === 0 && <p className="py-2 text-sm text-slate-500 dark:text-slate-400">No one is active right now</p>}
+        </div>
+      </SidebarPanel>
+
+      <SidebarPanel title="Recent Activity" icon={Clock}>
+        <MiniTimeline activity={activity.slice(0, 4)} />
+      </SidebarPanel>
+    </aside>
+  );
+}
+
+function SidebarPanel({ title, icon: Icon, children }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, x: 18 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="rounded-[28px] border border-white/55 bg-white/62 p-4 shadow-[0_20px_70px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/62"
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white/10">
+          <Icon className="h-4 w-4" />
+        </div>
+        <h4 className="text-sm font-black uppercase tracking-[0.16em] text-slate-700 dark:text-slate-300">
+          {title}
+        </h4>
+      </div>
+      {children}
+    </motion.section>
+  );
+}
+
+function CompactList({ items, empty, render }) {
+  if (!items.length) return <p className="py-2 text-sm text-slate-500 dark:text-slate-400">{empty}</p>;
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item._id} className="rounded-2xl border border-slate-200/70 bg-white/45 p-3 transition hover:bg-white/75 dark:border-white/5 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]">
+          {render(item)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniTimeline({ activity }) {
+  if (!activity.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300/70 bg-white/35 p-5 text-center dark:border-white/10 dark:bg-white/[0.03]">
+        <AlertCircle className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+        <p className="text-sm text-slate-500 dark:text-slate-400">Realtime activity will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative space-y-3 before:absolute before:left-4 before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-gradient-to-b before:from-violet-400 before:to-transparent">
+      {activity.map((item, idx) => (
+        <div key={idx} className="relative flex gap-3 pl-1">
+          <span className="mt-1.5 h-7 w-7 rounded-full border-4 border-white bg-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.45)] dark:border-slate-950" />
+          <div className="min-w-0 rounded-2xl bg-white/45 p-3 dark:bg-white/[0.04]">
+            <p className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-white">{item.message}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {new Date(item.timestamp).toLocaleTimeString("en-IN", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+                timeZone: "Asia/Kolkata",
+              })}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyWorkspace({ icon: Icon, title, body, action, actionLabel }) {
+  return (
+    <div className="col-span-full rounded-[28px] border border-dashed border-slate-300/80 bg-white/50 p-10 text-center backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+      <Icon className="mx-auto mb-4 h-10 w-10 text-slate-400" />
+      <h4 className="text-lg font-black text-slate-950 dark:text-white">{title}</h4>
+      <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">{body}</p>
+      <PremiumButton onClick={action} icon={Plus} compact>
+        {actionLabel}
+      </PremiumButton>
+    </div>
+  );
+}
+
+function PremiumStatCard({ title, value, icon: Icon, from, to, caption }) {
+  return (
+    <motion.div
+      variants={{
+        hidden: { opacity: 0, y: 16 },
+        show: { opacity: 1, y: 0 },
+      }}
+      whileHover={{ y: -4, scale: 1.015 }}
+      className="group min-h-[150px] cursor-default rounded-[26px] border border-white/55 bg-white/62 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl transition-all duration-300 hover:border-white/80 hover:shadow-[0_26px_80px_rgba(15,23,42,0.16)] dark:border-white/10 dark:bg-slate-950/62 dark:hover:border-white/20"
+    >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
             {title}
           </p>
-          <p className="mt-3 text-3xl font-black text-white">{value}</p>
+          <motion.p
+            key={value}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 text-4xl font-black text-slate-950 dark:text-white"
+          >
+            {value}
+          </motion.p>
+          <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{caption}</p>
         </div>
 
         <div
@@ -746,7 +905,7 @@ function PremiumStatCard({ title, value, icon: Icon, from, to }) {
           <Icon className="w-6 h-6 text-white" />
         </div>
       </div>
-    </Card>
+    </motion.div>
   );
 }
 
