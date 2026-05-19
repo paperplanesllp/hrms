@@ -34,11 +34,12 @@ export const createDocType = asyncHandler(async (req, res) => {
       isRecurring,
       recurringFrequency
     },
-    req.user.id
+    req.user.id,
+    req.user.companyId
   );
 
   // Create employee documents - use specific employees if provided, otherwise use applicableTo rules
-  await createEmployeeDocumentsForType(documentType._id, assignedEmployees);
+  await createEmployeeDocumentsForType(documentType._id, assignedEmployees, req.user.companyId);
 
   res.status(201).json({
     success: true,
@@ -49,7 +50,7 @@ export const createDocType = asyncHandler(async (req, res) => {
 
 // HR: Get all document types
 export const getDocTypes = asyncHandler(async (req, res) => {
-  const documentTypes = await getDocumentTypes(req.query);
+  const documentTypes = await getDocumentTypes(req.query, req.user.companyId);
   res.json({
     success: true,
     data: documentTypes
@@ -58,7 +59,7 @@ export const getDocTypes = asyncHandler(async (req, res) => {
 
 // HR: Get document type by ID
 export const getDocTypeById = asyncHandler(async (req, res) => {
-  const documentType = await getDocumentTypeById(req.params.id);
+  const documentType = await getDocumentTypeById(req.params.id, req.user.companyId);
   if (!documentType) {
     return res.status(404).json({ error: "Document type not found" });
   }
@@ -70,7 +71,7 @@ export const getDocTypeById = asyncHandler(async (req, res) => {
 
 // HR: Update document type
 export const updateDocType = asyncHandler(async (req, res) => {
-  const documentType = await updateDocumentType(req.params.id, req.body);
+  const documentType = await updateDocumentType(req.params.id, req.body, req.user.companyId);
   res.json({
     success: true,
     message: "Document type updated successfully",
@@ -80,7 +81,7 @@ export const updateDocType = asyncHandler(async (req, res) => {
 
 // HR: Delete document type
 export const deleteDocType = asyncHandler(async (req, res) => {
-  await deleteDocumentType(req.params.id);
+  await deleteDocumentType(req.params.id, req.user.companyId);
   res.json({
     success: true,
     message: "Document type deleted successfully"
@@ -89,7 +90,7 @@ export const deleteDocType = asyncHandler(async (req, res) => {
 
 // Employee: Get their pending documents
 export const getMyDocuments = asyncHandler(async (req, res) => {
-  const documents = await getEmployeeDocuments(req.user.id);
+  const documents = await getEmployeeDocuments(req.user.id, req.user.companyId);
   res.json({
     success: true,
     data: documents
@@ -98,7 +99,7 @@ export const getMyDocuments = asyncHandler(async (req, res) => {
 
 // Employee: Get pending documents for dashboard
 export const getMyPendingDocuments = asyncHandler(async (req, res) => {
-  const documents = await getPendingDocumentsForEmployee(req.user.id);
+  const documents = await getPendingDocumentsForEmployee(req.user.id, req.user.companyId);
   res.json({
     success: true,
     data: documents
@@ -131,7 +132,7 @@ export const uploadEmployeeDocument = asyncHandler(async (req, res) => {
 
   console.log("📦 [UPLOAD] FileData prepared:", fileData);
 
-  const document = await uploadDocument(req.user.id, documentTypeId, fileData);
+  const document = await uploadDocument(req.user.id, documentTypeId, fileData, req.user.companyId);
 
   console.log("✅ [UPLOAD] Document saved to DB:", {
     _id: document._id,
@@ -153,8 +154,8 @@ export const uploadEmployeeDocument = asyncHandler(async (req, res) => {
 export const getSubmissionStatus = asyncHandler(async (req, res) => {
   console.log("📋 [GET SUBMISSIONS] Request received");
   
-  const documents = await getDocumentSubmissionStatus(req.query);
-  const stats = await getDocumentDashboardStats();
+  const documents = await getDocumentSubmissionStatus(req.query, req.user.companyId);
+  const stats = await getDocumentDashboardStats(req.user.companyId);
 
   console.log("📋 [GET SUBMISSIONS] Total submissions returned:", documents.length);
   if (documents.length > 0) {
@@ -182,7 +183,7 @@ export const approveDocumentSubmission = asyncHandler(async (req, res) => {
   const { comments } = req.body;
   const { documentId } = req.params;
 
-  const document = await approveDocument(documentId, req.user.id, comments);
+  const document = await approveDocument(documentId, req.user.id, comments, req.user.companyId);
 
   res.json({
     success: true,
@@ -196,7 +197,7 @@ export const rejectDocumentSubmission = asyncHandler(async (req, res) => {
   const { comments } = req.body;
   const { documentId } = req.params;
 
-  const document = await rejectDocument(documentId, req.user.id, comments);
+  const document = await rejectDocument(documentId, req.user.id, comments, req.user.companyId);
 
   res.json({
     success: true,
@@ -207,7 +208,7 @@ export const rejectDocumentSubmission = asyncHandler(async (req, res) => {
 
 // HR: Get dashboard statistics
 export const getDashboardStats = asyncHandler(async (req, res) => {
-  const stats = await getDocumentDashboardStats();
+  const stats = await getDocumentDashboardStats(req.user.companyId);
   res.json({
     success: true,
     data: stats

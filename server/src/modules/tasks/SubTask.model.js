@@ -9,6 +9,12 @@ const subTaskSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true
+    },
 
     // Subtask details
     title: {
@@ -108,6 +114,7 @@ subTaskSchema.index({ taskId: 1, status: 1 });
 subTaskSchema.index({ taskId: 1, order: 1 });
 subTaskSchema.index({ assignedTo: 1 });
 subTaskSchema.index({ createdAt: -1 });
+subTaskSchema.index({ companyId: 1, taskId: 1 });
 
 // Query helper
 subTaskSchema.query.active = function() {

@@ -2,19 +2,29 @@ import { DocumentType } from "./DocumentType.model.js";
 import { EmployeeDocument } from "./EmployeeDocument.model.js";
 import { User } from "../users/User.model.js";
 import Notification from "../notifications/Notification.model.js";
+import mongoose from "mongoose";
 
 // ==================== DOCUMENT TYPE OPERATIONS ====================
 
-export const createDocumentType = async (data, userId) => {
+function requireCompanyContext(companyId) {
+  if (!companyId) {
+    throw new Error("Company context is required");
+  }
+}
+
+export const createDocumentType = async (data, userId, companyId) => {
+  requireCompanyContext(companyId);
   const documentType = new DocumentType({
     ...data,
+    companyId,
     createdBy: userId
   });
   return await documentType.save();
 };
 
-export const getDocumentTypes = async (filters = {}) => {
-  const query = { isActive: true };
+export const getDocumentTypes = async (filters = {}, companyId) => {
+  requireCompanyContext(companyId);
+  const query = { isActive: true, companyId };
   if (filters.searchTerm) {
     query.name = { $regex: filters.searchTerm, $options: "i" };
   }
@@ -24,42 +34,48 @@ export const getDocumentTypes = async (filters = {}) => {
     .sort({ createdAt: -1 });
 };
 
-export const getDocumentTypeById = async (id) => {
-  return await DocumentType.findById(id)
+export const getDocumentTypeById = async (id, companyId) => {
+  requireCompanyContext(companyId);
+  return await DocumentType.findOne({ _id: id, companyId })
     .populate("createdBy", "name email")
     .populate("departmentIds", "name");
 };
 
-export const updateDocumentType = async (id, data) => {
-  return await DocumentType.findByIdAndUpdate(id, data, { returnDocument: "after" })
+export const updateDocumentType = async (id, data, companyId) => {
+  requireCompanyContext(companyId);
+  return await DocumentType.findOneAndUpdate({ _id: id, companyId }, data, { returnDocument: "after" })
     .populate("createdBy", "name email")
     .populate("departmentIds", "name");
 };
 
-export const deleteDocumentType = async (id) => {
-  return await DocumentType.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" });
+export const deleteDocumentType = async (id, companyId) => {
+  requireCompanyContext(companyId);
+  return await DocumentType.findOneAndUpdate({ _id: id, companyId }, { isActive: false }, { returnDocument: "after" });
 };
 
 // ==================== EMPLOYEE DOCUMENT OPERATIONS ====================
 
-export const createEmployeeDocumentsForType = async (documentTypeId, assignedEmployees = null) => {
-  const documentType = await DocumentType.findById(documentTypeId);
+export const createEmployeeDocumentsForType = async (documentTypeId, assignedEmployees = null, companyId) => {
+  requireCompanyContext(companyId);
+  const documentType = await DocumentType.findOne({ _id: documentTypeId, companyId });
   if (!documentType) throw new Error("Document type not found");
 
   let employees = [];
 
   // If specific employees are provided, use them; otherwise use applicableTo rules
   if (assignedEmployees && assignedEmployees.length > 0) {
-    employees = await User.find({ _id: { $in: assignedEmployees }, accountLocked: false });
+    employees = await User.find({ _id: { $in: assignedEmployees }, companyId, accountLocked: false });
   } else if (documentType.applicableTo === "all") {
-    employees = await User.find({ role: "USER", accountLocked: false });
+    employees = await User.find({ role: "USER", companyId, accountLocked: false });
   } else if (documentType.applicableTo === "specific_departments") {
     employees = await User.find({
+      companyId,
       departmentId: { $in: documentType.departmentIds },
       accountLocked: false
     });
   } else if (documentType.applicableTo === "specific_roles") {
     employees = await User.find({
+      companyId,
       role: { $in: documentType.roles },
       accountLocked: false
     });
@@ -75,6 +91,7 @@ export const createEmployeeDocumentsForType = async (documentTypeId, assignedEmp
     if (!existingDoc) {
       const doc = new EmployeeDocument({
         employeeId: employee._id,
+        companyId,
         documentTypeId,
         deadline: documentType.deadline,
         daysUntilDeadline: calculateDaysUntilDeadline(documentType.deadline)
@@ -87,8 +104,9 @@ export const createEmployeeDocumentsForType = async (documentTypeId, assignedEmp
   return employeeDocuments;
 };
 
-export const getEmployeeDocuments = async (employeeId) => {
-  const documents = await EmployeeDocument.find({ employeeId })
+export const getEmployeeDocuments = async (employeeId, companyId) => {
+  requireCompanyContext(companyId);
+  const documents = await EmployeeDocument.find({ employeeId, companyId })
     .populate("documentTypeId", "name description")
     .sort({ deadline: 1 });
 
@@ -100,18 +118,22 @@ export const getEmployeeDocuments = async (employeeId) => {
   }));
 };
 
-export const getPendingDocumentsForEmployee = async (employeeId) => {
+export const getPendingDocumentsForEmployee = async (employeeId, companyId) => {
+  requireCompanyContext(companyId);
   return await EmployeeDocument.find({
     employeeId,
+    companyId,
     submissionStatus: "pending"
   })
     .populate("documentTypeId", "name description")
     .sort({ deadline: 1 });
 };
 
-export const uploadDocument = async (employeeId, documentTypeId, fileData) => {
+export const uploadDocument = async (employeeId, documentTypeId, fileData, companyId) => {
+  requireCompanyContext(companyId);
   const document = await EmployeeDocument.findOne({
     employeeId,
+    companyId,
     documentTypeId
   });
 
@@ -129,8 +151,9 @@ export const uploadDocument = async (employeeId, documentTypeId, fileData) => {
   return await document.save();
 };
 
-export const getDocumentSubmissionStatus = async (filters = {}) => {
-  const query = {};
+export const getDocumentSubmissionStatus = async (filters = {}, companyId) => {
+  requireCompanyContext(companyId);
+  const query = { companyId };
 
   if (filters.documentTypeId) {
     query.documentTypeId = filters.documentTypeId;
@@ -156,9 +179,10 @@ export const getDocumentSubmissionStatus = async (filters = {}) => {
   }));
 };
 
-export const approveDocument = async (documentId, reviewedBy, comments = "") => {
-  return await EmployeeDocument.findByIdAndUpdate(
-    documentId,
+export const approveDocument = async (documentId, reviewedBy, comments = "", companyId) => {
+  requireCompanyContext(companyId);
+  return await EmployeeDocument.findOneAndUpdate(
+    { _id: documentId, companyId },
     {
       submissionStatus: "approved",
       reviewedBy,
@@ -169,9 +193,10 @@ export const approveDocument = async (documentId, reviewedBy, comments = "") => 
   );
 };
 
-export const rejectDocument = async (documentId, reviewedBy, comments = "") => {
-  return await EmployeeDocument.findByIdAndUpdate(
-    documentId,
+export const rejectDocument = async (documentId, reviewedBy, comments = "", companyId) => {
+  requireCompanyContext(companyId);
+  return await EmployeeDocument.findOneAndUpdate(
+    { _id: documentId, companyId },
     {
       submissionStatus: "rejected",
       reviewedBy,
@@ -268,8 +293,10 @@ const formatDate = (date) => {
 };
 
 // Get dashboard statistics
-export const getDocumentDashboardStats = async () => {
+export const getDocumentDashboardStats = async (companyId) => {
+  requireCompanyContext(companyId);
   const stats = await EmployeeDocument.aggregate([
+    { $match: { companyId: typeof companyId === "string" ? new mongoose.Types.ObjectId(companyId) : companyId } },
     {
       $group: {
         _id: "$submissionStatus",
@@ -279,6 +306,7 @@ export const getDocumentDashboardStats = async () => {
   ]);
 
   const overdue = await EmployeeDocument.countDocuments({
+    companyId,
     isOverdue: true,
     submissionStatus: "pending"
   });

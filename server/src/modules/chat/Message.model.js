@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const messageSchema = new mongoose.Schema(
   {
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     content: { type: String },
     fileUrl: { type: String },
@@ -14,5 +15,6 @@ const messageSchema = new mongoose.Schema(
 );
 
 messageSchema.index({ chatId: 1, createdAt: -1 });
+messageSchema.index({ companyId: 1, chatId: 1, createdAt: -1 });
 
 export const Message = mongoose.model("Message", messageSchema);

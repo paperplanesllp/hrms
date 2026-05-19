@@ -2,12 +2,12 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from "./notification.service.js";
 
 export const getNotifications = asyncHandler(async (req, res) => {
-  const notifications = await getUserNotifications(req.user.id);
+  const notifications = await getUserNotifications(req.user.id, req.user.companyId);
   res.json(notifications);
 });
 
 export const markRead = asyncHandler(async (req, res) => {
-  const notification = await markNotificationRead(req.params.id, req.user.id);
+  const notification = await markNotificationRead(req.params.id, req.user.id, req.user.companyId);
   if (!notification) {
     return res.status(404).json({ message: "Notification not found" });
   }
@@ -15,6 +15,6 @@ export const markRead = asyncHandler(async (req, res) => {
 });
 
 export const markAllRead = asyncHandler(async (req, res) => {
-  const result = await markAllNotificationsRead(req.user.id);
+  const result = await markAllNotificationsRead(req.user.id, req.user.companyId);
   res.json({ ok: true, modifiedCount: result.modifiedCount });
 });

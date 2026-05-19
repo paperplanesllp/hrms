@@ -25,6 +25,12 @@ const auditLogSchema = new mongoose.Schema({
     ref: "User",
     required: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    default: null,
+    index: true
+  },
   userName: {
     type: String,
     required: true
@@ -42,5 +48,7 @@ const auditLogSchema = new mongoose.Schema({
     index: true
   }
 });
+
+auditLogSchema.index({ companyId: 1, createdAt: -1 });
 
 export const AuditLog = mongoose.model("AuditLog", auditLogSchema);

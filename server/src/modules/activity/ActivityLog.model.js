@@ -9,6 +9,12 @@ const activityLogSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
     actorName: {
       type: String,
       required: true,
@@ -108,5 +114,6 @@ activityLogSchema.index({ actorRole: 1, createdAt: -1 });
 activityLogSchema.index({ module: 1, createdAt: -1 });
 activityLogSchema.index({ actionType: 1, createdAt: -1 });
 activityLogSchema.index({ visibility: 1, createdAt: -1 });
+activityLogSchema.index({ companyId: 1, createdAt: -1 });
 
 export const ActivityLog = mongoose.model("ActivityLog", activityLogSchema);

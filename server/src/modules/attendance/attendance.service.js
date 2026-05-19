@@ -239,7 +239,7 @@ export async function performCheckIn(
     const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user already has active attendance for today
-    const existingAttendance = await Attendance.findOne({ userId, date });
+    const existingAttendance = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
 
     if (existingAttendance && existingAttendance.checkIn) {
       throw new ApiError(
@@ -289,10 +289,11 @@ export async function performCheckIn(
 
     // Update or create attendance record
     const doc = await Attendance.findOneAndUpdate(
-      { userId, date },
+      { userId, date, companyId: effectiveCompanyId },
       {
         $set: {
           checkIn: checkInTime24,
+          companyId: effectiveCompanyId,
           checkInTimestamp: serverTime,
           checkInLatitude,
           checkInLongitude,
@@ -365,7 +366,7 @@ export async function performCheckOut(
     const effectiveCompanyId = companyId || user.companyId;
 
     // Check if user has active check-in
-    const existingAttendance = await Attendance.findOne({ userId, date });
+    const existingAttendance = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
 
     if (!existingAttendance || !existingAttendance.checkIn) {
       throw new ApiError(
@@ -434,10 +435,11 @@ export async function performCheckOut(
 
     // Update attendance record
     const doc = await Attendance.findOneAndUpdate(
-      { userId, date },
+      { userId, date, companyId: effectiveCompanyId },
       {
         $set: {
           checkOut: checkOutTime24,
+          companyId: effectiveCompanyId,
           checkOutTimestamp: serverTime,
           checkOutLatitude,
           checkOutLongitude,
@@ -470,15 +472,16 @@ export async function performCheckOut(
 
 export async function markMyAttendance(userId, date, checkIn, checkOut, checkInLatitude, checkInLongitude, checkOutLatitude, checkOutLongitude, checkInAccuracy = null, checkOutAccuracy = null, companyId = null) {
   try {
-    const existing = await Attendance.findOne({ userId, date });
-
-    const newCheckIn = checkIn ?? existing?.checkIn ?? "";
-    const newCheckOut = checkOut ?? existing?.checkOut ?? "";
-
     // Get the checking-in user's role — admins are exempt from geofence
     const checkingUser = await User.findById(userId).select("role companyId");
     const isAdmin = checkingUser && checkingUser.role === ROLES.ADMIN;
     const effectiveCompanyId = companyId || checkingUser?.companyId;
+    if (!effectiveCompanyId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "Company context is required");
+    }
+    const existing = await Attendance.findOne({ userId, date, companyId: effectiveCompanyId });
+    const newCheckIn = checkIn ?? existing?.checkIn ?? "";
+    const newCheckOut = checkOut ?? existing?.checkOut ?? "";
     const { shiftStart, shiftEnd } = await getShiftForDate(date, effectiveCompanyId);
     const holidayName = await getPublicHolidayNameForDate(date, effectiveCompanyId);
 
@@ -616,10 +619,11 @@ export async function markMyAttendance(userId, date, checkIn, checkOut, checkInL
         });
 
     const doc = await Attendance.findOneAndUpdate(
-      { userId, date },
+      { userId, date, companyId: effectiveCompanyId },
       { 
         $set: { 
           ...checkInData,
+          companyId: effectiveCompanyId,
           totalHours,
           status 
         } 
@@ -640,11 +644,11 @@ async function getCompanyUserIds(companyId) {
   return users.map((u) => u._id);
 }
 
-export async function getMyAttendance(userId, from, to) {
-  const records = await Attendance.find({ userId, date: { $gte: from, $lte: to } }).sort({ date: 1 });
+export async function getMyAttendance(userId, from, to, companyId = null) {
+  const records = await Attendance.find({ userId, ...(companyId ? { companyId } : {}), date: { $gte: from, $lte: to } }).sort({ date: 1 });
   const effectiveFrom = from || records[0]?.date;
   const effectiveTo = to || records[records.length - 1]?.date;
-  const holidayMap = await getPublicHolidayMap(effectiveFrom, effectiveTo);
+  const holidayMap = await getPublicHolidayMap(effectiveFrom, effectiveTo, companyId);
 
   return records.map(record => ({
     ...record.toObject(),
@@ -676,6 +680,7 @@ export async function getAllAttendance(from, to, userRole, userId = null, compan
     }
     
     const query = { date: { $gte: fromDate, $lte: toDate } };
+    if (companyId) query.companyId = companyId;
 
     // Always scope to company first
     const companyUserIds = companyId ? await getCompanyUserIds(companyId) : null;
@@ -695,7 +700,7 @@ export async function getAllAttendance(from, to, userRole, userId = null, compan
       .populate("userId", "name email role")
       .sort({ date: -1 });
 
-    const holidayMap = await getPublicHolidayMap(fromDate, toDate);
+    const holidayMap = await getPublicHolidayMap(fromDate, toDate, companyId);
 
     // Transform records to include user details and enforce the latest attendance policy.
     return records
@@ -784,8 +789,8 @@ async function buildUpdatedAttendanceFields(baseRecord, patch) {
   return updatedFields;
 }
 
-export async function editAttendanceHRorAdmin(userId, date, patch) {
-  const existing = await Attendance.findOne({ userId, date });
+export async function editAttendanceHRorAdmin(userId, date, patch, companyId = null) {
+  const existing = await Attendance.findOne({ userId, date, ...(companyId ? { companyId } : {}) });
   const baseRecord = existing || {
     userId,
     date,
@@ -798,23 +803,23 @@ export async function editAttendanceHRorAdmin(userId, date, patch) {
   const updatedFields = await buildUpdatedAttendanceFields(baseRecord, patch);
 
   const doc = await Attendance.findOneAndUpdate(
-    { userId, date },
-    { $set: updatedFields },
+    { userId, date, ...(companyId ? { companyId } : {}) },
+    { $set: { ...updatedFields, ...(companyId ? { companyId } : {}) } },
     { upsert: true, returnDocument: "after" }
   );
   return doc;
 }
 
-export async function editAttendanceById(recordId, patch) {
-  const existing = await Attendance.findById(recordId);
+export async function editAttendanceById(recordId, patch, companyId = null) {
+  const existing = await Attendance.findOne({ _id: recordId, ...(companyId ? { companyId } : {}) });
   if (!existing) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Attendance record not found");
   }
 
   const updatedFields = await buildUpdatedAttendanceFields(existing, patch);
 
-  const doc = await Attendance.findByIdAndUpdate(
-    recordId,
+  const doc = await Attendance.findOneAndUpdate(
+    { _id: recordId, ...(companyId ? { companyId } : {}) },
     { $set: updatedFields },
     { returnDocument: "after" }
   );
@@ -845,11 +850,11 @@ function isAfterShiftEnd(shiftEnd) {
   return compareTime(currentTime, shiftEnd) >= 0;
 }
 
-async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize = false } = {}) {
-  const holidayName = await getPublicHolidayNameForDate(targetDate);
+async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize = false, companyId = null } = {}) {
+  const holidayName = await getPublicHolidayNameForDate(targetDate, companyId);
 
   if (holidayName) {
-    const { shiftStart, shiftEnd } = await getShiftForDate(targetDate);
+    const { shiftStart, shiftEnd } = await getShiftForDate(targetDate, companyId);
 
     for (const staff of staffUsers) {
       const leaveRecord = await Event.findOne({
@@ -862,10 +867,11 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
       const status = leaveRecord ? "ABSENT" : "HOLIDAY";
 
       await Attendance.findOneAndUpdate(
-        { userId: staff._id, date: targetDate },
+        { userId: staff._id, date: targetDate, ...(companyId ? { companyId } : {}) },
         {
           $set: {
             shiftStart,
+            ...(companyId ? { companyId } : {}),
             shiftEnd,
             shiftName: holidayName,
             status,
@@ -901,7 +907,7 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
     };
   }
 
-  const { shiftStart, shiftEnd } = await getShiftForDate(targetDate);
+  const { shiftStart, shiftEnd } = await getShiftForDate(targetDate, companyId);
   const shouldFinalizeMissingCheckout = forceFinalize || targetDate < getCurrentDateIST() || isAfterShiftEnd(shiftEnd);
 
   console.log(`📋 Auto-marking attendance for ${staffUsers.length} staff members (Date: ${targetDate})`);
@@ -913,12 +919,14 @@ async function autoMarkAbsenteesForDate(targetDate, staffUsers, { forceFinalize 
     try {
       const existingRecord = await Attendance.findOne({
         userId: staff._id,
-        date: targetDate
+        date: targetDate,
+        ...(companyId ? { companyId } : {})
       });
 
       if (!existingRecord) {
         await Attendance.create({
           userId: staff._id,
+          ...(companyId ? { companyId } : {}),
           date: targetDate,
           checkIn: "",
           checkOut: "",
@@ -1027,7 +1035,7 @@ export async function autoMarkAbsentees(companyId = null) {
 
     const staffUsers = await User.find(staffQuery).select("_id name email");
 
-    const result = await autoMarkAbsenteesForDate(today, staffUsers, { forceFinalize: false });
+    const result = await autoMarkAbsenteesForDate(today, staffUsers, { forceFinalize: false, companyId });
 
     console.log(`\n✅ Auto-mark attendance completed:`, result);
     return result;
@@ -1051,7 +1059,7 @@ export async function markPublicHolidayForAllEmployees(date, holidayName, compan
 
     const staffUsers = await User.find(staffQuery).select("_id name email");
 
-    const { shiftStart, shiftEnd } = await getShiftForDate(date);
+    const { shiftStart, shiftEnd } = await getShiftForDate(date, companyId);
     let markedCount = 0;
     let errorCount = 0;
 
@@ -1067,10 +1075,11 @@ export async function markPublicHolidayForAllEmployees(date, holidayName, compan
         const status = leaveRecord ? "ABSENT" : "HOLIDAY";
 
         await Attendance.findOneAndUpdate(
-          { userId: staff._id, date: date },
+          { userId: staff._id, date: date, ...(companyId ? { companyId } : {}) },
           {
             $set: {
               shiftStart,
+              ...(companyId ? { companyId } : {}),
               shiftEnd,
               shiftName: holidayName,
               status,
@@ -1178,10 +1187,10 @@ export async function getAttendanceSummaryForToday(companyId) {
   }
 }
 
-export async function adminEditShift(userId, date, shiftStart, shiftEnd) {
+export async function adminEditShift(userId, date, shiftStart, shiftEnd, companyId = null) {
   const doc = await Attendance.findOneAndUpdate(
-    { userId, date },
-    { $set: { shiftStart, shiftEnd } },
+    { userId, date, ...(companyId ? { companyId } : {}) },
+    { $set: { shiftStart, shiftEnd, ...(companyId ? { companyId } : {}) } },
     { upsert: true, returnDocument: "after" }
   );
   return doc;

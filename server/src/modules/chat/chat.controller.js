@@ -4,7 +4,7 @@ import fs from "fs/promises";
 import { isCloudinaryConfigured, uploadChatMediaToCloudinary } from "../../utils/cloudinary.js";
 
 export const getMyChats = asyncHandler(async (req, res) => {
-  const chats = await chatService.getUserChats(req.user.id);
+  const chats = await chatService.getUserChats(req.user.id, req.user.companyId);
   res.json(chats);
 });
 
@@ -22,7 +22,7 @@ export const createChat = asyncHandler(async (req, res) => {
 });
 
 export const getGroupDetails = asyncHandler(async (req, res) => {
-  const details = await chatService.getGroupDetails(req.params.chatId, req.user.id);
+  const details = await chatService.getGroupDetails(req.params.chatId, req.user.id, req.user.companyId);
   res.json(details);
 });
 
@@ -40,23 +40,23 @@ export const addMember = asyncHandler(async (req, res) => {
 
 export const removeMember = asyncHandler(async (req, res) => {
   const { userId } = req.body;
-  const chat = await chatService.removeGroupMember(req.params.chatId, req.user.id, userId);
+  const chat = await chatService.removeGroupMember(req.params.chatId, req.user.id, userId, req.user.companyId);
   res.json(chat);
 });
 
 export const renameGroup = asyncHandler(async (req, res) => {
   const { name } = req.body;
-  const chat = await chatService.renameGroup(req.params.chatId, req.user.id, name);
+  const chat = await chatService.renameGroup(req.params.chatId, req.user.id, name, req.user.companyId);
   res.json(chat);
 });
 
 export const leaveGroup = asyncHandler(async (req, res) => {
-  const result = await chatService.leaveGroup(req.params.chatId, req.user.id);
+  const result = await chatService.leaveGroup(req.params.chatId, req.user.id, req.user.companyId);
   res.json(result);
 });
 
 export const getMessages = asyncHandler(async (req, res) => {
-  const messages = await chatService.getChatMessages(req.params.chatId, req.user.id);
+  const messages = await chatService.getChatMessages(req.params.chatId, req.user.id, req.user.companyId);
   res.json(messages);
 });
 
@@ -96,12 +96,12 @@ export const postMessage = asyncHandler(async (req, res) => {
     ? `📎 ${file.originalname}`
     : "📎 Attachment";
 
-  const message = await chatService.sendMessage(req.params.chatId, req.user.id, content || defaultContent, fileData);
+  const message = await chatService.sendMessage(req.params.chatId, req.user.id, content || defaultContent, fileData, req.user.companyId);
   res.json(message);
 });
 
 export const markRead = asyncHandler(async (req, res) => {
-  await chatService.markAsRead(req.params.chatId, req.user.id);
+  await chatService.markAsRead(req.params.chatId, req.user.id, req.user.companyId);
   res.json({ success: true });
 });
 
@@ -112,27 +112,27 @@ export const searchUsers = asyncHandler(async (req, res) => {
 
 export const updateMessage = asyncHandler(async (req, res) => {
   const { content } = req.body;
-  const message = await chatService.updateMessage(req.params.messageId, req.user.id, content);
+  const message = await chatService.updateMessage(req.params.messageId, req.user.id, content, req.user.companyId);
   res.json(message);
 });
 
 export const deleteMessage = asyncHandler(async (req, res) => {
   const { deleteForEveryone } = req.query;
-  await chatService.deleteMessage(req.params.messageId, req.user.id, deleteForEveryone === 'true');
+  await chatService.deleteMessage(req.params.messageId, req.user.id, deleteForEveryone === 'true', req.user.companyId);
   res.json({ success: true });
 });
 
 export const clearChat = asyncHandler(async (req, res) => {
-  await chatService.clearChatMessages(req.params.chatId, req.user.id);
+  await chatService.clearChatMessages(req.params.chatId, req.user.id, req.user.companyId);
   res.json({ success: true });
 });
 
 export const getMessageInfo = asyncHandler(async (req, res) => {
-  const info = await chatService.getMessageInfo(req.params.messageId, req.user.id);
+  const info = await chatService.getMessageInfo(req.params.messageId, req.user.id, req.user.companyId);
   res.json(info);
 });
 
 export const deleteConversation = asyncHandler(async (req, res) => {
-  await chatService.deleteConversation(req.params.chatId, req.user.id);
+  await chatService.deleteConversation(req.params.chatId, req.user.id, req.user.companyId);
   res.json({ success: true });
 });

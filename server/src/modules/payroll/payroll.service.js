@@ -9,8 +9,8 @@ async function getCompanyUserIds(companyId) {
 }
 
 // Get logged-in user's payroll records (only their own)
-export async function getMyPayroll(userId) {
-  return Payroll.find({ userId })
+export async function getMyPayroll(userId, companyId) {
+  return Payroll.find({ userId, ...(companyId ? { companyId } : {}) })
     .populate("createdBy", "name email")
     .populate("updatedBy", "name email")
     .sort({ month: -1 });
@@ -22,7 +22,7 @@ export async function getMyPayroll(userId) {
 // EMPLOYEE → See only their own payroll
 export async function listPayrollAll(userRole, userId, filters = {}, companyId) {
   try {
-    let query = {};
+    let query = companyId ? { companyId } : {};
     
     // Filter by company users
     if (companyId) {
@@ -66,31 +66,36 @@ export async function listPayrollAll(userRole, userId, filters = {}, companyId) 
 }
 
 // Get single payroll record
-export async function getPayrollById(payrollId) {
-  return Payroll.findById(payrollId)
+export async function getPayrollById(payrollId, companyId) {
+  return Payroll.findOne({ _id: payrollId, ...(companyId ? { companyId } : {}) })
     .populate("userId", "name email role employeeId department designation")
     .populate("createdBy", "name email")
     .populate("updatedBy", "name email");
 }
 
 // Get payroll for specific employee and month
-export async function getPayrollByEmployeeAndMonth(userId, month, year) {
-  return Payroll.findOne({ userId, month, year })
+export async function getPayrollByEmployeeAndMonth(userId, month, year, companyId) {
+  return Payroll.findOne({ userId, month, year, ...(companyId ? { companyId } : {}) })
     .populate("userId", "name email role employeeId department designation");
 }
 
 // Create or update payroll record
-export async function upsertPayroll(data, userId) {
+export async function upsertPayroll(data, userId, companyId) {
+  if (!companyId) throw new Error("Company context is required");
   const { userId: employeeId, month, year } = data;
+  const employee = await User.findOne({ _id: employeeId, companyId }).select("_id");
+  if (!employee) throw new Error("Employee not found in this company");
   
   const existingPayroll = await Payroll.findOne({ 
     userId: employeeId, 
+    companyId,
     month, 
     year 
   });
   
   const payrollData = {
     ...data,
+    companyId,
     updatedBy: userId,
     ...(existingPayroll ? {} : { createdBy: userId })
   };
@@ -102,7 +107,7 @@ export async function upsertPayroll(data, userId) {
   }
   
   return Payroll.findOneAndUpdate(
-    { userId: employeeId, month, year },
+    { userId: employeeId, companyId, month, year },
     { $set: payrollData },
     { upsert: true, returnDocument: "after" }
   )
@@ -112,7 +117,7 @@ export async function upsertPayroll(data, userId) {
 }
 
 // Update payment status
-export async function updatePaymentStatus(payrollId, statusData, userId) {
+export async function updatePaymentStatus(payrollId, statusData, userId, companyId) {
   const payrollData = {
     ...statusData,
     updatedBy: userId
@@ -124,8 +129,8 @@ export async function updatePaymentStatus(payrollId, statusData, userId) {
     payrollData.autoDeleteOn = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   }
   
-  return Payroll.findByIdAndUpdate(
-    payrollId,
+  return Payroll.findOneAndUpdate(
+    { _id: payrollId, ...(companyId ? { companyId } : {}) },
     { $set: payrollData },
     { returnDocument: "after" }
   )
@@ -135,14 +140,14 @@ export async function updatePaymentStatus(payrollId, statusData, userId) {
 }
 
 // Delete payroll record
-export async function deletePayroll(payrollId) {
-  return Payroll.findByIdAndDelete(payrollId);
+export async function deletePayroll(payrollId, companyId) {
+  return Payroll.findOneAndDelete({ _id: payrollId, ...(companyId ? { companyId } : {}) });
 }
 
 // Get payroll statistics for dashboard
 export async function getPayrollStats(userRole, userId, year, month, companyId) {
   try {
-    let query = { year };
+    let query = { year, ...(companyId ? { companyId } : {}) };
     if (month) {
       query.month = month;
     }
@@ -195,12 +200,12 @@ export async function autoDeleteOldPayrolls() {
 }
 
 // Bulk create payroll for selected month
-export async function bulkCreatePayroll(payrolls, userId) {
+export async function bulkCreatePayroll(payrolls, userId, companyId) {
   const results = [];
   
   for (const payrollData of payrolls) {
     try {
-      const result = await upsertPayroll(payrollData, userId);
+      const result = await upsertPayroll(payrollData, userId, companyId);
       results.push(result);
     } catch (error) {
       console.error("Error creating payroll for employee:", error);

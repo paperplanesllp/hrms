@@ -9,7 +9,7 @@ import { notifyHRNewLeaveRequest, notifyUserLeaveStatus, getIO } from "../../uti
 
 export const postLeave = asyncHandler(async (req, res) => {
   const data = createLeaveSchema.parse(req.body);
-  const doc = await createLeave(req.user.id, data);
+  const doc = await createLeave(req.user.id, data, req.user.companyId);
   
   // Real-time notification to HR/Admin
   const startDate = new Date(data.fromDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -36,12 +36,14 @@ export const postLeave = asyncHandler(async (req, res) => {
   // Database notification for persistence
   const hrUsers = await User.find({ 
     role: { $in: [ROLES.HR, ROLES.ADMIN] },
+    companyId: req.user.companyId,
     _id: { $ne: req.user.id }
   }).select('_id');
   
   if (hrUsers.length > 0) {
     await createBulkNotifications({
       userIds: hrUsers.map(u => u._id),
+      companyId: req.user.companyId,
       type: "system",
       title: "New Leave Request",
       message: `Leave Request from ${req.user.name}: ${startDate} to ${endDate} (${data.reason || data.leaveType})`,
@@ -53,7 +55,7 @@ export const postLeave = asyncHandler(async (req, res) => {
 });
 
 export const getMyLeaves = asyncHandler(async (req, res) => {
-  const rows = await listMyLeaves(req.user.id);
+  const rows = await listMyLeaves(req.user.id, req.user.companyId);
   // Frontend expects the array directly in response.data
   res.json(rows);
 });
@@ -80,7 +82,7 @@ export const patchLeave = asyncHandler(async (req, res) => {
   const patch = updateLeaveSchema.parse(req.body);
   
   // Get the leave to check user's role
-  const leaveDoc = await Leave.findById(req.params.id).populate('userId', 'role');
+  const leaveDoc = await Leave.findOne({ _id: req.params.id, companyId: req.user.companyId }).populate('userId', 'role');
   if (!leaveDoc) {
     return res.status(404).json({ message: 'Leave not found' });
   }
@@ -106,10 +108,10 @@ export const patchLeave = asyncHandler(async (req, res) => {
     patch.rejectedBy = req.user.id;
   }
   
-  const doc = await updateLeave(req.params.id, patch);
+  const doc = await updateLeave(req.params.id, patch, req.user.companyId);
   
   // Get leave details for notifications
-  const leave = await Leave.findById(req.params.id).populate('userId', 'name');
+  const leave = await Leave.findOne({ _id: req.params.id, companyId: req.user.companyId }).populate('userId', 'name');
   if (leave && leave.userId._id.toString() !== req.user.id) {
     const isApproved = patch.status === 'APPROVED';
     const startDate = new Date(leave.fromDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -131,6 +133,7 @@ export const patchLeave = asyncHandler(async (req, res) => {
     
     await createBulkNotifications({
       userIds: [leave.userId._id],
+      companyId: req.user.companyId,
       type: "system",
       title: isApproved ? "Leave Approved ✅" : "Leave Rejected ❌",
       message,
@@ -142,7 +145,7 @@ export const patchLeave = asyncHandler(async (req, res) => {
 });
 
 export const deleteMyLeave = asyncHandler(async (req, res) => {
-  const doc = await deleteLeave(req.params.id, req.user.id);
+  const doc = await deleteLeave(req.params.id, req.user.id, req.user.companyId);
   
   // Notify user to refresh their leave balance
   const io = getIO();

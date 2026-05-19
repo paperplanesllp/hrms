@@ -3,10 +3,11 @@ import { User } from "../users/User.model.js";
 import { ROLES } from "../../middleware/roles.js";
 
 export const createNotification = async (data) => {
-  const { userId, newsId, policyId, type, title, message, targetUrl, isPolicyUpdate } = data;
+  const { userId, companyId, newsId, policyId, type, title, message, targetUrl, isPolicyUpdate } = data;
 
   // Check for existing notification to prevent duplicates
   const existingQuery = { userId };
+  if (companyId) existingQuery.companyId = companyId;
   if (newsId) existingQuery.newsId = newsId;
   if (policyId) existingQuery.policyId = policyId;
   
@@ -17,6 +18,7 @@ export const createNotification = async (data) => {
 
   const notification = new Notification({
     userId,
+    companyId,
     type,
     title,
     message,
@@ -30,13 +32,14 @@ export const createNotification = async (data) => {
 };
 
 export const createBulkNotifications = async (data) => {
-  const { userIds, type, title, message, targetUrl, newsId, policyId, isPolicyUpdate } = data;
+  const { userIds, companyId, type, title, message, targetUrl, newsId, policyId, isPolicyUpdate } = data;
   
   const notifications = [];
   for (const userId of userIds) {
     try {
       const notification = await createNotification({
         userId,
+        companyId,
         type,
         title,
         message,
@@ -54,34 +57,35 @@ export const createBulkNotifications = async (data) => {
   return notifications;
 };
 
-export const getUserNotifications = async (userId) => {
-  return await Notification.find({ userId, isRead: false })
+export const getUserNotifications = async (userId, companyId) => {
+  return await Notification.find({ userId, ...(companyId ? { companyId } : {}), isRead: false })
     .sort({ createdAt: -1 })
     .limit(50);
 };
 
-export const markNotificationRead = async (notificationId, userId) => {
+export const markNotificationRead = async (notificationId, userId, companyId) => {
   return await Notification.findOneAndUpdate(
-    { _id: notificationId, userId },
+    { _id: notificationId, userId, ...(companyId ? { companyId } : {}) },
     { isRead: true },
     { returnDocument: "after" }
   );
 };
 
-export const markAllNotificationsRead = async (userId) => {
+export const markAllNotificationsRead = async (userId, companyId) => {
   return await Notification.updateMany(
-    { userId, isRead: false },
+    { userId, ...(companyId ? { companyId } : {}), isRead: false },
     { isRead: true }
   );
 };
 
-export const createReminderNotifications = async (type, title, message, targetUrl) => {
+export const createReminderNotifications = async (type, title, message, targetUrl, companyId = null) => {
   // Get all users except Admin
-  const users = await User.find({ role: { $ne: ROLES.ADMIN } }).select('_id');
+  const users = await User.find({ role: { $ne: ROLES.ADMIN }, ...(companyId ? { companyId } : {}) }).select('_id');
   const userIds = users.map(user => user._id);
   
   return await createBulkNotifications({
     userIds,
+    companyId,
     type: "reminder",
     title,
     message,

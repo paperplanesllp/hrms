@@ -7,6 +7,12 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Company",
+    default: null,
+    index: true
+  },
   type: {
     type: String,
     enum: [
@@ -85,5 +91,6 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ userId: 1, newsId: 1 }, { sparse: true });
 notificationSchema.index({ userId: 1, policyId: 1 }, { sparse: true });
 notificationSchema.index({ userId: 1, isRead: 1 });
+notificationSchema.index({ companyId: 1, userId: 1, isRead: 1 });
 
 export default mongoose.model("Notification", notificationSchema);

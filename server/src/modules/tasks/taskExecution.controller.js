@@ -186,7 +186,7 @@ export const taskExecutionController = {
 
       console.log(`🚫 [blockTask] Blocking task ${id} by user ${userId}`);
 
-      const task = await taskExecutionService.blockTask(id, userId, reason);
+      const task = await taskExecutionService.blockTask(id, userId, reason, req.user.companyId);
 
       // Emit socket event
       notifyTaskStatusChanged(task, userId).catch(() => {});
@@ -222,7 +222,7 @@ export const taskExecutionController = {
 
       console.log(`🔓 [unblockTask] Unblocking task ${id}, blocker ${blockerId} by user ${userId}`);
 
-      const task = await taskExecutionService.unblockTask(id, blockerId, userId);
+      const task = await taskExecutionService.unblockTask(id, blockerId, userId, req.user.companyId);
 
       // Emit socket event
       notifyTaskStatusChanged(task, userId).catch(() => {});
@@ -258,7 +258,7 @@ export const taskExecutionController = {
 
       console.log(`👀 [sendForReview] Sending task ${id} for review by user ${userId}`);
 
-      const task = await taskExecutionService.sendForReview(id, userId);
+      const task = await taskExecutionService.sendForReview(id, userId, req.user.companyId);
 
       // Emit socket event
       notifyTaskStatusChanged(task, userId).catch(() => {});
@@ -328,7 +328,7 @@ export const taskExecutionController = {
     try {
       const { id } = req.params;
 
-      const task = await Task.findById(id)
+      const task = await Task.findOne({ _id: id, companyId: req.user.companyId, isDeleted: false })
         .select(
           'title executionStatus dueHealth startedAt completedAt lastActivityAt ' +
           'estimatedMinutes totalActiveMinutes totalPausedMinutes totalIdleMinutes ' +

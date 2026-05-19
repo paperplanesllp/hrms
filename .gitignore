@@ -10,6 +10,7 @@ dist/
 build/
 coverage/
 server/uploads/
+server/src/uploads/
 
 *.log
 .DS_Store

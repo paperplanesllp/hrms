@@ -1,4 +1,5 @@
 import { CallLog } from "./CallLog.model.js";
+import { Chat } from "../chat/Chat.model.js";
 import { getCallState } from "../../utils/callManager.js";
 import {
   removePushSubscription,
@@ -60,15 +61,21 @@ export const getCallLogs = async (req, res) => {
       return res.status(400).json({ error: "Conversation ID required" });
     }
 
-    const callLogs = await CallLog.find({ conversationId })
-      .populate("caller", "name _id profileImageUrl")
-      .populate("receiver", "name _id profileImageUrl")
-      .populate("endedBy", "name _id")
+    const companyId = req.user.companyId;
+    const chat = await Chat.findOne({ _id: conversationId, companyId, participants: req.user.id }).select("_id");
+    if (!chat) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    const callLogs = await CallLog.find({ conversationId, companyId })
+      .populate({ path: "caller", select: "name _id profileImageUrl", match: { companyId } })
+      .populate({ path: "receiver", select: "name _id profileImageUrl", match: { companyId } })
+      .populate({ path: "endedBy", select: "name _id", match: { companyId } })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 
-    const total = await CallLog.countDocuments({ conversationId });
+    const total = await CallLog.countDocuments({ conversationId, companyId });
 
     res.json({
       callLogs: callLogs.map(toClientCall),
@@ -86,21 +93,24 @@ export const getCallLogs = async (req, res) => {
  */
 export const getMissedCalls = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
+    const companyId = req.user.companyId;
     const { limit = 20, skip = 0 } = req.query;
 
     // Missed calls: where user is receiver and status is no_answer
     const missedCalls = await CallLog.find({
       receiver: userId,
+      companyId,
       status: "no_answer",
     })
-      .populate("caller", "name _id profileImageUrl")
+      .populate({ path: "caller", select: "name _id profileImageUrl", match: { companyId } })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 
     const total = await CallLog.countDocuments({
       receiver: userId,
+      companyId,
       status: "no_answer",
     });
 
@@ -137,9 +147,9 @@ export const getCallSessionById = async (req, res) => {
       });
     }
 
-    const callLog = await CallLog.findById(callId)
-      .populate("caller", "_id name profileImageUrl")
-      .populate("receiver", "_id name profileImageUrl");
+    const callLog = await CallLog.findOne({ _id: callId, companyId: req.user.companyId })
+      .populate({ path: "caller", select: "_id name profileImageUrl", match: { companyId: req.user.companyId } })
+      .populate({ path: "receiver", select: "_id name profileImageUrl", match: { companyId: req.user.companyId } });
 
     if (!callLog) {
       return res.status(404).json({ error: "Call not found" });

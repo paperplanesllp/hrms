@@ -259,7 +259,7 @@ export const postCheckOut = asyncHandler(async (req, res) => {
 export const getMine = asyncHandler(async (req, res) => {
   const from = String(req.query.from || "");
   const to = String(req.query.to || "");
-  const rows = await getMyAttendance(req.user.id, from, to);
+  const rows = await getMyAttendance(req.user.id, from, to, req.user.companyId);
   res.json(rows);
 });
 
@@ -281,14 +281,14 @@ export const patchAttendance = asyncHandler(async (req, res) => {
 
   const recordId = req.params.id;
   if (recordId) {
-    const targetRecord = await Attendance.findById(recordId).select("userId");
+    const targetRecord = await Attendance.findOne({ _id: recordId, companyId: req.user.companyId }).select("userId");
     if (!targetRecord) {
       throw new ApiError(StatusCodes.NOT_FOUND, "Attendance record not found");
     }
 
     await assertCanEditAttendanceTarget(req.user, targetRecord.userId);
 
-    const doc = await editAttendanceById(recordId, patch);
+    const doc = await editAttendanceById(recordId, patch, req.user.companyId);
     res.json({ attendance: doc });
   } else {
     const editAttendanceSchema = import("./attendance.schemas.js").then(m => m.editAttendanceSchema);
@@ -296,13 +296,13 @@ export const patchAttendance = asyncHandler(async (req, res) => {
     const doc = await editAttendanceHRorAdmin(req.body.userId, req.body.date, {
       checkIn: req.body.checkIn,
       checkOut: req.body.checkOut
-    });
+    }, req.user.companyId);
     res.json({ attendance: doc });
   }
 });
 
 export const patchShiftAdmin = asyncHandler(async (req, res) => {
-  const doc = await adminEditShift(req.body.userId, req.body.date, req.body.shiftStart, req.body.shiftEnd);
+  const doc = await adminEditShift(req.body.userId, req.body.date, req.body.shiftStart, req.body.shiftEnd, req.user.companyId);
   res.json({ attendance: doc });
 });
 
@@ -341,7 +341,7 @@ export const getAttendanceByDate = asyncHandler(async (req, res) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD");
   }
 
-  const attendance = await Attendance.findOne({ userId, date });
+  const attendance = await Attendance.findOne({ userId, date, companyId: req.user.companyId });
 
   res.json({
     success: true,

@@ -1,4 +1,5 @@
 import { AuditLog } from "./AuditLog.model.js";
+import { User } from "../users/User.model.js";
 
 export async function logAudit(data) {
   const {
@@ -9,11 +10,18 @@ export async function logAudit(data) {
     oldValue,
     newValue,
     userId,
+    companyId,
     userName,
     userRole,
     ipAddress,
     userAgent
   } = data;
+
+  let effectiveCompanyId = companyId;
+  if (!effectiveCompanyId && userId) {
+    const user = await User.findById(userId).select("companyId").lean();
+    effectiveCompanyId = user?.companyId || null;
+  }
 
   const auditLog = await AuditLog.create({
     action,
@@ -23,6 +31,7 @@ export async function logAudit(data) {
     oldValue,
     newValue,
     userId,
+    companyId: effectiveCompanyId,
     userName,
     userRole,
     ipAddress,
@@ -41,10 +50,11 @@ export async function getAuditLogs(options = {}) {
     action,
     userId,
     startDate,
-    endDate
+    endDate,
+    companyId
   } = options;
 
-  const query = {};
+  const query = companyId ? { companyId } : {};
 
   if (entity) query.entity = entity;
   if (action) query.action = action;
@@ -74,8 +84,8 @@ export async function getAuditLogs(options = {}) {
   };
 }
 
-export async function getRecentLogs(limit = 10) {
-  return AuditLog.find()
+export async function getRecentLogs(limit = 10, companyId = null) {
+  return AuditLog.find(companyId ? { companyId } : {})
     .populate("userId", "name email role")
     .sort({ createdAt: -1 })
     .limit(limit)

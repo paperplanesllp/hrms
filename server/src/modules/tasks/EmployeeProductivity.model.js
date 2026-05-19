@@ -9,6 +9,12 @@ const employeeProductivitySchema = new mongoose.Schema(
       unique: true,
       index: true
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true
+    },
 
     // Task Statistics
     totalTasks: {
@@ -163,5 +169,6 @@ employeeProductivitySchema.index({ completionRate: -1 });
 employeeProductivitySchema.index({ productivityScore: -1 });
 employeeProductivitySchema.index({ department: 1 });
 employeeProductivitySchema.index({ lastCalculatedAt: -1 });
+employeeProductivitySchema.index({ companyId: 1, productivityScore: -1 });
 
 export default mongoose.model('EmployeeProductivity', employeeProductivitySchema);

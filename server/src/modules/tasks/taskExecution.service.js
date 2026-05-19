@@ -19,6 +19,10 @@ import {
 } from './taskExecution.utils.js';
 import { TASK_TIMING_STATE } from './taskDeadline.utils.js';
 
+function taskLookup(taskId, companyId = null) {
+  return companyId ? Task.findOne({ _id: taskId, companyId, isDeleted: false }) : Task.findById(taskId);
+}
+
 export const taskExecutionService = {
   /**
    * Start a task
@@ -258,13 +262,13 @@ export const taskExecutionService = {
    * - Ends active work session
    * - Adds activity log entry
    */
-  async blockTask(taskId, userId, reason) {
+  async blockTask(taskId, userId, reason, companyId = null) {
     try {
       if (!reason || reason.trim().length === 0) {
         throw new Error('Blocker reason is required');
       }
 
-      const task = await Task.findById(taskId);
+      const task = await taskLookup(taskId, companyId);
       if (!task) throw new Error('Task not found');
 
       const user = { _id: userId, name: 'User' };
@@ -311,9 +315,9 @@ export const taskExecutionService = {
    * - Changes executionStatus back to 'in_progress' if all blockers resolved
    * - Adds activity log entry
    */
-  async unblockTask(taskId, blockerId, userId) {
+  async unblockTask(taskId, blockerId, userId, companyId = null) {
     try {
-      const task = await Task.findById(taskId);
+      const task = await taskLookup(taskId, companyId);
       if (!task) throw new Error('Task not found');
 
       const user = { _id: userId, name: 'User' };
@@ -356,9 +360,9 @@ export const taskExecutionService = {
    * - Ends active work session
    * - Adds activity log entry
    */
-  async sendForReview(taskId, userId) {
+  async sendForReview(taskId, userId, companyId = null) {
     try {
-      const task = await Task.findById(taskId);
+      const task = await taskLookup(taskId, companyId);
       if (!task) throw new Error('Task not found');
 
       const user = { _id: userId, name: 'User' };

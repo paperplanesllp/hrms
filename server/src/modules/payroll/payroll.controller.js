@@ -17,7 +17,7 @@ import { ROLES } from "../../middleware/roles.js";
 
 // Get current user's payroll
 export const getMinePayroll = asyncHandler(async (req, res) => {
-  const rows = await getMyPayroll(req.user.id);
+  const rows = await getMyPayroll(req.user.id, req.user.companyId);
   res.json(rows);
 });
 
@@ -43,7 +43,7 @@ export const getAllPayroll = asyncHandler(async (req, res) => {
 
 // Get single payroll by ID
 export const getPayrollRecord = asyncHandler(async (req, res) => {
-  const payroll = await getPayrollById(req.params.id);
+  const payroll = await getPayrollById(req.params.id, req.user.companyId);
   
   if (!payroll) {
     return res.status(404).json({ message: "Payroll record not found" });
@@ -62,7 +62,7 @@ export const getEmployeePayroll = asyncHandler(async (req, res) => {
     });
   }
   
-  const payroll = await getPayrollByEmployeeAndMonth(employeeId, month, parseInt(year));
+  const payroll = await getPayrollByEmployeeAndMonth(employeeId, month, parseInt(year), req.user.companyId);
   
   if (!payroll) {
     return res.status(404).json({ message: "Payroll record not found" });
@@ -75,7 +75,7 @@ export const getEmployeePayroll = asyncHandler(async (req, res) => {
 export const putPayroll = asyncHandler(async (req, res) => {
   const data = upsertPayrollSchema.parse(req.body);
   
-  const doc = await upsertPayroll(data, req.user.id);
+  const doc = await upsertPayroll(data, req.user.id, req.user.companyId);
   res.json({ payroll: doc });
 });
 
@@ -84,7 +84,7 @@ export const updatePaymentStatusHandler = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const data = updatePaymentStatusSchema.parse(req.body);
   
-  const payroll = await updatePaymentStatus(id, data, req.user.id);
+  const payroll = await updatePaymentStatus(id, data, req.user.id, req.user.companyId);
   
   if (!payroll) {
     return res.status(404).json({ message: "Payroll record not found" });
@@ -98,7 +98,7 @@ export const updatePaymentStatusHandler = asyncHandler(async (req, res) => {
 
 // Delete payroll record
 export const removePayroll = asyncHandler(async (req, res) => {
-  const payroll = await deletePayroll(req.params.id);
+  const payroll = await deletePayroll(req.params.id, req.user.companyId);
   
   if (!payroll) {
     return res.status(404).json({ message: "Payroll record not found" });

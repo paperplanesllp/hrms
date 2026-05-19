@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const employeeDocumentSchema = new mongoose.Schema(
   {
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     documentTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "DocumentType", required: true },
     
     // File details
@@ -38,6 +39,7 @@ const employeeDocumentSchema = new mongoose.Schema(
 
 // Index for quick lookups
 employeeDocumentSchema.index({ employeeId: 1, documentTypeId: 1 }, { unique: true });
+employeeDocumentSchema.index({ companyId: 1, submissionStatus: 1, deadline: 1 });
 employeeDocumentSchema.index({ submissionStatus: 1, isOverdue: 1 });
 employeeDocumentSchema.index({ deadline: 1, submissionStatus: 1 });
 

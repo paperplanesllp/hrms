@@ -10,19 +10,20 @@ async function getCompanyUserIds(companyId) {
   return users.map((u) => u._id);
 }
 
-export async function createLeave(userId, data) {
-  return Leave.create({ userId, ...data, status: "PENDING" });
+export async function createLeave(userId, data, companyId) {
+  if (!companyId) throw new ApiError(StatusCodes.FORBIDDEN, "Company context is required");
+  return Leave.create({ userId, companyId, ...data, status: "PENDING" });
 }
 
-export async function listMyLeaves(userId) {
-  return Leave.find({ userId })
+export async function listMyLeaves(userId, companyId) {
+  return Leave.find({ userId, ...(companyId ? { companyId } : {}) })
     .populate("approvedBy", "name")
     .populate("rejectedBy", "name")
     .sort({ createdAt: -1 });
 }
 
 export async function listAllLeaves(userRole, userId, searchTerm = '', department = '', companyId) {
-  let query = {};
+  let query = companyId ? { companyId } : {};
   
   // Filter by company users
   if (companyId) {
@@ -66,7 +67,7 @@ export async function listAllLeaves(userRole, userId, searchTerm = '', departmen
 
 export async function listHRLeaves(companyId) {
   // Get all leaves from HR staff only (for admin approval) within company
-  let query = {};
+  let query = companyId ? { companyId } : {};
   if (companyId) {
     const companyUserIds = await getCompanyUserIds(companyId);
     query.userId = { $in: companyUserIds };
@@ -85,7 +86,7 @@ export async function listHRLeaves(companyId) {
 
 export async function listUserLeaves(companyId) {
   // Get all leaves from regular users only (for HR approval) within company
-  let query = {};
+  let query = companyId ? { companyId } : {};
   if (companyId) {
     const companyUserIds = await getCompanyUserIds(companyId);
     query.userId = { $in: companyUserIds };
@@ -102,14 +103,14 @@ export async function listUserLeaves(companyId) {
   return userLeaves.filter(leave => leave.userId?.role === "USER");
 }
 
-export async function updateLeave(id, patch) {
-  const doc = await Leave.findByIdAndUpdate(id, { $set: patch }, { returnDocument: "after" });
+export async function updateLeave(id, patch, companyId) {
+  const doc = await Leave.findOneAndUpdate({ _id: id, ...(companyId ? { companyId } : {}) }, { $set: patch }, { returnDocument: "after" });
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "Leave not found");
   return doc;
 }
 
-export async function deleteLeave(id, userId) {
-  const doc = await Leave.findOneAndDelete({ _id: id, userId });
+export async function deleteLeave(id, userId, companyId) {
+  const doc = await Leave.findOneAndDelete({ _id: id, userId, ...(companyId ? { companyId } : {}) });
   if (!doc) throw new ApiError(StatusCodes.NOT_FOUND, "Leave not found");
   return doc;
 }

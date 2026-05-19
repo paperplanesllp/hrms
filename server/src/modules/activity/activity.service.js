@@ -20,14 +20,22 @@ export async function createActivityLog({
   description,
   targetUserId = null,
   targetUserName = null,
+  companyId = null,
   metadata = {},
   ipAddress = null,
   userAgent = null,
   visibility = "PUBLIC",
 }) {
   try {
+    let effectiveCompanyId = companyId;
+    if (!effectiveCompanyId && actorId) {
+      const actor = await User.findById(actorId).select("companyId").lean();
+      effectiveCompanyId = actor?.companyId || null;
+    }
+
     const activityLog = await ActivityLog.create({
       actorId,
+      companyId: effectiveCompanyId,
       actorName,
       actorRole,
       targetUserId,
@@ -69,7 +77,7 @@ export async function getActivityLogs(options = {}) {
     companyId,
   } = options;
 
-  const query = {};
+  const query = companyId ? { companyId } : {};
 
   if (module) query.module = module;
   if (actionType) query.actionType = actionType;
@@ -90,10 +98,12 @@ export async function getActivityLogs(options = {}) {
 
   if (companyId) {
     const companyUserIds = await getCompanyUserIds(companyId);
-    query.$or = [
+    query.$and = [{
+      $or: [
       { actorId: { $in: companyUserIds } },
       { targetUserId: { $in: companyUserIds } }
-    ];
+      ]
+    }];
   }
 
   const logs = await ActivityLog.find(query)
@@ -120,6 +130,7 @@ export async function getActivityLogs(options = {}) {
  */
 export async function getUserActivities(userId, limit = 20, companyId) {
   const query = { actorId: userId };
+  if (companyId) query.companyId = companyId;
   if (companyId) {
     const companyUserIds = await getCompanyUserIds(companyId);
     query.actorId = { $in: companyUserIds, $eq: userId };
@@ -140,6 +151,7 @@ export async function getHRTimeline(options = {}) {
   const { companyId } = options;
 
   const query = {
+    ...(companyId ? { companyId } : {}),
     $or: [
       { module: "AUTH" },
       { module: "PROFILE" },
@@ -190,6 +202,7 @@ export async function getAdminTimeline(options = {}) {
   const { companyId } = options;
 
   const query = {
+    ...(companyId ? { companyId } : {}),
     $or: [
       // All staff activities (from HR timeline)
       { module: "AUTH" },

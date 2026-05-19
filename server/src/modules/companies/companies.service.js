@@ -156,106 +156,29 @@ async function runCompanyDelete(companyId, session = null) {
   const userIds = await User.find({ companyId: companyObjectId })
     .session(session)
     .distinct("_id");
-  const taskIds = await Task.find({ companyId: companyObjectId })
-    .session(session)
-    .distinct("_id");
-  const worksheetIds = userIds.length
-    ? await Worksheet.find({ userId: { $in: userIds } }).session(session).distinct("_id")
-    : [];
-  const chatIds = userIds.length
-    ? await Chat.find({ participants: { $in: userIds } }).session(session).distinct("_id")
-    : [];
-
   const counts = {};
   const record = async (name, countPromise) => {
     counts[name] = await countPromise;
   };
 
   const userScoped = userIds.length ? { $in: userIds } : { $in: [] };
-  const taskScoped = taskIds.length ? { $in: taskIds } : { $in: [] };
-  const worksheetScoped = worksheetIds.length ? { $in: worksheetIds } : { $in: [] };
-  const chatScoped = chatIds.length ? { $in: chatIds } : { $in: [] };
-
-  await record("notifications", deleteManyAndCount(Notification, {
-    $or: [
-      { userId: userScoped },
-      { triggeredBy: userScoped },
-      { taskId: taskScoped },
-    ],
-  }, session));
-  await record("messages", deleteManyAndCount(Message, {
-    $or: [
-      { chatId: chatScoped },
-      { sender: userScoped },
-      { readBy: userScoped },
-    ],
-  }, session));
-  await record("callLogs", deleteManyAndCount(CallLog, {
-    $or: [
-      { caller: userScoped },
-      { receiver: userScoped },
-      { initiatedBy: userScoped },
-      { endedBy: userScoped },
-      { conversationId: chatScoped },
-    ],
-  }, session));
-  await record("chats", deleteManyAndCount(Chat, { _id: chatScoped }, session));
-  await record("taskHistory", deleteManyAndCount(TaskHistory, {
-    $or: [
-      { taskId: taskScoped },
-      { performedBy: userScoped },
-      { fromUser: userScoped },
-      { toUser: userScoped },
-    ],
-  }, session));
-  await record("subTasks", deleteManyAndCount(SubTask, {
-    $or: [
-      { taskId: taskScoped },
-      { assignedTo: userScoped },
-    ],
-  }, session));
+  await record("notifications", deleteManyAndCount(Notification, { companyId: companyObjectId }, session));
+  await record("messages", deleteManyAndCount(Message, { companyId: companyObjectId }, session));
+  await record("callLogs", deleteManyAndCount(CallLog, { companyId: companyObjectId }, session));
+  await record("chats", deleteManyAndCount(Chat, { companyId: companyObjectId }, session));
+  await record("taskHistory", deleteManyAndCount(TaskHistory, { companyId: companyObjectId }, session));
+  await record("subTasks", deleteManyAndCount(SubTask, { companyId: companyObjectId }, session));
   await record("taskExtensionRequests", deleteCollectionManyAndCount("extensionrequests", {
-    $or: [
-      { taskId: taskScoped },
-      { requestedBy: userScoped },
-      { requestedFrom: userScoped },
-      { approvedBy: userScoped },
-      { worksheetId: worksheetScoped },
-      { userId: userScoped },
-    ],
+    companyId: companyObjectId,
   }, session));
-  await record("employeeProductivity", deleteManyAndCount(EmployeeProductivity, {
-    employeeId: userScoped,
-  }, session));
+  await record("employeeProductivity", deleteManyAndCount(EmployeeProductivity, { companyId: companyObjectId }, session));
   await record("tasks", deleteManyAndCount(Task, { companyId: companyObjectId }, session));
-  await record("attendance", deleteManyAndCount(Attendance, { userId: userScoped }, session));
-  await record("leaves", deleteManyAndCount(Leave, {
-    $or: [
-      { userId: userScoped },
-      { approvedBy: userScoped },
-      { rejectedBy: userScoped },
-    ],
-  }, session));
-  await record("payroll", deleteManyAndCount(Payroll, {
-    $or: [
-      { userId: userScoped },
-      { createdBy: userScoped },
-      { updatedBy: userScoped },
-    ],
-  }, session));
-  await record("worksheets", deleteManyAndCount(Worksheet, { userId: userScoped }, session));
-  await record("employeeDocuments", deleteManyAndCount(EmployeeDocument, {
-    $or: [
-      { employeeId: userScoped },
-      { reviewedBy: userScoped },
-    ],
-  }, session));
-  await record("documentTypes", deleteManyAndCount(DocumentType, {
-    $or: [
-      { createdBy: userScoped },
-      { departmentIds: { $in: await Department.find({ companyId: companyObjectId }).session(session).distinct("_id") } },
-    ],
-  }, session));
+  await record("attendance", deleteManyAndCount(Attendance, { companyId: companyObjectId }, session));
+  await record("leaves", deleteManyAndCount(Leave, { companyId: companyObjectId }, session));
+  await record("payroll", deleteManyAndCount(Payroll, { companyId: companyObjectId }, session));
+  await record("worksheets", deleteManyAndCount(Worksheet, { companyId: companyObjectId }, session));
+  await record("employeeDocuments", deleteManyAndCount(EmployeeDocument, { companyId: companyObjectId }, session));
+  await record("documentTypes", deleteManyAndCount(DocumentType, { companyId: companyObjectId }, session));
   await record("complaints", deleteManyAndCount(Complaint, {
     $or: [
       { companyId: companyObjectId },
@@ -285,13 +208,8 @@ async function runCompanyDelete(companyId, session = null) {
   }, session));
   await record("news", deleteManyAndCount(News, { createdBy: userScoped }, session));
   await record("leaveTypes", deleteManyAndCount(LeaveType, { createdBy: userScoped }, session));
-  await record("auditLogs", deleteManyAndCount(AuditLog, { userId: userScoped }, session));
-  await record("activityLogs", deleteManyAndCount(ActivityLog, {
-    $or: [
-      { actorId: userScoped },
-      { targetUserId: userScoped },
-    ],
-  }, session));
+  await record("auditLogs", deleteManyAndCount(AuditLog, { companyId: companyObjectId }, session));
+  await record("activityLogs", deleteManyAndCount(ActivityLog, { companyId: companyObjectId }, session));
   await record("designations", deleteManyAndCount(Designation, { companyId: companyObjectId }, session));
   await record("departments", deleteManyAndCount(Department, { companyId: companyObjectId }, session));
   await record("users", deleteManyAndCount(User, { companyId: companyObjectId }, session));

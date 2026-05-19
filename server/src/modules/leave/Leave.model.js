@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const leaveSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     fromDate: { type: String, required: true }, // YYYY-MM-DD
     toDate: { type: String, required: true },   // YYYY-MM-DD
     leaveType: { type: String, default: "Personal" }, // Personal, Sick, Vacation, etc.
@@ -14,5 +15,7 @@ const leaveSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+leaveSchema.index({ companyId: 1, status: 1, fromDate: 1 });
 
 export const Leave = mongoose.model("Leave", leaveSchema);

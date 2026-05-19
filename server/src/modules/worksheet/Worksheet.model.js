@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const worksheetSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     date: { type: String, required: true },
     task: { type: String, required: true },
     hours: { type: Number, required: true, min: 0, max: 24 },
@@ -49,5 +50,6 @@ const worksheetSchema = new mongoose.Schema(
 worksheetSchema.index({ userId: 1, date: 1 }); // Optimize for date queries
 worksheetSchema.index({ userId: 1 }); // Optimize for user queries
 worksheetSchema.index({ date: 1 });
+worksheetSchema.index({ companyId: 1, date: 1 });
 
 export const Worksheet = mongoose.model("Worksheet", worksheetSchema);

@@ -13,7 +13,9 @@
     "validate:timing": "node src/scripts/validateTaskTimingSystem.js",
     "timing:backfill:dry": "node src/scripts/backfillTaskTiming.js --dry-run",
     "timing:backfill:apply": "node src/scripts/backfillTaskTiming.js --apply",
-    "migrate:task-company-id": "node scripts/backfill-task-company-id.js"
+    "migrate:task-company-id": "node scripts/backfill-task-company-id.js",
+    "tenant:backfill:dry": "node scripts/backfill-tenant-company-id.js",
+    "tenant:backfill:apply": "node scripts/backfill-tenant-company-id.js --apply"
   },
   "keywords": [],
   "author": "",

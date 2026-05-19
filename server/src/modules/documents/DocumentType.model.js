@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const documentTypeSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     description: { type: String, default: "" },
     
     // Who needs to submit this document
@@ -31,5 +32,7 @@ const documentTypeSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+documentTypeSchema.index({ companyId: 1, name: 1 });
 
 export const DocumentType = mongoose.model("DocumentType", documentTypeSchema);

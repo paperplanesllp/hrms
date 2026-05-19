@@ -17,7 +17,8 @@ export const getLogs = asyncHandler(async (req, res) => {
     entity,
     action,
     startDate,
-    endDate
+    endDate,
+    companyId: req.user.companyId
   });
 
   res.json(logs);
@@ -25,6 +26,6 @@ export const getLogs = asyncHandler(async (req, res) => {
 
 export const getRecentUpdates = asyncHandler(async (req, res) => {
   const { limit = 10 } = req.query;
-  const logs = await getRecentLogs(parseInt(limit));
+  const logs = await getRecentLogs(parseInt(limit), req.user.companyId);
   res.json({ logs });
 });

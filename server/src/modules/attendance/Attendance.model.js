@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const attendanceSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     date: { type: String, required: true, index: true }, // YYYY-MM-DD in IST
     checkIn: { type: String, default: "" },  // "09:20" in 24-hour format
     checkOut: { type: String, default: "" }, // "18:40" in 24-hour format
@@ -41,5 +42,6 @@ const attendanceSchema = new mongoose.Schema(
 );
 
 attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ companyId: 1, date: 1 });
 
 export const Attendance = mongoose.model("Attendance", attendanceSchema);

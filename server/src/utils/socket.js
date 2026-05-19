@@ -113,6 +113,7 @@ export const initializeSocket = (server) => {
       socket.userName = user.name;
       socket.userEmail = user.email;
       socket.userImage = user.profileImageUrl;
+      socket.companyId = user.companyId ? user.companyId.toString() : null;
       
       console.log("[Socket.IO] Auth succeeded", {
         userName: user.name,

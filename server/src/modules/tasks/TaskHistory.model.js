@@ -8,6 +8,12 @@ const taskHistorySchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true
+    },
 
     // Who performed the action
     performedBy: {
@@ -87,5 +93,6 @@ taskHistorySchema.index({ taskId: 1, timestamp: -1 });
 taskHistorySchema.index({ performedBy: 1 });
 taskHistorySchema.index({ action: 1 });
 taskHistorySchema.index({ taskId: 1, action: 1 });
+taskHistorySchema.index({ companyId: 1, timestamp: -1 });
 
 export default mongoose.model('TaskHistory', taskHistorySchema);

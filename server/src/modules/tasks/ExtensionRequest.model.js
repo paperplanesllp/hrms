@@ -8,6 +8,12 @@ const extensionRequestSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      default: null,
+      index: true
+    },
 
     requestedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -93,6 +99,7 @@ const extensionRequestSchema = new mongoose.Schema(
 extensionRequestSchema.index({ taskId: 1, status: 1 });
 extensionRequestSchema.index({ requestedFrom: 1, status: 1 });
 extensionRequestSchema.index({ requestedBy: 1, createdAt: -1 });
+extensionRequestSchema.index({ companyId: 1, status: 1, createdAt: -1 });
 
 const ExtensionRequest = mongoose.model('ExtensionRequest', extensionRequestSchema);
 

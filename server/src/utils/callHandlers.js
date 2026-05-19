@@ -1,4 +1,5 @@
 import { CallLog } from "../modules/calls/CallLog.model.js";
+import { User } from "../modules/users/User.model.js";
 import { Chat } from "../modules/chat/Chat.model.js";
 import { Message } from "../modules/chat/Message.model.js";
 import { notifyNewMessage } from "./socket.js";
@@ -305,6 +306,16 @@ export const registerCallHandlers = (io, socket) => {
         return;
       }
 
+      const receiver = await User.findOne({
+        _id: resolvedReceiverId,
+        companyId: socket.companyId,
+      }).select("_id");
+
+      if (!socket.companyId || !receiver) {
+        emitCallError(socket, CALL_ERROR.INVALID_CALL_TARGET);
+        return;
+      }
+
       if (isUserBusy(callerId)) {
         emitCallError(socket, CALL_ERROR.SELF_BUSY);
         return;
@@ -315,6 +326,7 @@ export const registerCallHandlers = (io, socket) => {
 
         const busyLog = await CallLog.create({
           caller: callerId,
+          companyId: socket.companyId,
           receiver: resolvedReceiverId,
           conversationId: conversationId || undefined,
           callType,
@@ -334,6 +346,7 @@ export const registerCallHandlers = (io, socket) => {
 
       const callLog = await CallLog.create({
         caller: callerId,
+        companyId: socket.companyId,
         receiver: resolvedReceiverId,
         conversationId: conversationId || undefined,
         callType,

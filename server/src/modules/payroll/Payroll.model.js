@@ -4,6 +4,7 @@ const payrollSchema = new mongoose.Schema(
   {
     // Employee Reference
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", default: null, index: true },
 
     // Payroll Period
     month: { type: String, required: true }, // "2026-03"
@@ -52,6 +53,7 @@ payrollSchema.index({ userId: 1, month: 1, year: 1 }, { unique: true });
 
 // Index for efficient filtering
 payrollSchema.index({ paymentStatus: 1, year: 1, month: 1 });
+payrollSchema.index({ companyId: 1, year: 1, month: 1 });
 payrollSchema.index({ createdAt: -1 });
 
 export const Payroll = mongoose.model("Payroll", payrollSchema);

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { tasksController } from './tasks.controller.js';
+import { taskExecutionController } from './taskExecution.controller.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireRole, ROLES } from '../../middleware/roles.js';
 import rateLimit from 'express-rate-limit';
@@ -23,6 +24,7 @@ router.get('/debug/diagnostics', tasksController.getTasksDiagnostics);
 router.get('/analytics/all', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getAllTasksAnalytics);
 router.get('/analytics/team-performance', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.getTeamPerformanceAnalytics);
 router.get('/analytics/completion-trends', tasksController.getTaskCompletionTrends);
+router.get('/analytics/completion-trend', tasksController.getTaskCompletionTrends);
 router.get('/analytics/export/pdf', requireRole([ROLES.ADMIN, ROLES.HR]), tasksController.exportTaskAnalyticsPdf);
 
 // My tasks routes
@@ -93,9 +95,14 @@ router.post('/:id/start', tasksController.startTask);
 router.post('/:id/pause', tasksController.pauseTask);
 router.post('/:id/resume', tasksController.resumeTask);
 router.post('/:id/complete', tasksController.completeTask);
+router.post('/:id/block', taskExecutionController.blockTask);
+router.post('/:id/unblock/:blockerId', taskExecutionController.unblockTask);
+router.post('/:id/send-for-review', taskExecutionController.sendForReview);
+router.get('/:id/execution-details', taskExecutionController.getExecutionDetails);
 router.post('/:id/request-extension', tasksController.requestTaskExtension);
 router.post('/:id/reject', tasksController.rejectTask);
 router.get('/:id/analysis', tasksController.getTaskAnalysis);
+router.get('/:id/history', tasksController.getTaskTimeline);
 
 // ─── TASK REMINDER ROUTES ───────────────────────────────────────────────────────────
 // Get incomplete tasks summary for current user

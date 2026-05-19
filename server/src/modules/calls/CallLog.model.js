@@ -8,6 +8,12 @@ const callLogSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      default: null,
+      index: true,
+    },
     receiver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -100,6 +106,10 @@ const callLogSchema = new mongoose.Schema(
     ]
   }
 );
+
+callLogSchema.index({ companyId: 1, conversationId: 1, createdAt: -1 });
+callLogSchema.index({ companyId: 1, caller: 1, createdAt: -1 });
+callLogSchema.index({ companyId: 1, receiver: 1, createdAt: -1 });
 
 callLogSchema.pre("validate", function syncLegacyAndCanonicalFields() {
   const mapToCanonical = {
